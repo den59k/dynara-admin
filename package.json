@@ -1,0 +1,27 @@
+{
+  "name": "marci-admin",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch packages/dev-app/src/main.ts"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "dependencies": {
+    "@den59k/marci": "^0.0.12",
+    "compact-json-schema": "^0.1.0"
+  },
+  "devDependencies": {
+    "@eckidevs/bun-plugin-vue": "^0.3.0",
+    "@types/bun": "latest",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/compiler-sfc": "^3.5.22",
+    "sass": "^1.93.2",
+    "vite": "^7.1.12",
+    "vue": "^3.5.22"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts"
+  },
+  "dependencies": {
+    "compact-json-schema": "^0.1.0"
+  }
+}

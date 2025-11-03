@@ -1,0 +1,14 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts"
+  },
+  "dependencies": {
+    "@vueuse/core": "^14.0.0",
+    "vue-router": "^4.6.3",
+    "vuesix": "^1.0.44"
+  }
+}

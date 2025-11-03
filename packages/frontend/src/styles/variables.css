@@ -1,0 +1,32 @@
+:root {
+  --primary-color: #3B40D5;
+  --primary-color-hover: color-mix(in srgb, var(--primary-color) 85%, white);
+  --primary-color-pressed: color-mix(in srgb, var(--primary-color) 90%, black);
+
+  --focus-color: color-mix(in srgb, #3B40D5 40%, transparent);
+
+  --paper-color: #161618;
+  --background-color: #1B1B1F;
+  --popover-color: #161618;
+  
+  --text-color: #FFFFFF;
+
+  --border-color: #252529;
+
+  --text-unselected-color: #A9A9B1;
+  --text-secondary-color: #777781;
+  --placeholder-color: #777781;
+
+  --input-border-color: #2E2E32;
+
+  --hover-color: rgba(255, 255, 255, 0.01);
+
+  --error-color: #DE3D5D;
+  
+  /* Selected */
+  --selected-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  --selected-hover-color: color-mix(in srgb, var(--primary-color) 20%, white);
+
+  /* Active background */
+  --background-active-color: rgb(255 255 255 / 0.04);
+}

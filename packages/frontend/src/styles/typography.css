@@ -1,0 +1,31 @@
+body, input, button, textarea, label {
+  font-family: "Inter", sans-serif;
+}
+
+body {
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+h1 {
+  font-size: 24px;
+  margin-top: 0;
+  margin-bottom: 20px
+}
+
+a {
+  color: var(--text-active-color);
+  text-decoration: none;
+  
+}
+a:hover {
+  text-decoration: underline;
+}
+
+.text-pre {
+  white-space: pre-wrap;
+}
+
+.text-secondary {
+  color: var(--text-secondary-color);
+}

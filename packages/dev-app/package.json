@@ -1,0 +1,12 @@
+{
+  "name": "dev-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts"
+  },
+  "dependencies": {
+    "ravendb": "^7.1.3"
+  }
+}

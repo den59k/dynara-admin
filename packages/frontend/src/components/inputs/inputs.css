@@ -1,0 +1,14 @@
+.v-input-object {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.v-input-object__row {
+  display: flex;
+  gap: 16px;
+}
+
+.v-input-object__row>div {
+  flex: 1 1 50px;
+}
