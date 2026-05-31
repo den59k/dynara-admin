@@ -1,5 +1,4 @@
 import { type AdminPanel } from "../../../backend/src/main";
-// import { ravendb } from "../plugins/ravendb";
 import { schema } from 'compact-json-schema'
 import { db } from "../plugins/db";
 

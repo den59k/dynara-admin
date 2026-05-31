@@ -3,13 +3,15 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/main.ts"
+    "dev": "bun --watch src/main.ts",
+    "build": "bunup src/main.ts"
   },
   "dependencies": {
     "marci-orm": "*"
   },
   "devDependencies": {
     "@den59k/marci": "*",
+    "bunup": "^0.16.31",
     "compact-json-schema": "*"
   },
   "peerDependencies": {
