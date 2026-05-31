@@ -1,8 +1,11 @@
 # marci-admin
 
+[![NPM version](https://img.shields.io/npm/v/marci-admin)](https://www.npmjs.com/package/marci-admin)
+
 A headless admin panel framework for [Bun](https://bun.sh), built as a plugin for the [`@den59k/marci`](https://github.com/den59k/marci) web framework. You define pages with a fluent builder API; `marci-admin` handles routing, auth, and serves a built-in Vue 3 UI.
 
 > **Status:** early development, API may change between versions.
+
 
 ---
 
@@ -57,10 +60,10 @@ adminPanel.registerAuthMethod({
 // Define a CRUD page
 adminPanel
   .createPage({ title: "Users", path: "users" })
-  .primaryKey("id", "number")
   .data(async ({ take, skip }) => db.users.findMany({ take, skip }))
+  .primaryKey("id", "number")
   .item(async (id) => db.users.findFirst({ where: { id } }))
-  .table({ id: {}, name: {}, email: {} })
+  .table({ id: true, name: true, email: true })
   .createForm(userSchema, async (data) => db.users.create(data))
   .updateForm(userSchema, async (id, data) => db.users.update({ where: { id }, data }))
   .onDelete(async (ids) => db.users.deleteMany({ where: { id: { in: ids } } }));
@@ -77,8 +80,8 @@ The admin panel is available at `http://localhost:3000/admin`.
 
 | Method | Description |
 |---|---|
-| `.primaryKey(field, type)` | Declare the identity field (`"number"` or `"string"`) |
 | `.data(fn)` | Fetch the list — receives `{ take, skip }`, returns `{ rows, count }` |
+| `.primaryKey(field, type)` | Declare the identity field (`"number"` or `"string"`) |
 | `.item(fn)` | Fetch a single record by id |
 | `.table(columns)` | Configure which columns appear in the table view |
 | `.createForm(schema, fn)` | Form schema + async handler for record creation |
