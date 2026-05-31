@@ -3,7 +3,7 @@
   <VButton v-if="selectedItems.length > 0 && tableData?.allowDelete" @click="deleteItems">
     <VIcon icon="delete" /> Удалить {{ selectedItems.length > 1? "элементы": "элемент" }}
   </VButton>
-  <VButton v-else @click="addItem">Добавить элемент</VButton>
+  <VButton v-else-if="data" @click="addItem">Добавить элемент</VButton>
   <VTable 
     v-if="tableData && data" 
     :item-key="tableData.primaryKey"

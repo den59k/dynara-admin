@@ -1,13 +1,21 @@
-import { type MarciApp } from "@den59k/marci";
+import { type MarciApp, HTTPError } from "@den59k/marci";
 // import type { ViteDevServer } from "vite";
 import frontendIndex from '../../frontend/index.html'
 import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
 
 type AdminPanelPlugin<T extends any[]> = (app: AdminPanel, ...options: T) => void | Promise<void>
 
+type AuthMethod<T extends SchemaItem, K> = {
+  title?: string,
+  fields: T, 
+  onLogin: (data: SchemaType<T>) => K | Promise<K>,
+  onRequest: (token: K) => void | Promise<void>
+}
+
 export type AdminPanel = {
   createPage<T extends object, K extends keyof T>(options: CreatePageOptions): Page<T>,
   register<T extends any[]>(func: AdminPanelPlugin<T>, ...options: T): void
+  registerAuthMethod<T extends SchemaItem, K>(method: AuthMethod<T, K>): void
 }
 
 export type AdminPanelMarci = ((app: MarciApp<any>) => Promise<void>) & AdminPanel
@@ -33,11 +41,32 @@ export const createAdminPanel = (): AdminPanelMarci => {
   const plugins: [AdminPanelPlugin<any>, any][] = []
 
   const pages: PageEntry[] = []
+  let authMethod: AuthMethod<any, any> | null = null
 
   const plugin = async (app: MarciApp) => {
-
     for (let childPlugin of plugins as any) {
       await childPlugin[0](plugin, ...childPlugin[1])
+    }
+
+    if (authMethod) {
+      app.addHook("onRequest", async (req) => {
+        if (req.raw.url.endsWith("/auth")) {
+          return
+        }
+        let token = req.raw.headers.get("Authorization")
+        if (!token) throw new HTTPError("Authorization required", 403)
+        if (token.startsWith("Bearer ")) token = token.slice(7)
+        await authMethod!.onRequest(token)
+      })
+
+      app.get("/api/admin/auth", () => {
+        return { title: authMethod!.title, fields: authMethod!.fields }
+      })
+      const loginSchema = authMethod.fields
+      app.post("/api/admin/auth", { body: loginSchema }, async (req) => {
+        // @ts-ignore
+        return await authMethod!.onLogin(req.body)
+      })
     }
 
     app.get("/api/admin/pages", async (req) => {
@@ -172,6 +201,11 @@ export const createAdminPanel = (): AdminPanelMarci => {
 
   plugin.register = <T extends any[]>(func: AdminPanelPlugin<T>, ...options: T) => {
     plugins.push([func, options])
+  }
+
+  plugin.registerAuthMethod = <T extends SchemaItem>(method: AuthMethod<T, any>) => { 
+    method.fields = unfoldSchema(method.fields)
+    authMethod = method
   }
   
   return plugin as any

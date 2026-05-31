@@ -1,6 +1,13 @@
 <template>
   <VFormControl class="v-input-text" :label-id="labelId" :label="props.label" :error="error" outline>
-    <input ref="inputRef" :id="labelId" v-model="model" :name="name" :placeholder="placeholder"/>
+    <input 
+      :id="labelId" 
+      v-model="model" 
+      ref="inputRef" 
+      :type="props.hidden? 'password': undefined" 
+      :name="name" 
+      :placeholder="placeholder"
+    />
   </VFormControl>
 </template>
 
@@ -14,6 +21,7 @@ const props = defineProps<{
   error?: string, 
   autofocus?: boolean, 
   name?: string, 
+  hidden?: boolean,
   placeholder?: string 
 }>()
 const model = defineModel<string>()

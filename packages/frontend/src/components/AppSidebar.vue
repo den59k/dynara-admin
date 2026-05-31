@@ -4,14 +4,29 @@
     <RouterLink v-for="page in data" :to="`/data/${page.path}`">
       {{ page.title }}
     </RouterLink>
+    <button style="margin-top: auto">
+      <VIcon icon="logout"/>
+      Выйти из аккаунта
+    </button>
   </aside>
 </template>
 
 <script lang="ts" setup>
 import { useRequest } from 'vuesix';
 import { dataApi } from '../api/dataApi';
+import { watch } from 'vue';
+import { HTTPError } from '../api/request';
+import { useRouter } from 'vue-router';
+import VIcon from './VIcon.vue';
 
-const { data } = useRequest(dataApi.getPages)
+const { data, error } = useRequest(dataApi.getPages)
+
+const router = useRouter()
+watch(error, (error) => {
+  if (error && error instanceof HTTPError && error.statusCode === 403) {
+    router.push("/auth")
+  }
+})
 
 </script>
 
@@ -26,14 +41,14 @@ const { data } = useRequest(dataApi.getPages)
   box-sizing: border-box
   display: flex
   flex-direction: column
-  padding-top: 20px
+  padding: 20px 0
 
   &>h3
     margin-top: 0
     margin-bottom: 16px
     padding: 0 24px
 
-  &>a
+  &>a, &>button
     text-decoration: none 
     height: 40px
     padding: 0 16px
@@ -41,11 +56,17 @@ const { data } = useRequest(dataApi.getPages)
     align-items: center
     border-radius: 8px
     margin: 0 6px
+    background: none
+    border: none
+    color: var(--text-unselected-color)
+    gap: 8px
+    cursor: pointer
 
     &:hover
       background-color: var(--hover-color)
 
     &.router-link-active
       background-color: var(--background-active-color)
+      color: var(--text-color)
 
 </style>

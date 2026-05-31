@@ -24,12 +24,14 @@ const InputObject = {
     let groupLength = 0
 
     for (let [key, schema] of Object.entries(props.schema.properties ?? {})) {
+      const { width, ...otherProps } = schema
       const item = { 
-        schema: schema, 
+        schema, 
         key,
-        label: schema.label ?? key,
+        label: key,
         name: key,
-        style: schema.width? { flexGrow: schema.width * 100 }: undefined,
+        style: width? { flexGrow: width * 100 }: undefined,
+        ...otherProps,
         "onUpdate:modelValue"(value: any) {
           if (!props.modelValue) {
             const modelValue = { [key]: value }
@@ -40,16 +42,16 @@ const InputObject = {
         } 
       }
 
-      if ((!schema.width && group.length > 0) || (schema.width && groupLength+schema.width > 1.01)) {
+      if ((!width && group.length > 0) || (width && groupLength+width > 1.01)) {
         // children.push(h('div', { class: "v-input-object__row" }, group))
         children.push(group)
         group = []
         groupLength = 0
       }
       
-      if (schema.width) {
+      if (width) {
         group.push(item)
-        groupLength += schema.width
+        groupLength += width
         continue
       }
 

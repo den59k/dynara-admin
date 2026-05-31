@@ -1,8 +1,9 @@
-import { MarciApp } from "@den59k/marci";
+import { MarciApp, HTTPError } from "@den59k/marci";
 import { join } from 'node:path'
 import { Glob, type BunRequest } from "bun";
 import { createAdminPanel } from "../../backend/src/main";
 import { db } from "./plugins/db";
+import { generateToken, verifyToken } from "./utils/generateSecretToken";
 
 const app = new MarciApp();
 
@@ -40,6 +41,28 @@ for await (const routeFile of adminPages.scan({ cwd: join(__dirname, "routes-adm
   }
   adminPanel.register(module.default, routeFile.slice(0, routeFile.indexOf(".")))
 }
+
+const accounts: Record<string, string> = {
+  root: "123123"
+}
+adminPanel.registerAuthMethod({
+  fields: {
+    login:{ type: "string", label: "Логин" }, 
+    password: { type: "string", label: "Пароль", hidden: true } 
+  },
+  async onLogin(data) {
+    if (!accounts[data.login] || accounts[data.login] !== data.password) {
+      throw new HTTPError("Wrong login or password", 403)
+    }
+    return generateToken({ login: data.login })
+  },
+  async onRequest(token) {
+    const data = verifyToken(token)
+    if (!data) {
+      throw new HTTPError("Wrong token")
+    }
+  }
+})
 
 app.register(adminPanel)
 

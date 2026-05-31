@@ -1,16 +1,26 @@
 <template>
-  <AppSidebar />
+  <AppSidebar v-if="router.currentRoute.value.path !== '/auth'" />
   <VDialogProvider/>
-  <div class="app-layout">
+  <RouterView v-if="router.currentRoute.value.path === '/auth'" />
+  <div v-else class="app-layout">
     <RouterView />
   </div>
 </template>
 
 <script lang="ts" setup>
-import { RouterView } from 'vue-router';
+import { RouterView, useRouter } from 'vue-router';
 import AppSidebar from './components/AppSidebar.vue';
 import VDialogProvider from './components/VDialogProvider.vue';
+import { setJwt } from './api/request';
 
+const router = useRouter()
+
+const token = window.localStorage.getItem("marci-admin__token")
+if (token) {
+  setJwt(token)
+} else {
+  router.push("/auth")
+}
 
 </script>
 

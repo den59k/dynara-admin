@@ -32,6 +32,7 @@ const props = defineProps<{
   font-weight: 500
   gap: 6px
   cursor: pointer
+  justify-content: center
   
   &:hover
     background-color: var(--primary-color-hover)

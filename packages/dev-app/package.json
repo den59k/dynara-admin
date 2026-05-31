@@ -7,7 +7,7 @@
     "dev": "bun --watch src/main.ts"
   },
   "dependencies": {
-    "marci-orm": "*",
+    "marci-orm": "workspace:*",
     "ravendb": "^7.1.3"
   }
 }
