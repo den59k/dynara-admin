@@ -128,7 +128,7 @@ const generateSelectSQL = <T extends TableSchema>(args: any[], table: Table<T>, 
 }
 
 const generateDeleteSQL = <T extends TableSchema>(args: any[], table: Table<T>, schema: any, where: GetWhere<T, any>): string => {
-  let str = `DELETE FROM ${table.name}`
+  let str = `DELETE FROM ${table.name} as ${table.alias}`
 
   const sql = generateWhere(args, where, table, schema)
   if (sql) {
@@ -272,7 +272,7 @@ const createMethods = <T extends TableSchema>(sql: SQL, table: Table<T>, schema:
         const result = await sql.unsafe(str, args)
         return result[0]
       } else {
-        await sql.unsafe(table.name, args)
+        await sql.unsafe(str, args)
       }
     }),
 

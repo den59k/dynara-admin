@@ -1,18 +1,33 @@
 <template>
   <h1>{{ tableData?.title }}<br/></h1>
-  <VButton @click="addItem">Добавить элемент</VButton>
-  <VTable class="data-page__table" v-if="tableData && data" :columns="tableData.table" :data="data"/>
+  <VButton v-if="selectedItems.length > 0 && tableData?.allowDelete" @click="deleteItems">
+    <VIcon icon="delete" /> Удалить {{ selectedItems.length > 1? "элементы": "элемент" }}
+  </VButton>
+  <VButton v-else @click="addItem">Добавить элемент</VButton>
+  <VTable 
+    v-if="tableData && data" 
+    :item-key="tableData.primaryKey"
+    class="data-page__table" 
+    :columns="tableData.table" 
+    :data="data"
+    :checkable="tableData.allowDelete"
+    v-model:checked="selectedItems"
+    :row-component="tableData.updateForm? 'button': undefined"
+    @itemclick="onRowClick"
+  />
 </template>
 
 <script lang="ts" setup>
-import { useRequestWatch } from 'vuesix';
+import { mutateRequest, useRequestWatch } from 'vuesix';
 import { dataApi } from '../api/dataApi';
 import { useRoute } from 'vue-router';
-import { computed } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import VButton from '../components/VButton.vue';
 import { useDialog } from '../components/VDialogProvider.vue';
 import AddItemDialog from '../components/dialogs/AddItemDialog.vue';
 import VTable from '../components/VTable.vue';
+import VIcon from '../components/VIcon.vue';
+import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
 const currentRoute = useRoute()
 const viewId = computed(() => currentRoute.params.viewId as string)
@@ -23,7 +38,33 @@ const { data } = useRequestWatch(dataApi.getData, viewId)
 const dialog = useDialog()
 
 const addItem = () => {
-  dialog.open(AddItemDialog, { viewId: viewId.value, schema: tableData.value.createForm.schema })
+  dialog.open(AddItemDialog, { viewId: viewId.value, schema: tableData.value!.createForm.schema })
+}
+
+const onRowClick = (item: any) => { 
+  dialog.open(AddItemDialog, { 
+    viewId: viewId.value, 
+    schema: tableData.value!.createForm.schema, 
+    item
+  })
+}
+
+const selectedItems = shallowRef<any[]>([])
+watch(data, () => {
+  selectedItems.value = []
+})
+
+const deleteItems = async () => {
+  const ids = selectedItems.value.map((item: any) => item[tableData.value!.primaryKey])
+  dialog.open(ConfirmDialog, {
+    title: `Удалить ${ ids.length > 1? "элементы": "элемент" }?`,
+    text: "Отменить действие будет невозможно",
+    confirmTitle: "Удалить",
+    async onConfirm() {
+      await dataApi.deleteItems(viewId.value, ids)
+      await mutateRequest(dataApi.getData, viewId.value)
+    }
+  })
 }
 
 </script>

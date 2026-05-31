@@ -2,12 +2,25 @@ import { request } from "./request";
 
 type Page = {
   title: string,
-  path: string
+  path: string,
+}
+
+export type FullPage = Page & {
+  primaryKey: string,
+  table: Record<string, any>
+  createForm: { schema: any }
+  updateForm: { schema: any }
+  itemAccess: boolean,
+  allowDelete?: boolean
 }
 
 export const dataApi = {
   getPages: () => request<Page[]>("/api/admin/pages"),
-  getPageData: (pageId: string) => request(`/api/admin/pages/${pageId}`),
-  getData: (pageId: string) => request(`/api/admin/data/${pageId}`),
-  saveItem: (pageId: string, values: any) => request(`/api/admin/data/${pageId}`, values)
+  getPageData: (pageId: string) => request<FullPage>(`/api/admin/pages/${pageId}`),
+  getData: (pageId: string) => request(`/api/admin/data/${pageId}/items`),
+  getItemData: (pageId: string, itemId: number) => request(`/api/admin/data/${pageId}/items/${itemId}`),
+
+  createItem: (pageId: string, values: any) => request(`/api/admin/data/${pageId}/items`, values),
+  updateItem: (pageId: string, itemId: any, values: any) => request(`/api/admin/data/${pageId}/items/${itemId}`, values),
+  deleteItems: (pageId: string, itemIds: any) => request(`/api/admin/data/${pageId}/items`, { itemIds }, { method: "DELETE" })
 }

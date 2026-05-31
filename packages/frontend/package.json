@@ -9,6 +9,6 @@
   "dependencies": {
     "@vueuse/core": "^14.0.0",
     "vue-router": "^4.6.3",
-    "vuesix": "^1.0.44"
+    "vuesix": "^1.0.48"
   }
 }

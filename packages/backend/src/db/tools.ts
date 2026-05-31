@@ -106,7 +106,7 @@ export const generateWhere = (args: any[], where: GetWhere<any, any> | RawSQL, t
       args.push(...value.args)
       continue
     }
-    if ("in" in value) {
+    if (typeof value === 'object' && "in" in value) {
       const placeholders = value.in.map((_: any, index: number) => "$"+ (index + 1 + args.length)).join(",")
       outputStr.push(`${table.alias}.${key} in (${placeholders})`)
       args.push(...value.in)

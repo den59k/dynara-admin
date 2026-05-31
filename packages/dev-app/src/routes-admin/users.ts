@@ -13,9 +13,12 @@ export default (admin: AdminPanel, path: string) => admin.createPage({ title: "�
   .data(async ({ take, skip }) => {
     return await db.users.findMany({ select: { id: true, name: true }, take, skip })
   }) 
-  .primaryKey("id")
+  .primaryKey("id", "number")
+  .item(async (id) => {
+    return await db.users.findFirst({ where: { id } })
+  })
   .table({
-    id: true,
+    id: { title: "ID", width: 60 },
     name: { title: "Имя" },
     _actions: { title: "Test", map: item => item.id }
   })

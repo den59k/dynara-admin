@@ -23,11 +23,29 @@ const { data } = useRequest(dataApi.getPages)
   top: 0
   width: var(--sidebar-width)
   border-right: 1px solid var(--border-color)
-  padding: 20px
   box-sizing: border-box
+  display: flex
+  flex-direction: column
+  padding-top: 20px
 
-  h3
+  &>h3
     margin-top: 0
-    margin-bottom: 32px
-  
+    margin-bottom: 16px
+    padding: 0 24px
+
+  &>a
+    text-decoration: none 
+    height: 40px
+    padding: 0 16px
+    display: flex
+    align-items: center
+    border-radius: 8px
+    margin: 0 6px
+
+    &:hover
+      background-color: var(--hover-color)
+
+    &.router-link-active
+      background-color: var(--background-active-color)
+
 </style>

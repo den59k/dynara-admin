@@ -1,6 +1,6 @@
 <template>
   <VDialog style="width: 600px">
-    <template #header>Добавить элемент</template>
+    <template #header>{{ props.item? "Редактировать ": "Добавить "}} элемент</template>
     <JsonInput v-model="values" :schema="props.schema" />
     <template #actions>
       <VButton flat @click="dialog.close">Отмена</VButton>
@@ -15,15 +15,25 @@ import { JsonInput } from '../inputs/getInput';
 import VButton from '../VButton.vue';
 import VDialog from '../VDialog.vue';
 import { useDialog } from '../VDialogProvider.vue';
-import { useForm } from 'vuesix';
+import { mutateRequest, useForm, useRequest } from 'vuesix';
 import { dataApi } from '../../api/dataApi';
 import { getDefaultValue } from '../../utils/getDefaultValue';
 
-const props = defineProps<{ viewId: string, schema?: any }>()
+const props = defineProps<{ viewId: string, schema?: any, item?: any, itemId?: string }>()
 
 const dialog = useDialog()
 
-const { values, handleSubmit, pending } = useForm(props.schema? getDefaultValue(props.schema): {})
+const { data: tableData } = useRequest(dataApi.getPageData, props.viewId)
+
+const { values, handleSubmit, pending, updateDefaultValues } = useForm(props.schema? getDefaultValue(props.schema): {})
+if (props.item) {
+  updateDefaultValues(props.item)
+  if (tableData.value!.itemAccess) {
+    dataApi.getItemData(props.viewId, props.item[tableData.value!.primaryKey]).then((resp) => {
+      updateDefaultValues(resp)
+    })
+  }
+}
 
 const el = getCurrentInstance()
 onMounted(() => {
@@ -31,7 +41,12 @@ onMounted(() => {
 })
 
 const apply = handleSubmit(async (values) => {
-  await dataApi.saveItem(props.viewId, values)
+  if (props.item) {
+    await dataApi.updateItem(props.viewId, props.item[tableData.value!.primaryKey], values)
+  } else {
+    await dataApi.createItem(props.viewId, values)
+  }
+  mutateRequest(dataApi.getData, props.viewId)
   dialog.close()
 })
 

@@ -2,7 +2,7 @@
   <div class="v-table" :style="gridStyle">
     <div class="v-table__header">
       <div v-if="props.checkable" @click.stop="selectAllClick">
-        <div class="v-checkbox__icon" :class="{ active: checkedItems.size > 0 }">
+        <div class="v-checkbox__icon light" :class="{ active: checkedItems.size > 0 }">
           <VIcon v-if="checkedItems.size < props.data.length" icon="minus" />
           <VIcon v-else icon="check"/>
         </div>
@@ -20,7 +20,7 @@
     </div>
     <component 
       v-for="(item, index) in data" 
-      :key="index" 
+      :key="props.itemKey? (item as any)[props.itemKey]: index" 
       :is="props.rowComponent ?? 'div'" 
       v-bind="props.rowProps? props.rowProps(item as T): undefined"
       class="v-table__row" 
@@ -28,7 +28,7 @@
       @contextmenu="emit('itemcontext', $event, item)"
     >
       <div v-if="props.checkable" @click.stop="checkItem(item)">
-        <div class="v-checkbox__icon" :class="{ active: checkedItems.has(item) }" >
+        <div class="v-checkbox__icon light" :class="{ active: checkedItems.has(item) }" >
           <VIcon icon="check"/>
         </div>
       </div>
@@ -46,9 +46,11 @@ import { type CSSProperties, type HTMLAttributes, computed, reactive, watch } fr
 import VIconButton from './VIconButton.vue';
 import { useVModel } from '@vueuse/core';
 import VIcon from './VIcon.vue';
+import './inputs/VCheckbox.vue'
 
 const props = defineProps<{ 
   data: T[],
+  itemKey?: string,
   rowComponent?: string,
   rowProps?: (obj: T) => Record<string, any>,
   columns: Columns<T>,
@@ -67,7 +69,7 @@ const getItem = (item: T, key: string, column: Column<T>) => {
 }
 
 const gridStyle = computed<CSSProperties>(() => {
-  const columns = Object.values(props.columns).map(item => item.width ?? '1fr')
+  const columns = Object.values(props.columns).map(item => typeof item.width === 'number'? (item.width + 'px'): (item.width ?? '1fr'))
   if (props.checkable) columns.unshift("40px")
   return {
     gridTemplateColumns: columns.join(" ")
@@ -166,9 +168,9 @@ export type Columns<T> = Record<string, Column<T>>
   display: grid
   grid-template-columns: 1fr 1fr 1fr
 
-  .v-checkbox__icon
-    border-color: var(--input-border-color)
-    cursor: pointer
+  // .v-checkbox__icon
+  //   border-color: var(--input-border-color)
+  //   cursor: pointer
 
 .v-table__header, .v-table__row
   display: grid
@@ -245,6 +247,9 @@ export type Columns<T> = Record<string, Column<T>>
     position: relative
     z-index: 2
     box-shadow: 0 2px 4px #0003
+    border-bottom: none
+
+  &:last-child
     border-bottom: none
 
 button.v-table__row, a.v-table__row

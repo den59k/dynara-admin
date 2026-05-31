@@ -1,6 +1,7 @@
 import { h, type CSSProperties } from 'vue'
 import VInputObject from "./VInputObject"
 import VInputText from "./VInputText.vue"
+import VCheckbox from './VCheckbox.vue'
 import VInputTextArea from "./VInputTextArea.vue"
 
 export type Schema = {
@@ -29,6 +30,9 @@ export const JsonInput = (props: JsonInputProps) => {
   }
   if (schema.type === "string" && schema.multiline) {
     return h(VInputTextArea, otherProps)
+  }
+  if (schema.type === "boolean") {
+    return h(VCheckbox, otherProps)
   }
   return h(VInputText, otherProps)
 }
