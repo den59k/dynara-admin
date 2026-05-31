@@ -1,4 +1,4 @@
-import { table } from "../../../backend/src/db/schema"
+import { table } from "marci-orm"
 
 export const users = table("users", {
   id: { type: "integer", primaryKey: true, default: "inc" },

@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "bun --watch src/main.ts"
   },
+  "dependencies": {
+    "marci-orm": "*"
+  },
   "devDependencies": {
     "@den59k/marci": "*",
     "compact-json-schema": "*"

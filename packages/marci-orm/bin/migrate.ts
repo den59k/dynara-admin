@@ -1,8 +1,7 @@
 import { SQL } from "bun";
-import { getCurrentSchema } from "../src/db/get_schema";
-import { createTable, updateTable } from "../src/db/migrate_tools";
+import { getCurrentSchema, createTable, updateTable } from "../src/index";
 import { join } from 'node:path'
-import type { FullSchema } from "../src/db/schema";
+import type { FullSchema } from "../src/index";
 
 const migrate = async () => {
 

@@ -1,6 +1,5 @@
 import { expect, it } from 'bun:test'
-import { table } from '../src/db/schema'
-import { createAliases, generateSelect } from '../src/db/tools'
+import { table, createAliases, generateSelect } from '../src/index'
 
 const users = table("users", {
   id: { type: "integer", primaryKey: true },

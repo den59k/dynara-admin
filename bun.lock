@@ -24,6 +24,9 @@
     "packages/backend": {
       "name": "marci-admin",
       "version": "0.0.1",
+      "dependencies": {
+        "marci-orm": "*",
+      },
       "devDependencies": {
         "@den59k/marci": "*",
         "compact-json-schema": "*",
@@ -37,6 +40,7 @@
       "name": "dev-app",
       "version": "0.0.0",
       "dependencies": {
+        "marci-orm": "*",
         "ravendb": "^7.1.3",
       },
     },
@@ -48,6 +52,10 @@
         "vue-router": "^4.6.3",
         "vuesix": "^1.0.48",
       },
+    },
+    "packages/marci-orm": {
+      "name": "marci-orm",
+      "version": "0.0.1",
     },
   },
   "packages": {
@@ -274,6 +282,8 @@
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
     "marci-admin": ["marci-admin@workspace:packages/backend"],
+
+    "marci-orm": ["marci-orm@workspace:packages/marci-orm"],
 
     "micromatch": ["micromatch@4.0.8", "", { "dependencies": { "braces": "^3.0.3", "picomatch": "^2.3.1" } }, "sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA=="],
 

@@ -1,0 +1,6 @@
+{
+  "name": "marci-orm",
+  "version": "0.0.1",
+  "type": "module",
+  "module": "src/index.ts"
+}
