@@ -16,13 +16,8 @@
     "dev": "bun --watch src/main.ts",
     "build": "bunup src/main.ts --define.__PRODUCTION__=true"
   },
-  "dependencies": {
-    "marci-orm": "*"
-  },
   "devDependencies": {
-    "@den59k/marci": "*",
-    "bunup": "^0.16.31",
-    "compact-json-schema": "*"
+    "bunup": "^0.16.31"
   },
   "peerDependencies": {
     "@den59k/marci": "*",
