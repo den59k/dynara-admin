@@ -3,9 +3,9 @@ import { schema } from 'compact-json-schema'
 import { db } from "../plugins/db";
 
 const createSchema = schema({
+  description: { type: "string", multiline: true, label: "Био" },
   name: { type: "string", width: 0.5, label: "Имя" },
   surname: { type: "string", width: 0.5, label: "Фамилия" },
-  description: { type: "string", multiline: true, label: "Био" }
 })
 
 export default (admin: AdminPanel, path: string) => admin.createPage({ title: "Пользователи", path })

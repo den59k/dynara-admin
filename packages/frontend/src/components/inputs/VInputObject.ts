@@ -8,8 +8,6 @@ type InputObjectProps = {
   "onUpdate:modelValue"?: (value: any) => void
 }
 
-
-
 const InputObject = {
   name: "InputObject",
   props: {
@@ -56,6 +54,10 @@ const InputObject = {
       }
 
       children.push(item)
+    }
+
+    if (group.length > 0) {
+      children.push(group)
     }
 
     return () => h("div", { class: "v-input-object" }, children.map(i => {

@@ -1,5 +1,5 @@
 <template>
-  <h1>Anno 1800</h1>
+  <h1>Admin panel</h1>
 </template>
 
 <script lang="ts" setup>

@@ -7,7 +7,7 @@
 </template>
 
 <script lang="ts" setup>
-import { JsonInput, type Schema } from './GetInput';
+import { JsonInput, type Schema } from './getInput';
 
 const props = defineProps<{ schema: Schema }>()
 

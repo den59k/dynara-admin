@@ -1,6 +1,6 @@
 import { type MarciApp, HTTPError } from "@den59k/marci";
 // import type { ViteDevServer } from "vite";
-// import frontendIndex from '../../frontend/index.html'
+import frontendIndex from '../../frontend/index.html'
 import { join, normalize } from "node:path"
 import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
 
@@ -187,8 +187,9 @@ export const createAdminPanel = (): AdminPanelMarci => {
           }
           if (typeof table[column] === "object" && table[column].map) {
             const key = "@"+column
-            currentPage.dataMapper.push({ key, map: table[column].map })
-            Object.assign(table[column], { map: undefined, key, sortable: false })
+            currentPage.dataMapper.push({ key, map: table[column].map });
+            (table as any)[key] = { ...table[column], map: undefined, key, sortable: false }
+            delete table[column]
           }
         }
         return this

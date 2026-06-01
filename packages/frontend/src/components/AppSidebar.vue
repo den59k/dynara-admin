@@ -64,6 +64,7 @@ watch(error, (error) => {
 
     &:hover
       background-color: var(--hover-color)
+      text-decoration: none
 
     &.router-link-active
       background-color: var(--background-active-color)
