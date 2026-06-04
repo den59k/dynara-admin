@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "dependencies": {
     "@vueuse/core": "^14.0.0",
+    "itomori": "^0.1.0",
     "vue-router": "^4.6.3",
     "vuesix": "^1.0.48"
   },

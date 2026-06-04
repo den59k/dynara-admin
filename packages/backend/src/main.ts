@@ -37,7 +37,6 @@ type PageEntry = {
   primaryKeyType?: SchemaItem,
   component?: any,
   componentData: { name: string, schema?: SchemaItem, method: any }[]
-  dataMapper: { map: (item: any) => any, key: string }[]
 }
 
 declare const __PRODUCTION__: boolean
@@ -93,17 +92,9 @@ export const createAdminPanel = (): AdminPanelMarci => {
 
       if (!page.data) {
 
-      } else if (page.dataMapper.length === 0) {
+      } else {
         app.get(`/api/admin/data/${path}/items`, [{}, querySchema], (req) => {
           const items = page.data!(req.query)
-          return items
-        })
-      } else {
-        app.get(`/api/admin/data/${path}/items`, [{}, querySchema], async (req) => {
-          const items = await page.data!(req.query)
-          for (let item of items) {
-            Object.assign(item, Object.fromEntries(page.dataMapper.map(i => [ i.key, i.map(item) ])))
-          }
           return items
         })
       }
@@ -235,25 +226,12 @@ export const createAdminPanel = (): AdminPanelMarci => {
   
   plugin.createPage = <T extends object>(options: CreatePageOptions) => {
 
-    const currentPage: PageEntry = { path: options.path, title: options.title, dataMapper: [], componentData: [] }
+    const currentPage: PageEntry = { path: options.path, title: options.title, componentData: [] }
     pages.push(currentPage)
 
     const data: PageWithPrimaryKey<T, "string", T> = {
       table(table) { 
         currentPage.table = table
-        for (let column in table) {
-          if (!table[column]) continue
-          if (table[column] === true) {
-            table[column] = { title: column }
-            continue
-          }
-          if (typeof table[column] === "object" && table[column].map) {
-            const key = "@"+column
-            currentPage.dataMapper.push({ key, map: table[column].map });
-            (table as any)[key] = { ...table[column], map: undefined, key, sortable: false }
-            delete table[column]
-          }
-        }
         return this
       },
       primaryKey(key, type?: SchemaItem){ 
@@ -319,25 +297,42 @@ type CreatePageOptions = {
   path?: string
 }
 
-type ColumnType<T> = {
-  title?: string, map?: (item: T) => any,
-  width?: number | string
+interface ColumnBase {
+  title: string
+  width?: number | `${number}fr`
 }
 
-type TableSchema<T, S extends string | number | symbol> = Record<S, true | ColumnType<T>>
+type FieldColumn<T> = ColumnBase & {
+  field: keyof T
+  sortable?: boolean
+}
+
+type TemplateColumn<T> = ColumnBase & {
+  template: string
+}
+
+type ActionColumn<T, KeyType> = ColumnBase & {
+  icon?: string,
+  text?: string,
+  onClick: (itemId: KeyType) => Promise<void> | void
+}
+
+type Column<T> = FieldColumn<T> | TemplateColumn<T>
+type ColumnId<T, KeyType> = Column<T> | ActionColumn<T, KeyType>
 
 interface Page<T extends object> {
-  table<S extends keyof T | `_${string}`>(table: TableSchema<T, S>): this,
+  table(table: Column<T>[]): this,
   createForm<S extends SchemaItem>(schema: S, onInsert: (data: SchemaType<S>) => Promise<void>): this,
-  primaryKey<KeyType extends SchemaItem = "string">(key: keyof T, type?: KeyType): PageWithPrimaryKey<T, KeyType, T>,
+  primaryKey<KeyType extends SchemaItem = "string">(key: keyof T, type?: KeyType): PageWithPrimaryKey<T, SchemaType<KeyType>, T>,
   data<T2 extends object>(query: (options: { skip: number, take: number }) => Promise<T2[]>): Page<T2>,
   component(url: any): this
   componentData(name: string, data: (args: Record<string,any>) => Promise<any> | any): this
   componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>) => Promise<any> | any): this
 }
 
-interface PageWithPrimaryKey<T extends object, KeyType extends SchemaItem, Item extends object> extends Page<T> {
-  item<T2 extends object>(query: (itemId: SchemaType<KeyType>) => Promise<T2 | null>): PageWithPrimaryKey<T, KeyType, T2>,
-  updateForm<S extends SchemaItem>(schema: S, onUpdate: (id: SchemaType<KeyType>, data: SchemaType<S>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item>,
-  onDelete(onDelete: (ids: SchemaType<KeyType>[]) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item>
+interface PageWithPrimaryKey<T extends object, KeyType, Item extends object> extends Page<T> {
+  table(table: ColumnId<T, KeyType>[]): this,
+  item<T2 extends object>(query: (itemId: KeyType) => Promise<T2 | null>): PageWithPrimaryKey<T, KeyType, T2>,
+  updateForm<S extends SchemaItem>(schema: S, onUpdate: (id: KeyType, data: SchemaType<S>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item>,
+  onDelete(onDelete: (ids: KeyType[]) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item>
 }

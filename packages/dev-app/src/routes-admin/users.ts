@@ -17,11 +17,11 @@ export default (admin: AdminPanel, path: string) => admin.createPage({ title: "�
   .item(async (id) => {
     return await db.users.findFirst({ where: { id } })
   })
-  .table({
-    id: { title: "ID", width: 60 },
-    name: { title: "Имя" },
-    _actions: { title: "Test", map: item => item.id }
-  })
+  .table([
+    { title: "ID", field: "id" },
+    { title: "Имя", field: "name" },
+    { title: "Test", template: "{uppercase(id)} {lastName}" }
+  ])
   .createForm(createSchema, async (data) => {
     await db.users.create(data)
   })
