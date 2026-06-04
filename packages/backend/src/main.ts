@@ -1,6 +1,7 @@
 import { type MarciApp, HTTPError } from "@den59k/marci";
 // import type { ViteDevServer } from "vite";
-import frontendIndex from '../../frontend/index.html'
+// import frontendIndex from '../../frontend/index.html'
+import type { BunRequest } from "bun";
 import { join, normalize } from "node:path"
 import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
 
@@ -34,6 +35,8 @@ type PageEntry = {
   updateForm?: any,
   primaryKey?: string | number | symbol,
   primaryKeyType?: SchemaItem,
+  component?: any,
+  componentData: { name: string, schema?: SchemaItem, method: any }[]
   dataMapper: { map: (item: any) => any, key: string }[]
 }
 
@@ -42,9 +45,12 @@ declare const __PRODUCTION__: boolean
 export const createAdminPanel = (): AdminPanelMarci => {
 
   const plugins: [AdminPanelPlugin<any>, any][] = []
+  const componentFiles = new Map()
 
   const pages: PageEntry[] = []
   let authMethod: AuthMethod<any, any> | null = null
+
+  const isProduction = typeof __PRODUCTION__ !== "undefined" && __PRODUCTION__
 
   const plugin = async (app: MarciApp) => {
     for (let childPlugin of plugins as any) {
@@ -81,16 +87,19 @@ export const createAdminPanel = (): AdminPanelMarci => {
 
     for (let page of pages) {
       const querySchema = schema({ take: "number?", skip: "number?" })
+      let path = page.path ?? ''
+      if (path?.startsWith('/')) path = path.slice(1)
+      if (path === '') path = '__home__'
 
       if (!page.data) {
 
       } else if (page.dataMapper.length === 0) {
-        app.get(`/api/admin/data/${page.path}/items`, [{}, querySchema], (req) => {
+        app.get(`/api/admin/data/${path}/items`, [{}, querySchema], (req) => {
           const items = page.data!(req.query)
           return items
         })
       } else {
-        app.get(`/api/admin/data/${page.path}/items`, [{}, querySchema], async (req) => {
+        app.get(`/api/admin/data/${path}/items`, [{}, querySchema], async (req) => {
           const items = await page.data!(req.query)
           for (let item of items) {
             Object.assign(item, Object.fromEntries(page.dataMapper.map(i => [ i.key, i.map(item) ])))
@@ -101,20 +110,20 @@ export const createAdminPanel = (): AdminPanelMarci => {
 
       const paramsSchema = schema({ itemId: page.primaryKeyType ?? 'string' })
       if (page.itemData) {
-        app.get(`/api/admin/data/${page.path}/items/:itemId`, [ paramsSchema ], async (req) => {
+        app.get(`/api/admin/data/${path}/items/:itemId`, [ paramsSchema ], async (req) => {
           return await page.itemData!(req.params.itemId)
         })
       }
 
       if (page.createForm && page.onInsert) {
-        app.post(`/api/admin/data/${page.path}/items`, [{}, page.createForm.schema], async (req) => {
+        app.post(`/api/admin/data/${path}/items`, [{}, page.createForm.schema], async (req) => {
           // @ts-ignore
           await page.onInsert!(req.body)
         })
       }
 
       if (page.updateForm && page.onUpdate) {
-        app.post(`/api/admin/data/${page.path}/items/:itemId`, [paramsSchema, page.updateForm.schema], async (req) => {
+        app.post(`/api/admin/data/${path}/items/:itemId`, [paramsSchema, page.updateForm.schema], async (req) => {
           // @ts-ignore
           await page.onUpdate!(req.params.itemId, req.body)
         })
@@ -123,17 +132,24 @@ export const createAdminPanel = (): AdminPanelMarci => {
       if (page.onDelete) {
         const deleteSchema = schema({ itemIds: { type: "array", items: page.primaryKeyType ?? 'string' } })
 
-        app.delete(`/api/admin/data/${page.path}/items`, [{}, deleteSchema], async (req) => {
+        app.delete(`/api/admin/data/${path}/items`, [{}, deleteSchema], async (req) => {
           // @ts-ignore
           await page.onDelete!(req.body.itemIds)
         })
       }
 
-      app.get(`/api/admin/pages/${page.path}`, async (req) => {
+      for (let data of page.componentData) {
+        app.get(`/api/admin/data/${path}/component-data/${data.name}`, { query: data.schema }, async (req) => {
+          return await data.method(req.query as any)
+        })
+      }
+
+      app.get(`/api/admin/pages/${path}`, async (req) => {
         return {
           title: page.title,
           path: page.path,
           table: page.table,
+          component: page.component,
           primaryKey: page.primaryKey,
           createForm: page.createForm,
           updateForm: page.updateForm,
@@ -142,16 +158,11 @@ export const createAdminPanel = (): AdminPanelMarci => {
         }
       })
     }
-    
-    const routesRaw = (app as any).routes
 
-    if (typeof __PRODUCTION__ !== "undefined" && __PRODUCTION__) {
+    const routesRaw = (app as any).routes
+    // Отдаем index.html и ассеты для frontend
+    if (true || isProduction) {
       const frontendDir = join(import.meta.dir, "frontend")
-  
-      // index.html читаем один раз и держим в памяти
-      const indexHtml = await Bun.file(join(frontendDir, "index.html")).text()
-      const serveIndex = () =>
-        new Response(indexHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } })
   
       const ASSETS_PREFIX = "/admin/assets/"
       routesRaw[ASSETS_PREFIX + "*"] = (req: Request) => {
@@ -160,20 +171,71 @@ export const createAdminPanel = (): AdminPanelMarci => {
         if (rel.startsWith("..")) return new Response("Not found", { status: 404 }) // защита от path traversal
         return new Response(Bun.file(join(frontendDir, rel))) // Content-Type Bun проставит по расширению
       }
+
+      // index.html читаем один раз и держим в памяти
+      let indexHtml = await Bun.file(join(frontendDir, "index.html")).text()
+
+      const code = []
+      
+      if (pages.find(i => i.path === '/')) {
+        code.push(`window.__MARCI_CUSTOM_HOME_PAGE__ = true`)
+      }
+
+      if (code.length > 0) {
+        indexHtml = indexHtml.replace("</body>", `<script>\n${code.join('\n')}\n</script>\n</body>`)
+      }
+
+      const serveIndex = () => new Response(indexHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } })
   
       // SPA-fallback
       routesRaw["/admin"] = serveIndex
       routesRaw["/admin/*"] = serveIndex
     } else {
-      routesRaw["/admin/*"] = frontendIndex
-      routesRaw["/admin"] = frontendIndex
+      // routesRaw["/admin/*"] = frontendIndex
+      // routesRaw["/admin"] = frontendIndex
     }
+    
+    routesRaw["/admin/custom/:name"] = { 
+      GET: async (req: BunRequest) => {
+        const file = componentFiles.get(req.params.name)
+        if (!file) return new Response("Not found", { status: 404 })
 
+        let code = isProduction ? compiled.get(file) : undefined
+        if (!code) {
+          code = await compileComponent(file)
+          if (isProduction) compiled.set(file, code)
+        }
+        return new Response(code, {
+          headers: {
+            "Content-Type": "text/javascript",
+            "Cache-Control": isProduction ? "public, max-age=31536000, immutable" : "no-cache",
+          },
+        })
+      }
+    }
+  }
+
+  const compiled = new Map<string, string>()   // кэш только для prod
+  const compileComponent = async (file: string) => {
+
+    const { VuePlugin } = await import("../../plugins/vue-plugin")
+
+    const res = await Bun.build({
+      entrypoints: [file],
+      external: ["vue", "vue-router", "marci-admin/ui"],
+      target: "browser",
+      format: "esm",
+      minify: isProduction,
+      define: { "process.env.NODE_ENV": JSON.stringify(isProduction ? "production" : "development") },
+      plugins: [VuePlugin({ inlineStyles: true })],
+    })
+    if (!res.success) throw new Error(res.logs.join("\n"))
+    return await res.outputs[0].text()
   }
   
   plugin.createPage = <T extends object>(options: CreatePageOptions) => {
 
-    const currentPage: PageEntry = { path: options.path, title: options.title, dataMapper: [] }
+    const currentPage: PageEntry = { path: options.path, title: options.title, dataMapper: [], componentData: [] }
     pages.push(currentPage)
 
     const data: PageWithPrimaryKey<T, "string", T> = {
@@ -220,6 +282,21 @@ export const createAdminPanel = (): AdminPanelMarci => {
       onDelete(onDelete) {
         currentPage.onDelete = onDelete
         return this
+      },
+      component(path: string) {
+        const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
+        const name = path.slice(index+1)
+        currentPage.component = name
+        componentFiles.set(name, path)                 // Map<name, absPath> на уровне панели
+        return this
+      },
+      componentData(...args: any) {
+        if (args.length === 2) {
+          currentPage.componentData.push({ name: args[0], method: args[1] })
+        } else {
+          currentPage.componentData.push({ name: args[0], schema: args[1], method: args[2] })
+        }
+        return this
       }
     }
     return data
@@ -254,6 +331,9 @@ interface Page<T extends object> {
   createForm<S extends SchemaItem>(schema: S, onInsert: (data: SchemaType<S>) => Promise<void>): this,
   primaryKey<KeyType extends SchemaItem = "string">(key: keyof T, type?: KeyType): PageWithPrimaryKey<T, KeyType, T>,
   data<T2 extends object>(query: (options: { skip: number, take: number }) => Promise<T2[]>): Page<T2>,
+  component(url: any): this
+  componentData(name: string, data: (args: Record<string,any>) => Promise<any> | any): this
+  componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>) => Promise<any> | any): this
 }
 
 interface PageWithPrimaryKey<T extends object, KeyType extends SchemaItem, Item extends object> extends Page<T> {

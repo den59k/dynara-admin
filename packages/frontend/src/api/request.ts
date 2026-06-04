@@ -1,7 +1,5 @@
 import { setUseFormErrorHandler } from "vuesix"
 
-let jwt = ""
-
 export class HTTPError extends Error {
   body: any
   statusCode: number
@@ -31,10 +29,6 @@ setUseFormErrorHandler((e, errors) => {
   }
 })
 
-export const setJwt = (value: string) => {
-  jwt = value
-}
-
 type Options = Partial<{
   method: "GET" | "POST" | "DELETE" | "PUT",
   responseContentType: "json" | "blob"
@@ -46,6 +40,8 @@ export const request = async <T = any>(url: string, body?: any, options: Options
   if (body && !(body instanceof FormData)) {
     headers["Content-Type"] = "application/json"
   }
+
+  const jwt = window.localStorage.getItem("marci-admin__token")
   if (jwt) {
     headers["Authorization"] = "Bearer "+jwt
   }
@@ -88,6 +84,7 @@ export const sendXHR = (url: string, body: FormData | File, { method, onProgress
   const xhr = new XMLHttpRequest()
   xhr.open(method || "POST", url)
 
+  const jwt = window.localStorage.getItem("marci-admin__token")
   if (jwt) {
     xhr.setRequestHeader("Authorization", "Bearer "+jwt)
   }
@@ -151,6 +148,7 @@ export const downloadXHR = async (
     };
   }
 
+  const jwt = window.localStorage.getItem("marci-admin__token")
   if (jwt) {
     xhr.setRequestHeader("Authorization", "Bearer "+jwt)
   }

@@ -4,7 +4,9 @@
     <JsonInput v-model="values" :schema="props.schema" />
     <template #actions>
       <VButton flat @click="dialog.close">Отмена</VButton>
-      <VButton :disabled="pending" @click="apply">Добавить</VButton>
+      <VButton :disabled="pending" @click="apply">
+        {{ props.item? "Сохранить": "Добавить" }}
+      </VButton>
     </template>
   </VDialog>
 </template>

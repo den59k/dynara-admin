@@ -16,7 +16,7 @@ import { JsonInput } from '../components/inputs/getInput';
 import VButton from '../components/VButton.vue';
 import { reactive } from 'vue';
 import { shallowRef } from 'vue';
-import { HTTPError, setJwt } from '../api/request';
+import { HTTPError } from '../api/request';
 import { useRouter } from 'vue-router';
 
 const { data } = useRequest(accountApi.getAuthData)
@@ -35,7 +35,6 @@ const onSubmit = async () => {
       error.value = "Не удалось авторизоваться. \nОбратитесь к администратору"
       return
     }
-    setJwt(token)
     window.localStorage.setItem("marci-admin__token", token)
     resetRequestCache()
     router.replace('/')

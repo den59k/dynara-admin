@@ -5,7 +5,8 @@ import { db } from "../plugins/db";
 const createSchema = schema({
   description: { type: "string", multiline: true, label: "Био" },
   name: { type: "string", width: 0.5, label: "Имя" },
-  surname: { type: "string", width: 0.5, label: "Фамилия" },
+  lastName: { type: "string??", width: 0.5, label: "Фамилия" },
+  password: { type: "string??", label: "Пароль", hidden: true },
 })
 
 export default (admin: AdminPanel, path: string) => admin.createPage({ title: "Пользователи", path })

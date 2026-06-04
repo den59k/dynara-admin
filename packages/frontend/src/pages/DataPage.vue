@@ -1,5 +1,6 @@
 <template>
   <h1>{{ tableData?.title }}<br/></h1>
+  <component v-if="customComponent" :is="customComponent" />
   <VButton v-if="selectedItems.length > 0 && tableData?.allowDelete" @click="deleteItems">
     <VIcon icon="delete" /> Удалить {{ selectedItems.length > 1? "элементы": "элемент" }}
   </VButton>
@@ -30,7 +31,7 @@ import VIcon from '../components/VIcon.vue';
 import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
 const currentRoute = useRoute()
-const viewId = computed(() => currentRoute.params.viewId as string)
+const viewId = computed(() => currentRoute.params.viewId as string ?? '__home__')
 
 const { data: tableData } = useRequestWatch(dataApi.getPageData, viewId)
 const { data } = useRequestWatch(dataApi.getData, viewId)
@@ -53,6 +54,16 @@ const selectedItems = shallowRef<any[]>([])
 watch(data, () => {
   selectedItems.value = []
 })
+
+const customComponent = shallowRef<any>(null)
+watch(tableData, async (tableData) => {
+  if (tableData && tableData.component) {
+    const { default: component } = await import(`/admin/custom/${tableData.component}`)
+    customComponent.value = component 
+  } else {
+    customComponent.value = null
+  }
+}, { immediate: true })
 
 const deleteItems = async () => {
   const ids = selectedItems.value.map((item: any) => item[tableData.value!.primaryKey])

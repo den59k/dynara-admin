@@ -1,6 +1,6 @@
 {
   "name": "marci-admin",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "type": "module",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
@@ -14,13 +14,26 @@
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
-    "build": "bunup src/main.ts --define.__PRODUCTION__=true"
+    "build": "bunup src/main.ts --define.__PRODUCTION__=true --external @vue/compiler-sfc --external sass --external typescript"
   },
   "devDependencies": {
     "bunup": "^0.16.31"
   },
   "peerDependencies": {
     "@den59k/marci": "*",
-    "compact-json-schema": "*"
+    "compact-json-schema": "^0.1.3"
+  },
+  "dependencies": {
+    "marci-admin": "^0.0.3"
+  },
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "import": "./dist/main.js",
+      "types": "./dist/main.d.ts"
+    },
+    "./ui": {
+      "types": "./dist/types/ui/ui.d.ts"
+    }
   }
 }

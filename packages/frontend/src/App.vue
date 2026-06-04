@@ -11,14 +11,11 @@
 import { RouterView, useRouter } from 'vue-router';
 import AppSidebar from './components/AppSidebar.vue';
 import VDialogProvider from './components/VDialogProvider.vue';
-import { setJwt } from './api/request';
 
 const router = useRouter()
 
 const token = window.localStorage.getItem("marci-admin__token")
-if (token) {
-  setJwt(token)
-} else {
+if (!token) {
   router.push("/auth")
 }
 

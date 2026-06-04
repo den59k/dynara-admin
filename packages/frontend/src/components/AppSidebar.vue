@@ -1,7 +1,7 @@
 <template>
   <aside class="app-sidebar">
     <h3>Marci Admin</h3>
-    <RouterLink v-for="page in data" :to="`/data/${page.path}`">
+    <RouterLink v-for="page in data" :to="page.path.startsWith('/')? page.path: `/${page.path}`">
       {{ page.title }}
     </RouterLink>
     <button style="margin-top: auto">

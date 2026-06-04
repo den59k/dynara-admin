@@ -10,6 +10,7 @@ export type FullPage = Page & {
   table: Record<string, any>
   createForm: { schema: any }
   updateForm: { schema: any }
+  component?: string,
   itemAccess: boolean,
   allowDelete?: boolean
 }

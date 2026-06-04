@@ -60,7 +60,7 @@ adminPanel.registerAuthMethod({
   async onRequest(token) {
     const data = verifyToken(token)
     if (!data) {
-      throw new HTTPError("Wrong token")
+      throw new HTTPError("Wrong token", 403)
     }
   }
 })

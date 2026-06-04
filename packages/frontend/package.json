@@ -10,5 +10,11 @@
   "scripts": {
     "dev": "bun --watch src/server.ts"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "rollup": "^4.61.1",
+    "rollup-plugin-dts": "^6.4.1",
+    "typescript": "^6.0.3",
+    "vue-tsc": "^3.3.3"
+  }
 }

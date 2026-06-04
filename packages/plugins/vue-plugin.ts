@@ -1,12 +1,12 @@
 import type { BunPlugin } from 'bun';
 import * as compiler from '@vue/compiler-sfc';
-import * as fs from 'fs';
-import * as sass from "sass";
+import * as fs from 'node:fs';
 
 interface VuePluginOptions {
   prodDevTools?: boolean;
   optionsApi?: boolean;
   prodHydrationMismatchDetails?: boolean;
+  inlineStyles?: boolean
 }
 
 // NOTE: Does not work in Bun's dev server yet, since
@@ -26,6 +26,12 @@ function normalizePath(p: string) {
 try {
   const ts = await import('typescript');
   compiler.registerTS(() => ts);
+} catch {}
+
+// Добавить сразу после:
+let sass: typeof import('sass') | undefined;
+try {
+  sass = await import('sass');
 } catch {}
 
 function plugin(options?: VuePluginOptions): BunPlugin {
@@ -74,21 +80,6 @@ function plugin(options?: VuePluginOptions): BunPlugin {
       const descriptorMap = new Map<string, compiler.SFCDescriptor>();
       const scriptBindingMap = new Map<string, compiler.BindingMetadata>();
 
-      // build.onLoad({ filter: /.*/,  namespace: 'sfc-script' }, async (args) => {
-      //   const path = normalizePath(args.path.split('?')[0]!);
-      //   const script = scriptMap.get(path);
-
-      //   if (!script) {
-      //     throw new Error(`[vue-plugin:error] No script block found for ${path}`);
-      //   }
-
-      //   return {
-      //     contents: script.content,
-      //     // Supports <script lang="ts" setup>
-      //     loader: script.lang === 'ts' ? 'ts' : 'js',
-      //   }
-      // });
-
       build.onLoad({ filter: /.*/, namespace: 'sfc-template' }, async (args) => {
         const path = normalizePath(args.path.split('?')[0]!);
         const descriptor = descriptorMap.get(path);
@@ -124,40 +115,67 @@ function plugin(options?: VuePluginOptions): BunPlugin {
       });
 
       const getContent = (style: compiler.SFCStyleBlock) => {
-       if (style.lang === "sass") {
-          // Компилируем Sass в CSS
+        if (style.lang === "sass" && sass) {
           const result = sass.compileString(style.content, { syntax: "indented" });
-          // Чтобы получить SCSS-подобный синтаксис, просто форматируем CSS как SCSS
           return result.css.toString();
         } else {
           return style.content;
         }
       }
 
-      build.onLoad({ filter: /.*/, namespace: 'sfc-style' }, async (args) => {
-        const path = normalizePath(args.path.split('?')[0]!);
-        const descriptor = descriptorMap.get(path);
-        const id = idMap.get(path)!;
+      if (options?.inlineStyles) {
+        build.onLoad({ filter: /.*/, namespace: 'sfc-style' }, async (args) => {
+          const path = normalizePath(args.path.split('?')[0]!);
+          const descriptor = descriptorMap.get(path)!;
+          const id = idMap.get(path)!;
+          // ... существующая компиляция через compiler.compileStyle ...
+          const style = compiler.compileStyle({
+            id,
+            scoped: descriptor.styles.some((s) => s.scoped),
+            source: descriptor.styles.map((s) => getContent(s)).join('\n'),
+            filename: args.path,
+            preprocessLang: "sass"
+          })
 
-        if (!descriptor) {
-          throw new Error(
-            `[vue-plugin:error] Style compilation descriptor not found for ${path}`
-          );
-        }
-
-        const style = compiler.compileStyle({
-          id,
-          scoped: descriptor.styles.some((s) => s.scoped),
-          source: descriptor.styles.map((s) => getContent(s)).join('\n'),
-          filename: args.path,
-          preprocessLang: "sass"
+          // было: return { contents: style.code, loader: 'css' }
+          // стало: отдаём JS, который сам инжектит CSS
+          return {
+            contents: `
+              const css = ${JSON.stringify(style.code)};
+              const tag = document.createElement("style");
+              tag.setAttribute("data-v-style", ${JSON.stringify(id)});
+              tag.textContent = css;
+              document.head.appendChild(tag);
+            `,
+            loader: 'js',
+          }
         })
-
-        return {
-          contents: style.code,
-          loader: 'css',
-        }
-      });
+      } else {
+        build.onLoad({ filter: /.*/, namespace: 'sfc-style' }, async (args) => {
+          const path = normalizePath(args.path.split('?')[0]!);
+          const descriptor = descriptorMap.get(path);
+          const id = idMap.get(path)!;
+  
+          if (!descriptor) {
+            throw new Error(
+              `[vue-plugin:error] Style compilation descriptor not found for ${path}`
+            );
+          }
+  
+          const style = compiler.compileStyle({
+            id,
+            scoped: descriptor.styles.some((s) => s.scoped),
+            source: descriptor.styles.map((s) => getContent(s)).join('\n'),
+            filename: args.path,
+            preprocessLang: "sass"
+          })
+  
+          return {
+            contents: style.code,
+            loader: 'css',
+          }
+        });
+      }
 
       function getVueId(path: string) {
         const hash = new Bun.SHA256().update(normalizePath(path)).digest("hex").slice(0, 8);
@@ -312,5 +330,7 @@ function plugin(options?: VuePluginOptions): BunPlugin {
   }
 }
 
-export default plugin({  }) as BunPlugin;
+const bunPlugin: BunPlugin = /*@__PURE__*/ plugin({ });
+export default bunPlugin;
+
 export { plugin as VuePlugin, type VuePluginOptions };
