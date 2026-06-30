@@ -106,6 +106,8 @@ Pass an array of column descriptors to `.table()`. Each column must have a `titl
 | Template | `template` | String with `{field}` placeholders, e.g. `"{id} - {name}"` (powered by [`itomori`](https://github.com/den59k/itomori)) |
 | Action | `onClick` | Button column (icon or text label); only available after `.primaryKey()` |
 
+> **Note:** `.table()` expects an array, not an object map. Passing the old `{ id: { ... } }` object form makes the frontend throw `columns.map is not a function`.
+
 ---
 
 ## dyn-orm

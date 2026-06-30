@@ -109,11 +109,11 @@ export default (admin: AdminPanel, path: string) =>
     .item(async (id) => {
       return await db.users.findFirst({ where: { id } })
     })
-    .table({
-      id: { title: "ID", width: 60 },
-      name: { title: "Name" },
-      _actions: { title: "Test", map: item => item.id }
-    })
+    .table([
+      { title: "ID", field: "id", width: 60 },
+      { title: "Name", field: "name" },
+      { title: "Label", template: "{id} - {name}" }
+    ])
     .createForm(userSchema, async (data) => {
       await db.users.create(data)
     })
@@ -142,15 +142,24 @@ The page builder is a fluent chain returned by `admin.createPage(...)`.
 
 ### Table columns
 
-Each key in `.table({ ... })` maps a data field to a column.
+`.table([ ... ])` takes an **array** of column descriptors. Every column has a `title` and an optional `width` (pixels, or a `"Nfr"` fraction). The column kind is determined by which extra field it carries:
 
-| Option | Description |
-| --- | --- |
-| `title` | Column header label. |
-| `width` | Column width in pixels. |
-| `map` | Derive the cell value from the row, e.g. `item => item.id`. Useful with the special `_actions` column. |
+| Column kind | Required field | Description |
+| --- | --- | --- |
+| Field | `field` | Renders the value of `field` from the row object. |
+| Template | `template` | String with `{field}` placeholders, e.g. `"{id} - {name}"` (powered by [`itomori`](https://github.com/den59k/itomori)). |
+| Action | `onClick` | Button column (set `icon` and/or `text`); only available after `.primaryKey()`. Receives the row's primary key. |
 
-`_actions` is a reserved column key for action controls; combine it with `map` to pass the value the actions need.
+```typescript
+.table([
+  { title: "ID", field: "id", width: 60 },
+  { title: "Name", field: "name" },
+  { title: "Label", template: "{id} - {name}" },
+  { title: "", onClick: (id) => console.log(id), icon: "edit" }
+])
+```
+
+> **Note:** `.table()` expects an array, not an object map. Passing the old `{ id: { ... } }` object form makes the frontend throw `columns.map is not a function`.
 
 ### Field options
 
