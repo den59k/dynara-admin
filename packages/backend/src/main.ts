@@ -1,4 +1,4 @@
-import { type MarciApp, HTTPError } from "@den59k/marci";
+import { type Router, HTTPError } from "dynara";
 // import type { ViteDevServer } from "vite";
 // import frontendIndex from '../../frontend/index.html'
 import type { BunRequest } from "bun";
@@ -20,7 +20,7 @@ export type AdminPanel = {
   registerAuthMethod<T extends SchemaItem, K>(method: AuthMethod<T, K>): void
 }
 
-export type AdminPanelDynara = ((app: MarciApp<any>) => Promise<void>) & AdminPanel
+export type AdminPanelDynara = ((app: Router<any>) => Promise<void>) & AdminPanel
 
 type PageEntry = {
   title?: string,
@@ -51,7 +51,7 @@ export const createAdminPanel = (): AdminPanelDynara => {
 
   const isProduction = typeof __PRODUCTION__ !== "undefined" && __PRODUCTION__
 
-  const plugin = async (app: MarciApp) => {
+  const plugin = async (app: Router) => {
     for (let childPlugin of plugins as any) {
       await childPlugin[0](plugin, ...childPlugin[1])
     }

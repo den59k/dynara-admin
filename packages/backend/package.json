@@ -14,13 +14,15 @@
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
-    "build": "bunup src/main.ts --define.__PRODUCTION__=true --external @vue/compiler-sfc --external sass --external typescript"
+    "build": "bunup src/main.ts --define.__PRODUCTION__=true --external @vue/compiler-sfc --external sass --external typescript",
+    "test": "bun test"
   },
   "devDependencies": {
-    "bunup": "^0.16.31"
+    "bunup": "^0.16.31",
+    "dynara": "^0.0.2"
   },
   "peerDependencies": {
-    "dynara": "*",
+    "dynara": "^0.0.2",
     "compact-json-schema": "^0.1.3"
   },
   "files": ["dist"],

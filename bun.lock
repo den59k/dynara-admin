@@ -5,7 +5,6 @@
     "": {
       "name": "dynara-admin",
       "dependencies": {
-        "@den59k/marci": "^0.0.22",
         "compact-json-schema": "^0.1.3",
       },
       "devDependencies": {
@@ -26,10 +25,11 @@
       "version": "0.0.5",
       "devDependencies": {
         "bunup": "^0.16.31",
+        "dynara": "^0.0.2",
       },
       "peerDependencies": {
-        "@den59k/marci": "*",
         "compact-json-schema": "^0.1.3",
+        "dynara": "^0.0.2",
       },
     },
     "packages/dyn-orm": {
@@ -67,8 +67,6 @@
     "@bunup/dts": ["@bunup/dts@0.14.53", "", { "dependencies": { "@babel/parser": "^7.28.6", "coffi": "^0.1.37", "oxc-minify": "^0.93.0", "oxc-resolver": "^11.16.2", "oxc-transform": "^0.93.0", "picocolors": "^1.1.1", "std-env": "^3.10.0", "ts-import-resolver": "^0.1.23" }, "peerDependencies": { "typescript": ">=4.5.0" }, "optionalPeers": ["typescript"] }, "sha512-qyHgYEYxcghoChICEhuFKfA/EqqRA9WHOHLXcIkR9c70DgLAEXcOlkYhfBPmGxfMKJYL0X4VtQwst0/AMk9D3g=="],
 
     "@bunup/shared": ["@bunup/shared@0.16.31", "", { "peerDependencies": { "typescript": ">=4.5.0" }, "optionalPeers": ["typescript"] }, "sha512-h1dw669Uk68NCt1WvgqNfQoCcaK1RxLVAs3yQRCRaFxJiI9cqhU0EquVoGFM1g1BxzujGa7+bA9gt5JR0ZVLxA=="],
-
-    "@den59k/marci": ["@den59k/marci@0.0.22", "", { "dependencies": { "@sinclair/typebox": "^0.34.37", "compact-json-schema": "^0.1.0" }, "peerDependencies": { "@types/bun": "*", "typescript": "^5" } }, "sha512-kM2tgBQ4RBFLlJNg4R+MXkofuWxb0cRtDgyFKgcBHHJtrxhp6uayi3Z/RX+GD/qzDNVz2rtoQ760JofU7Z5FxQ=="],
 
     "@eckidevs/bun-plugin-vue": ["@eckidevs/bun-plugin-vue@0.3.0", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-aVhNiB6jNVyVEK/wd0BQSecr9R1nB0EOozNE6t7zIx4kitfMfigB1x6oPV5uY3J95yWDvMU0yH443WLQQnF5rg=="],
 
@@ -387,6 +385,8 @@
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "dyn-orm": ["dyn-orm@workspace:packages/dyn-orm"],
+
+    "dynara": ["dynara@0.0.2", "", { "dependencies": { "@sinclair/typebox": "^0.34.37", "compact-json-schema": "^0.1.4" }, "peerDependencies": { "@types/bun": "*", "typescript": "^5" } }, "sha512-ve1BLXvAN7lk/dXARdS10KkvlU1+lsW/RwMRE7c8OwcT4mWb/ulaegFAMGEkN0j1YOaTtS3rkejg2jUHp0nAHA=="],
 
     "dynara-admin": ["dynara-admin@workspace:packages/backend"],
 
