@@ -2,7 +2,7 @@
 
 [![NPM version](https://img.shields.io/npm/v/dynara-admin)](https://www.npmjs.com/package/dynara-admin)
 
-A headless admin panel framework for [Bun](https://bun.sh), built as a plugin for the [`@den59k/marci`](https://github.com/den59k/marci) web framework. You define pages with a fluent builder API; `dynara-admin` handles routing, auth, and serves a built-in Vue 3 UI.
+A headless admin panel framework for [Bun](https://bun.sh), built as a plugin for the [`dynara`](https://github.com/den59k/dynara) web framework. You define pages with a fluent builder API; `dynara-admin` handles routing, auth, and serves a built-in Vue 3 UI.
 
 > **Status:** early development, API may change between versions.
 
@@ -29,7 +29,7 @@ bun add dynara-admin
 **Peer dependencies:**
 
 ```bash
-bun add @den59k/marci compact-json-schema
+bun add dynara compact-json-schema
 ```
 
 ---
@@ -37,10 +37,10 @@ bun add @den59k/marci compact-json-schema
 ## Quick start
 
 ```typescript
-import { createApp } from "@den59k/marci";
+import { Router } from "dynara";
 import { createAdminPanel } from "dynara-admin";
 
-const app = createApp({ port: 3000 });
+const app = new Router();
 const adminPanel = createAdminPanel();
 
 // Register auth
@@ -72,7 +72,7 @@ adminPanel
   .onDelete(async (ids) => db.users.deleteMany({ where: { id: { in: ids } } }));
 
 app.register(adminPanel);
-app.listen();
+app.listen(3000);
 ```
 
 The admin panel is available at `http://localhost:3000/admin`.
@@ -142,6 +142,9 @@ bun run packages/frontend/build.ts
 
 # Build the backend package for publishing
 cd packages/backend && bun run build
+
+# Run the backend tests
+cd packages/backend && bun test
 ```
 
 ---

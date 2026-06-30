@@ -1,14 +1,12 @@
 # dynara-admin
 
-> Spin up a headless CMS / admin panel in minutes on top of [`@den59k/marci`](https://www.npmjs.com/package/@den59k/marci).
+> Spin up a headless CMS / admin panel in minutes on top of [`dynara`](https://www.npmjs.com/package/dynara).
 
 `dynara-admin` turns a set of route files into a fully functional admin panel: list views with pagination, item pages, create/update forms, and bulk delete — all wired to **your own** data layer.
 
 It is **database-agnostic**: there is no built-in ORM and no assumptions about your storage. You provide async handlers, and the panel calls them. That's why the page API is expressed as a small set of hooks (`.data`, `.item`, `.createForm`, …) rather than a schema bound to a particular database.
 
-It is built on `@den59k/marci`, a Bun-first framework with a Fastify-like API. Because of that you can port the panel to Fastify if you ever need to, but on `marci` (running on Bun) it's faster.
-
-> **Note:** `@den59k/marci` is currently a working name and may change.
+It is built on `dynara`, a Bun-first framework with a Fastify-like API. Because of that you can port the panel to Fastify if you ever need to, but on `dynara` (running on Bun) it's faster.
 
 ## Features
 
@@ -17,7 +15,7 @@ It is built on `@den59k/marci`, a Bun-first framework with a Fastify-like API. B
 - **Pluggable auth** — define your own login fields and token logic via `registerAuthMethod`.
 - **File-based pages** — drop a file into a routes folder and register it; one file = one admin page.
 - **Typed page builder** — a fluent, fully typed API for tables, forms, and actions.
-- **Fastify-compatible** — runs fastest on `@den59k/marci` (Bun), but the surface is portable to Fastify.
+- **Fastify-compatible** — runs fastest on `dynara` (Bun), but the surface is portable to Fastify.
 
 ## Installation
 
@@ -46,7 +44,7 @@ for await (const routeFile of adminPages.scan({ cwd: join(__dirname, "routes-adm
   adminPanel.register(module.default, routeFile.slice(0, routeFile.indexOf(".")))
 }
 
-// Mount onto your marci (or Fastify-compatible) app
+// Mount onto your dynara (or Fastify-compatible) app
 app.register(adminPanel)
 ```
 
@@ -166,11 +164,11 @@ Form schemas (`compact-json-schema`) and auth `fields` share the same field opti
 | `multiline` | Render a multi-line text area instead of a single-line input. |
 | `hidden` | Mask the input (e.g. for passwords). |
 
-## Why marci (and Fastify)
+## Why dynara (and Fastify)
 
-`@den59k/marci` is a Bun-specific framework with a Fastify-like API. `dynara-admin` targets that surface, so:
+`dynara` is a Bun-specific framework with a Fastify-like API. `dynara-admin` targets that surface, so:
 
-- On **Bun + marci** you get the fastest path.
+- On **Bun + dynara** you get the fastest path.
 - The API is close enough to **Fastify** that the panel can be moved over if your stack requires it.
 
 ## License

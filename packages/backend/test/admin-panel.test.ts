@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test"
-import { Router, HTTPError } from "dynara"
-import { createAdminPanel } from "../src/main"
+import { Router } from "dynara"
+// HTTPError is imported from the package entry to exercise the documented re-export.
+import { createAdminPanel, HTTPError } from "../src/main"
 
 type User = { id: number; name: string }
 

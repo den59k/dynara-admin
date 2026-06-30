@@ -5,6 +5,9 @@ import type { BunRequest } from "bun";
 import { join, normalize } from "node:path"
 import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
 
+// Re-exported so consumers can `import { HTTPError } from "dynara-admin"` to reject requests.
+export { HTTPError }
+
 type AdminPanelPlugin<T extends any[]> = (app: AdminPanel, ...options: T) => void | Promise<void>
 
 type AuthMethod<T extends SchemaItem, K> = {
