@@ -1,5 +1,5 @@
 {
-  "name": "marci-admin",
+  "name": "dynara-admin",
   "version": "0.0.5",
   "type": "module",
   "main": "dist/main.js",
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/den59k/marci-admin.git"
+    "url": "git+https://github.com/den59k/dynara-admin.git"
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
@@ -22,9 +22,6 @@
   "peerDependencies": {
     "@den59k/marci": "*",
     "compact-json-schema": "^0.1.3"
-  },
-  "dependencies": {
-    "marci-admin": "^0.0.3"
   },
   "files": ["dist"],
   "exports": {

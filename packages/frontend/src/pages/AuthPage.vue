@@ -35,7 +35,7 @@ const onSubmit = async () => {
       error.value = "Не удалось авторизоваться. \nОбратитесь к администратору"
       return
     }
-    window.localStorage.setItem("marci-admin__token", token)
+    window.localStorage.setItem("dynara-admin__token", token)
     resetRequestCache()
     router.replace('/')
   } catch(e) {

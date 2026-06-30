@@ -14,7 +14,7 @@ import VDialogProvider from './components/VDialogProvider.vue';
 
 const router = useRouter()
 
-const token = window.localStorage.getItem("marci-admin__token")
+const token = window.localStorage.getItem("dynara-admin__token")
 if (!token) {
   router.push("/auth")
 }

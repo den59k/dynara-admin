@@ -61,7 +61,7 @@ const VENDORS = [
     plugins: undefined,
   },
   {
-    specifier: "marci-admin/ui",
+    specifier: "dynara-admin/ui",
     name: "sdk",
     entry: "./src/vendor/sdk.ts",
     external: ["vue", "vue-router"],

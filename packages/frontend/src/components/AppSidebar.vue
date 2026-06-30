@@ -1,6 +1,6 @@
 <template>
   <aside class="app-sidebar">
-    <h3>Marci Admin</h3>
+    <h3>Dynara Admin</h3>
     <RouterLink v-for="page in data" :to="page.path.startsWith('/')? page.path: `/${page.path}`">
       {{ page.title }}
     </RouterLink>

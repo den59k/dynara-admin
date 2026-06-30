@@ -1,10 +1,7 @@
 {
-  "name": "marci-admin",
+  "name": "dynara-admin",
   "module": "index.ts",
   "type": "module",
-  "scripts": {
-    "dev": "bun --watch packages/dev-app/src/main.ts"
-  },
   "workspaces": [
     "packages/*"
   ],

@@ -41,7 +41,7 @@ export const request = async <T = any>(url: string, body?: any, options: Options
     headers["Content-Type"] = "application/json"
   }
 
-  const jwt = window.localStorage.getItem("marci-admin__token")
+  const jwt = window.localStorage.getItem("dynara-admin__token")
   if (jwt) {
     headers["Authorization"] = "Bearer "+jwt
   }
@@ -84,7 +84,7 @@ export const sendXHR = (url: string, body: FormData | File, { method, onProgress
   const xhr = new XMLHttpRequest()
   xhr.open(method || "POST", url)
 
-  const jwt = window.localStorage.getItem("marci-admin__token")
+  const jwt = window.localStorage.getItem("dynara-admin__token")
   if (jwt) {
     xhr.setRequestHeader("Authorization", "Bearer "+jwt)
   }
@@ -148,7 +148,7 @@ export const downloadXHR = async (
     };
   }
 
-  const jwt = window.localStorage.getItem("marci-admin__token")
+  const jwt = window.localStorage.getItem("dynara-admin__token")
   if (jwt) {
     xhr.setRequestHeader("Authorization", "Bearer "+jwt)
   }

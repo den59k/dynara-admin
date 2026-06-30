@@ -11,7 +11,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 // @ts-ignore
-if (window.__MARCI_CUSTOM_HOME_PAGE__) {
+if (window.__DYNARA_CUSTOM_HOME_PAGE__) {
   routes.unshift({ path: "/", component: DataPage, meta: { name: "#view" } })
 } else {
   routes.unshift({ path: "/", component: HomePage, name: "main", meta: { name: document.title ?? "Добро пожаловать" } })

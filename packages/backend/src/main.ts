@@ -20,7 +20,7 @@ export type AdminPanel = {
   registerAuthMethod<T extends SchemaItem, K>(method: AuthMethod<T, K>): void
 }
 
-export type AdminPanelMarci = ((app: MarciApp<any>) => Promise<void>) & AdminPanel
+export type AdminPanelDynara = ((app: MarciApp<any>) => Promise<void>) & AdminPanel
 
 type PageEntry = {
   title?: string,
@@ -41,7 +41,7 @@ type PageEntry = {
 
 declare const __PRODUCTION__: boolean
 
-export const createAdminPanel = (): AdminPanelMarci => {
+export const createAdminPanel = (): AdminPanelDynara => {
 
   const plugins: [AdminPanelPlugin<any>, any][] = []
   const componentFiles = new Map()
@@ -169,7 +169,7 @@ export const createAdminPanel = (): AdminPanelMarci => {
       const code = []
       
       if (pages.find(i => i.path === '/')) {
-        code.push(`window.__MARCI_CUSTOM_HOME_PAGE__ = true`)
+        code.push(`window.__DYNARA_CUSTOM_HOME_PAGE__ = true`)
       }
 
       if (code.length > 0) {
@@ -213,7 +213,7 @@ export const createAdminPanel = (): AdminPanelMarci => {
 
     const res = await Bun.build({
       entrypoints: [file],
-      external: ["vue", "vue-router", "marci-admin/ui"],
+      external: ["vue", "vue-router", "dynara-admin/ui"],
       target: "browser",
       format: "esm",
       minify: isProduction,

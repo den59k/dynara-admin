@@ -1,8 +1,8 @@
-# marci-admin
+# dynara-admin
 
 > Spin up a headless CMS / admin panel in minutes on top of [`@den59k/marci`](https://www.npmjs.com/package/@den59k/marci).
 
-`marci-admin` turns a set of route files into a fully functional admin panel: list views with pagination, item pages, create/update forms, and bulk delete — all wired to **your own** data layer.
+`dynara-admin` turns a set of route files into a fully functional admin panel: list views with pagination, item pages, create/update forms, and bulk delete — all wired to **your own** data layer.
 
 It is **database-agnostic**: there is no built-in ORM and no assumptions about your storage. You provide async handlers, and the panel calls them. That's why the page API is expressed as a small set of hooks (`.data`, `.item`, `.createForm`, …) rather than a schema bound to a particular database.
 
@@ -22,7 +22,7 @@ It is built on `@den59k/marci`, a Bun-first framework with a Fastify-like API. B
 ## Installation
 
 ```bash
-bun add marci-admin
+bun add dynara-admin
 ```
 
 ## Quick start
@@ -30,7 +30,7 @@ bun add marci-admin
 Create a panel, load your page modules from a folder, attach an auth method, and register it on your app.
 
 ```typescript
-import { createAdminPanel, HTTPError } from "marci-admin"
+import { createAdminPanel, HTTPError } from "dynara-admin"
 import { Glob } from "bun"
 import { join } from "node:path"
 
@@ -55,7 +55,7 @@ app.register(adminPanel)
 Register an auth method by describing the login form fields and providing the login / per-request logic. Throw an `HTTPError` to reject a request.
 
 ```typescript
-import { createAdminPanel, HTTPError } from "marci-admin"
+import { createAdminPanel, HTTPError } from "dynara-admin"
 
 const accounts: Record<string, string> = {
   root: "123123"
@@ -92,7 +92,7 @@ adminPanel.registerAuthMethod({
 Each page is a module with a default export: a function that receives the `AdminPanel` instance and the page `path`, and returns a configured page. Forms are described with [`compact-json-schema`](https://www.npmjs.com/package/compact-json-schema).
 
 ```typescript
-import { type AdminPanel } from "marci-admin"
+import { type AdminPanel } from "dynara-admin"
 import { schema } from "compact-json-schema"
 import { db } from "../plugins/db"
 
@@ -168,7 +168,7 @@ Form schemas (`compact-json-schema`) and auth `fields` share the same field opti
 
 ## Why marci (and Fastify)
 
-`@den59k/marci` is a Bun-specific framework with a Fastify-like API. `marci-admin` targets that surface, so:
+`@den59k/marci` is a Bun-specific framework with a Fastify-like API. `dynara-admin` targets that surface, so:
 
 - On **Bun + marci** you get the fastest path.
 - The API is close enough to **Fastify** that the panel can be moved over if your stack requires it.

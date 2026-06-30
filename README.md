@@ -1,8 +1,8 @@
-# marci-admin
+# dynara-admin
 
-[![NPM version](https://img.shields.io/npm/v/marci-admin)](https://www.npmjs.com/package/marci-admin)
+[![NPM version](https://img.shields.io/npm/v/dynara-admin)](https://www.npmjs.com/package/dynara-admin)
 
-A headless admin panel framework for [Bun](https://bun.sh), built as a plugin for the [`@den59k/marci`](https://github.com/den59k/marci) web framework. You define pages with a fluent builder API; `marci-admin` handles routing, auth, and serves a built-in Vue 3 UI.
+A headless admin panel framework for [Bun](https://bun.sh), built as a plugin for the [`@den59k/marci`](https://github.com/den59k/marci) web framework. You define pages with a fluent builder API; `dynara-admin` handles routing, auth, and serves a built-in Vue 3 UI.
 
 > **Status:** early development, API may change between versions.
 
@@ -13,10 +13,9 @@ A headless admin panel framework for [Bun](https://bun.sh), built as a plugin fo
 
 | Package | Description |
 |---|---|
-| [`packages/backend`](packages/backend) | **`marci-admin`** — the publishable npm package |
+| [`packages/backend`](packages/backend) | **`dynara-admin`** — the publishable npm package |
 | [`packages/frontend`](packages/frontend) | Vue 3 SPA bundled into the backend package at build time |
-| [`packages/marci-orm`](packages/marci-orm) | Lightweight type-safe ORM (not published to npm, local workspace only) |
-| [`packages/dev-app`](packages/dev-app) | Example application — shows how to wire everything together |
+| [`packages/dyn-orm`](packages/dyn-orm) | Lightweight type-safe ORM (not published to npm, local workspace only) |
 | [`packages/plugins`](packages/plugins) | Bun build plugins for Vue SFC and SVG sprites |
 
 ---
@@ -24,7 +23,7 @@ A headless admin panel framework for [Bun](https://bun.sh), built as a plugin fo
 ## Installation
 
 ```bash
-bun add marci-admin
+bun add dynara-admin
 ```
 
 **Peer dependencies:**
@@ -39,7 +38,7 @@ bun add @den59k/marci compact-json-schema
 
 ```typescript
 import { createApp } from "@den59k/marci";
-import { createAdminPanel } from "marci-admin";
+import { createAdminPanel } from "dynara-admin";
 
 const app = createApp({ port: 3000 });
 const adminPanel = createAdminPanel();
@@ -109,12 +108,12 @@ Pass an array of column descriptors to `.table()`. Each column must have a `titl
 
 ---
 
-## marci-orm
+## dyn-orm
 
-`marci-orm` is a lightweight, type-safe query builder included in this repository as a local workspace package. It is **not published to npm** — import it through the monorepo workspace (`"marci-orm": "*"` in your workspace `package.json`).
+`dyn-orm` is a lightweight, type-safe query builder included in this repository as a local workspace package. It is **not published to npm** — import it through the monorepo workspace (`"dyn-orm": "*"` in your workspace `package.json`).
 
 ```typescript
-import { table, createData } from "marci-orm";
+import { table, createData } from "dyn-orm";
 
 const users = table("users", {
   id: { type: "integer", primaryKey: true, default: "inc" },
@@ -138,17 +137,12 @@ const user = await db.users.findFirst({ where: { id: 1 } });
 # Install dependencies
 bun install
 
-# Start the dev app (auto-restart on changes)
-bun --watch packages/dev-app/src/main.ts
-
 # Build the frontend and copy it into the backend package
 bun run packages/frontend/build.ts
 
 # Build the backend package for publishing
 cd packages/backend && bun run build
 ```
-
-The dev app runs at `http://localhost:3000`. The admin panel is at `/admin`.
 
 ---
 

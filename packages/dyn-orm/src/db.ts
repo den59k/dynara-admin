@@ -22,7 +22,7 @@ type SelectOptions <T extends Table, A extends FullSchema> = {
 //   where: GetWhere<T["schema"], A>
 // }
 
-type MarciData<T extends FullSchema> = {
+type DynData<T extends FullSchema> = {
   connect(): Promise<void>
 } & {
   [ K in keyof T ]: {
@@ -282,9 +282,9 @@ const createMethods = <T extends TableSchema>(sql: SQL, table: Table<T>, schema:
   }
 }
 
-export const createData = <T extends FullSchema>(schema: T): MarciData<T> => {
+export const createData = <T extends FullSchema>(schema: T): DynData<T> => {
 
-  const pg = new SQL('postgres://postgres:5678@localhost:5432/marci-test');
+  const pg = new SQL();
 
   createAliases(schema)
 
