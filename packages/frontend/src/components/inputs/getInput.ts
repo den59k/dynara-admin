@@ -4,6 +4,7 @@ import VInputText from "./VInputText.vue"
 import VCheckbox from './VCheckbox.vue'
 import VInputTextArea from "./VInputTextArea.vue"
 import VSelectInput from "./VSelectInput.vue"
+import VFileInput from "./VFileInput.vue"
 
 // A static option for a select field.
 export type SelectOption = { value: any, label: string }
@@ -20,6 +21,7 @@ export type Schema = {
   multiline?: boolean,
   items?: Schema,
   width?: number,
+  format?: string,
   options?: SelectOption[],
   reference?: SelectReference
 }
@@ -37,6 +39,9 @@ export const JsonInput = (props: JsonInputProps) => {
   const { schema, ...otherProps } = props
   if (schema.type === "object") {
     return h(VInputObject, { schema, ...otherProps })
+  }
+  if (schema.format === "file") {
+    return h(VFileInput, otherProps)
   }
   if (schema.options || schema.reference) {
     return h(VSelectInput, { options: schema.options, reference: schema.reference, ...otherProps })

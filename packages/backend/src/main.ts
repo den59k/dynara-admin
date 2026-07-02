@@ -105,7 +105,8 @@ type PageEntry = {
   primaryKeyType?: SchemaItem,
   component?: string,
   componentData: { name: string, schema?: SchemaItem, method: (args: any, ctx: Ctx) => any }[],
-  componentActions: { name: string, schema?: SchemaItem, method: (...args: any[]) => any }[]
+  componentActions: { name: string, schema?: SchemaItem, method: (...args: any[]) => any }[],
+  upload?: (file: File, ctx: Ctx & { field?: string }) => string | Promise<string>
 }
 
 declare const __PRODUCTION__: boolean
@@ -235,6 +236,23 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       for (let data of page.componentData) {
         app.get(`${apiBase}/data/${path}/component-data/${data.name}`, { query: data.schema }, async (req) => {
           return await data.method(req.query as any, { user: (req as any).user })
+        })
+      }
+
+      if (page.upload) {
+        // Multipart upload. No body schema is declared, so dynara leaves the raw
+        // body untouched and we read the file off req.raw ourselves. The handler
+        // stores it however it likes and returns the URL/id saved as the value.
+        app.post(`${apiBase}/data/${path}/upload`, async (req) => {
+          const form = await (req as any).raw.formData()
+          const file = form.get("file")
+          if (!(file instanceof File)) throw new HTTPError("No file uploaded", 400)
+          const field = form.get("field")
+          const url = await page.upload!(file, {
+            user: (req as any).user,
+            field: typeof field === "string" ? field : undefined,
+          })
+          return { url }
         })
       }
 
@@ -443,6 +461,10 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
           currentPage.componentActions.push({ name: args[0], schema: args[1], method: args[2] })
         }
         return this
+      },
+      upload(handler: any) {
+        currentPage.upload = handler
+        return this
       }
     }
     return data
@@ -513,6 +535,9 @@ interface Page<T extends object, User = unknown> {
   componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this
   componentAction(name: string, handler: (ctx: RequestContext<User>) => Promise<any> | any): this
   componentAction<S extends SchemaItem>(name: string, schema: S, handler: (data: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this
+  // Handle file uploads for `{ format: "file" }` form fields. Store the file and
+  // return the URL/id that becomes the field value. `ctx.field` is the field name.
+  upload(handler: (file: File, ctx: RequestContext<User> & { field?: string }) => string | Promise<string>): this
 }
 
 interface PageWithPrimaryKey<T extends object, KeyType, Item extends object, User = unknown> extends Page<T, User> {

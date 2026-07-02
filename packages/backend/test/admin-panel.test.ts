@@ -291,6 +291,43 @@ describe("admin panel — component actions", () => {
   })
 })
 
+describe("admin panel — file uploads", () => {
+  const buildUploadApp = () => {
+    const stored: Array<{ name: string, size: number, field?: string }> = []
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Users", path: "users" })
+      .data(async () => ({ items: [], total: 0 }))
+      .upload(async (file, ctx) => {
+        stored.push({ name: file.name, size: file.size, field: ctx.field })
+        return `/files/${file.name}`
+      })
+    const app = new Router()
+    app.register(admin)
+    return { app, stored }
+  }
+
+  it("stores an uploaded file via the handler and returns its url", async () => {
+    const { app, stored } = buildUploadApp()
+    const form = new FormData()
+    form.append("file", new File(["hello"], "avatar.png", { type: "image/png" }))
+    form.append("field", "avatar")
+
+    const res = await app.inject({ method: "POST", url: "/api/admin/data/users/upload", body: form })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ url: "/files/avatar.png" })
+    expect(stored).toEqual([{ name: "avatar.png", size: 5, field: "avatar" }])
+  })
+
+  it("rejects an upload with no file", async () => {
+    const { app } = buildUploadApp()
+    const res = await app.inject({ method: "POST", url: "/api/admin/data/users/upload", body: new FormData() })
+
+    expect(res.status).toBe(400)
+  })
+})
+
 describe("admin panel — list options parsing", () => {
   const buildOptionsApp = () => {
     let received: unknown = null

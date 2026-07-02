@@ -115,6 +115,7 @@ const adminPanel = createAdminPanel({ basePath: "/panel", title: "Acme Admin" })
 | `.componentData(name, schema, fn)` | Same as above with a [`compact-json-schema`](https://github.com/den59k/compact-json-schema) for query param validation |
 | `.componentAction(name, fn)` | Register a named POST endpoint (a mutation) the custom component can invoke; `fn` receives just the request context |
 | `.componentAction(name, schema, fn)` | Same as above with a `compact-json-schema` validating the request body; `fn` receives `(data, ctx)` |
+| `.upload(fn)` | Handle uploads for `{ format: "file" }` fields; `fn(file, ctx)` stores the file and returns the URL/id saved as the value |
 
 Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`, `.componentData`, `.componentAction`) receives a request context as its last argument — `ctx.user` is the value returned by `onRequest`, for per-user authorization and audit logging.
 
@@ -141,6 +142,23 @@ A form field renders as a select when it carries `options` or `reference`:
 
 A `reference` field fetches options from the referenced page's `.data` (using the
 `search`/`take` params), so that page should honor `search` for the select to filter.
+
+### File uploads
+
+A `{ format: "file" }` field renders a file picker with an upload progress bar.
+Register a page-level `.upload` handler that stores the file and returns the
+URL/id saved as the field value:
+
+```typescript
+adminPanel
+  .createPage({ title: "Users", path: "users" })
+  // ...
+  .createForm({ name: "string", avatar: { type: "string", format: "file" } }, async (data) => { /* data.avatar is the URL */ })
+  .upload(async (file, ctx) => {
+    // ctx.field is "avatar"; store `file` (a Web File) wherever you like
+    return await storage.put(file)   // return the URL/id
+  })
+```
 
 ### Column types
 

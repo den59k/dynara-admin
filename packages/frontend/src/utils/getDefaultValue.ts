@@ -1,8 +1,8 @@
 export const getDefaultValue = (schema: any): any => {
   if (schema.default) return schema.default
   if (schema.nullable) return null
-  // Select / reference fields start empty rather than at a bogus 0 / "" value.
-  if (schema.options || schema.reference) return null
+  // Select / reference / file fields start empty rather than at a bogus 0 / "" value.
+  if (schema.options || schema.reference || schema.format === "file") return null
   // if (schema.type === 'object' && schema.format === 'image') {
   //   return { src: defaultImageSrc, previewSrc: defaultImageSrc }
   // }

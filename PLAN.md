@@ -121,8 +121,11 @@ doing them after more consumers exist is not.
       (static) or `reference: { page, label, value? }` (searchable, backed by the
       referenced page's `.data` search/take). No backend change — the config rides
       through `unfoldSchema` into `createForm`/`updateForm`.
-- [ ] **File uploads** — the frontend already ships `sendXHR` with progress; the core
+- [x] **File uploads** — the frontend already ships `sendXHR` with progress; the core
       has no upload contract. Add a `file` schema type + upload endpoint per page.
+      (`{ format: "file" }` renders `VFileInput` with a progress bar; POSTs multipart
+      to a per-page `/upload` route handled by a `.upload(handler)` that returns the
+      stored URL/id. Storage stays with the consumer — handler-returns-URL.)
 - [x] **i18n** — UI strings are hardcoded Russian while README/package are English.
       Extract to a locale table, default `en`, ship `ru`. Small surface now; painful
       later. (`src/i18n.ts` with `t(key, params)`, `en`/`ru` tables; locale from the

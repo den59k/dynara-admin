@@ -34,6 +34,11 @@ const en: Messages = {
   "select.clear": "Clear",
   "select.loading": "Loading…",
   "select.noOptions": "No options",
+  "file.choose": "Choose file",
+  "file.replace": "Replace",
+  "file.remove": "Remove",
+  "file.uploading": ({ percent }: { percent: number }) => `Uploading… ${percent}%`,
+  "file.error": "Upload failed",
 }
 
 const ru: Messages = {
@@ -63,6 +68,11 @@ const ru: Messages = {
   "select.clear": "Очистить",
   "select.loading": "Загрузка…",
   "select.noOptions": "Нет вариантов",
+  "file.choose": "Выберите файл",
+  "file.replace": "Заменить",
+  "file.remove": "Удалить",
+  "file.uploading": ({ percent }: { percent: number }) => `Загрузка… ${percent}%`,
+  "file.error": "Не удалось загрузить файл",
 }
 
 const tables: Record<Locale, Messages> = { en, ru }
