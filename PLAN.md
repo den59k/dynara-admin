@@ -163,14 +163,24 @@ adapter, not direct coupling.
 - [ ] **Stop copying the frontend build into `backend/src/frontend`.** Build output
       belongs in `dist` only; committed artifacts in `src` and a tracked
       `backend/dist` cause noisy diffs and stale-build bugs.
-- [ ] **CI** — GitHub Actions: `bun test` + backend build + `vue-tsc` on the frontend
+- [x] **CI** — GitHub Actions: `bun test` + backend build + `vue-tsc` on the frontend
       on every push. Publish on tag.
-- [ ] **Frontend tests** — none exist. Start with component tests for the form
+      (`.github/workflows/ci.yml`: build-test job runs `bun test`, frontend `vue-tsc`,
+      frontend build and backend build; publish job runs on `v*` tags — needs an
+      `NPM_TOKEN` secret. `vue-tsc` is now clean: removed the dead `InputObject.vue`
+      and added `src/shims.d.ts` for css/svg-glob imports.)
+- [~] **Frontend tests** — none exist. Start with component tests for the form
       generator (`getInput`/`JsonInput` + `getDefaultValue`) and an e2e smoke
       (login → list → create → edit → delete) against a fixture app.
-- [ ] Static-asset handler: return 404 for missing files under `/admin/assets/`
+      (Done: `getDefaultValue` unit tests. Still to do: `getInput`/`JsonInput`
+      component tests (need an SFC test setup, e.g. vitest + @vue/test-utils) and
+      the e2e smoke — the latter depends on a runnable dev/app harness below.)
+- [x] Static-asset handler: return 404 for missing files under `/admin/assets/`
       (currently throws → 500) and verify the traversal guard against
       percent-encoded `..` on Windows paths.
+      (Extracted a tested `resolveAssetPath` helper: decodes percent-encoding,
+      rejects absolute paths and anything resolving outside the dir; the handler
+      now `exists()`-checks and 404s. Unit-tested + verified over HTTP.)
 
 ---
 

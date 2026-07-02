@@ -2,7 +2,7 @@ import { type Router, HTTPError } from "dynara";
 // import type { ViteDevServer } from "vite";
 // import frontendIndex from '../../frontend/index.html'
 import type { BunRequest } from "bun";
-import { join, normalize } from "node:path"
+import { join, normalize, sep, isAbsolute } from "node:path"
 import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
 
 // Re-exported so consumers can `import { HTTPError } from "dynara-admin"` to reject requests.
@@ -16,6 +16,25 @@ const HOME_PATH = "__home__"
 // frontend build's PUBLIC_PATH). When a custom `basePath` is configured the
 // served index.html is rewritten from this prefix to the configured one.
 const BUILD_ASSET_PREFIX = "/admin/assets/"
+
+// Resolves a request path under the assets prefix to an absolute file path
+// inside `dir`, or null if it would escape the directory. Decodes percent-
+// encoding first (so `%2e%2e` can't sneak past) and rejects absolute paths and
+// any resolved path outside `dir` — robust against `..` on POSIX and Windows.
+// Exported for testing.
+export const resolveAssetPath = (dir: string, pathname: string, prefix: string): string | null => {
+  let rel: string
+  try {
+    rel = decodeURIComponent(pathname.slice(prefix.length))
+  } catch {
+    return null // malformed percent-encoding
+  }
+  if (rel === "" || isAbsolute(rel)) return null
+  const full = normalize(join(dir, rel))
+  const root = normalize(dir.endsWith(sep) ? dir : dir + sep)
+  if (!full.startsWith(root)) return null
+  return full
+}
 
 // Normalizes a configured UI base path: guarantees a leading slash and drops a
 // trailing one ("admin" → "/admin", "/panel/" → "/panel").
@@ -292,11 +311,13 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       const frontendDir = join(import.meta.dir, "frontend")
 
       const ASSETS_PREFIX = `${uiBase}/assets/`
-      routesRaw[ASSETS_PREFIX + "*"] = (req: Request) => {
+      routesRaw[ASSETS_PREFIX + "*"] = async (req: Request) => {
         const { pathname } = new URL(req.url)
-        const rel = normalize(pathname.slice(ASSETS_PREFIX.length))
-        if (rel.startsWith("..")) return new Response("Not found", { status: 404 }) // защита от path traversal
-        return new Response(Bun.file(join(frontendDir, rel))) // Content-Type Bun проставит по расширению
+        const full = resolveAssetPath(frontendDir, pathname, ASSETS_PREFIX)
+        if (!full) return new Response("Not found", { status: 404 }) // защита от path traversal
+        const file = Bun.file(full)
+        if (!(await file.exists())) return new Response("Not found", { status: 404 })
+        return new Response(file) // Content-Type Bun проставит по расширению
       }
 
       // index.html читаем один раз и держим в памяти

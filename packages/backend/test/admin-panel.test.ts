@@ -1,7 +1,8 @@
 import { describe, it, expect } from "bun:test"
+import { join, normalize } from "node:path"
 import { Router } from "dynara"
 // HTTPError is imported from the package entry to exercise the documented re-export.
-import { createAdminPanel, HTTPError } from "../src/main"
+import { createAdminPanel, HTTPError, resolveAssetPath } from "../src/main"
 
 type User = { id: number; name: string }
 
@@ -288,6 +289,39 @@ describe("admin panel — component actions", () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ pong: true })
     expect(calls.pinged).toBe(1)
+  })
+})
+
+describe("static asset path resolution", () => {
+  const dir = normalize("/srv/app/frontend")
+  const prefix = "/admin/assets/"
+
+  it("resolves a valid asset path inside the directory", () => {
+    expect(resolveAssetPath(dir, "/admin/assets/chunk.js", prefix)).toBe(join(dir, "chunk.js"))
+  })
+
+  it("resolves nested asset paths", () => {
+    expect(resolveAssetPath(dir, "/admin/assets/vendor/vue.js", prefix)).toBe(join(dir, "vendor", "vue.js"))
+  })
+
+  it("rejects a parent-directory traversal", () => {
+    expect(resolveAssetPath(dir, "/admin/assets/../secret", prefix)).toBeNull()
+  })
+
+  it("rejects percent-encoded traversal", () => {
+    expect(resolveAssetPath(dir, "/admin/assets/%2e%2e/secret", prefix)).toBeNull()
+  })
+
+  it("rejects an absolute path", () => {
+    expect(resolveAssetPath(dir, "/admin/assets//etc/passwd", prefix)).toBeNull()
+  })
+
+  it("rejects malformed percent-encoding", () => {
+    expect(resolveAssetPath(dir, "/admin/assets/%zz", prefix)).toBeNull()
+  })
+
+  it("rejects an empty asset path", () => {
+    expect(resolveAssetPath(dir, "/admin/assets/", prefix)).toBeNull()
   })
 })
 

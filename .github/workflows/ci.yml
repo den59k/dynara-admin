@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Test (backend + frontend units)
+        run: bun test
+
+      - name: Typecheck frontend
+        run: bunx vue-tsc --noEmit -p tsconfig.json
+        working-directory: packages/frontend
+
+      - name: Build frontend
+        run: bun run build.ts
+        working-directory: packages/frontend
+
+      - name: Build backend
+        run: bun run build
+        working-directory: packages/backend
+
+  publish:
+    # Publishes packages/backend (dynara-admin) to npm on a v* tag.
+    # Requires an NPM_TOKEN repository secret.
+    needs: build-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build backend bundle
+        run: bun run build
+        working-directory: packages/backend
+
+      - name: Build frontend (emits dist/frontend + type declarations)
+        run: bun run build.ts
+        working-directory: packages/frontend
+
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: packages/backend
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
