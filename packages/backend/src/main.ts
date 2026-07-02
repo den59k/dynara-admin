@@ -320,8 +320,14 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         return new Response(file) // Content-Type Bun проставит по расширению
       }
 
-      // index.html читаем один раз и держим в памяти
-      let indexHtml = await Bun.file(join(frontendDir, "index.html")).text()
+      // index.html читаем один раз и держим в памяти. If the frontend hasn't been
+      // built yet (fresh clone / CI before the build step / API-only tests), fall
+      // back to a placeholder instead of crashing registration — the API routes
+      // above still work; only the panel UI is unavailable.
+      const indexFile = Bun.file(join(frontendDir, "index.html"))
+      let indexHtml = await indexFile.exists()
+        ? await indexFile.text()
+        : "<!doctype html><html><head><title>dynara-admin</title></head><body>Panel frontend is not built.</body></html>"
 
       // The bundle bakes in BUILD_ASSET_PREFIX at build time; rewrite it to the
       // configured base so a custom basePath serves the right asset/importmap URLs.
