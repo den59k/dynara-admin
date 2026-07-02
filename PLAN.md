@@ -82,9 +82,10 @@ doing them after more consumers exist is not.
 - [x] Validate page paths at `createPage` time: reject duplicates (currently two
       pages with the same path silently collide on routes) and characters that
       break the route template.
-- [ ] Formalize or remove the `__home__` sentinel — it currently leaks into the
+- [x] Formalize or remove the `__home__` sentinel — it currently leaks into the
       frontend (`DataPage.vue`, `exportApi.ts`) as a magic string.
-      (Backend now uses a `HOME_PATH` constant; the frontend still hardcodes it.)
+      (Backend uses a `HOME_PATH` constant; the frontend uses `HOME_VIEW_ID`
+      from `src/constants.ts`.)
 - [x] Component name collisions: `componentFiles` is keyed by file basename, so two
       `.component()` files named `Stats.vue` on different pages overwrite each other.
       Key by page path + name or hash the absolute path. (Keyed `${segment}__${name}`.)
@@ -93,9 +94,14 @@ doing them after more consumers exist is not.
 
 - [x] `PageEntry` is `any` throughout — the fluent API is typed for the consumer but
       the implementation is unchecked. Type it properly.
-- [ ] Extract the page-metadata shape (`/api/admin/pages/:path` response) into one
+- [x] Extract the page-metadata shape (`/api/admin/pages/:path` response) into one
       shared type used by both backend and `dataApi.ts` (`FullPage` is currently
       redeclared by hand and already drifts).
+      (Backend now has an authoritative `PageMeta` type enforced as the handler's
+      return; `FullPage` mirrors it with a keep-in-sync note. A *literal* shared
+      type is blocked: `dynara-admin` resolves to the published package in the bun
+      cache, not the local workspace source — so full unification waits on publish
+      or a shared types package.)
 
 ---
 

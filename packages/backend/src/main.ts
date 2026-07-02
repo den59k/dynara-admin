@@ -63,6 +63,21 @@ export type ListOptions = {
 // The list response shape. `total` is the unpaginated row count so the UI can paginate.
 export type ListResult<T> = { items: T[], total: number }
 
+// The `${apiBase}/pages/:path` response — the single source of truth for a
+// page's metadata shape. The frontend's `FullPage` mirrors this (the two
+// packages can't share a type until this one is published).
+export type PageMeta = {
+  title?: string,
+  path?: string,
+  table?: ColumnId<any, any>[],
+  component?: string,
+  primaryKey?: PropertyKey,
+  createForm?: { schema: SchemaItem },
+  updateForm?: { schema: SchemaItem },
+  itemAccess: boolean,
+  allowDelete?: true,
+}
+
 export type AdminPanel<User = unknown> = {
   createPage<T extends object>(options: CreatePageOptions): PageWithPrimaryKey<T, string, T, User>,
   register<T extends any[]>(func: AdminPanelPlugin<T>, ...options: T): void
@@ -218,7 +233,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         })
       }
 
-      app.get(`${apiBase}/pages/${path}`, async (req) => {
+      app.get(`${apiBase}/pages/${path}`, async (req): Promise<PageMeta> => {
         return {
           title: page.title,
           path: page.path,

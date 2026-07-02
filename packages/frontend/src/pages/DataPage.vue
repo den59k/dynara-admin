@@ -27,6 +27,7 @@
 import { mutateRequestFull, useRequestWatch } from 'vuesix';
 import { dataApi, type ListParams } from '../api/dataApi';
 import { UI_BASE } from '../api/request';
+import { HOME_VIEW_ID } from '../constants';
 import { useRoute } from 'vue-router';
 import { computed, shallowRef, watch } from 'vue';
 import VButton from '../components/VButton.vue';
@@ -37,7 +38,7 @@ import VIcon from '../components/VIcon.vue';
 import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
 const currentRoute = useRoute()
-const viewId = computed(() => currentRoute.params.viewId as string ?? '__home__')
+const viewId = computed(() => currentRoute.params.viewId as string ?? HOME_VIEW_ID)
 
 const pageSize = 20
 const page = shallowRef(0)

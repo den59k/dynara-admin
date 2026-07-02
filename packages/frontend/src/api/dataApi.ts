@@ -6,6 +6,8 @@ type Page = {
   path: string,
 }
 
+// Mirror of the backend `PageMeta` type (the `/pages/:path` response). Keep the
+// two in sync — they can't share a type until the backend package is published.
 export type FullPage = Page & {
   primaryKey: string,
   table: TableColumn<any>[]
