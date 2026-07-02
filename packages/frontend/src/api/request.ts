@@ -1,4 +1,5 @@
 import { setUseFormErrorHandler } from "vuesix"
+import { t } from "../i18n"
 
 // Base paths injected by the backend into index.html (see createAdminPanel's
 // basePath option). Fall back to the build-time defaults when unset.
@@ -22,7 +23,7 @@ export class HTTPError extends Error {
 
 setUseFormErrorHandler((e, errors) => {
   if (!(e instanceof HTTPError)) {
-    (errors as any)["_global"] = "Произошла ошибка"
+    (errors as any)["_global"] = t("common.error")
     return
   }
   if (typeof e.body?.error === "object") {

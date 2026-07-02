@@ -1,12 +1,12 @@
 <template>
   <VDialog>
     <template #header>
-      {{ props.title ?? 'Подтвердите действие' }}
+      {{ props.title ?? t('confirm.title') }}
     </template>
     <div class="confirm-dialog__text">{{ props.text }}</div>
     <template #actions>
-      <VButton outline @click="dialog.back">Отмена</VButton>
-      <VButton :disabled="pending" @click="apply">{{ props.confirmTitle ?? 'Применить' }}</VButton>
+      <VButton outline @click="dialog.back">{{ t('dialog.cancel') }}</VButton>
+      <VButton :disabled="pending" @click="apply">{{ props.confirmTitle ?? t('confirm.apply') }}</VButton>
     </template>
   </VDialog>
 </template>
@@ -44,18 +44,19 @@ const apply = async () => {
 <script lang="ts">
 import ConfirmDialog from './ConfirmDialog.vue'
 import { useDialog } from '../VDialogProvider.vue';
+import { t } from '../../i18n';
 
 type ConfirmCallback = () => void | Promise<void>
 
-export const deleteProps = {
-  title: "Вы действительно хотите удалить элемент?",
-  text: "Отменить действие будет невозможно",
-  confirmTitle: "Удалить"
-}
+export const deleteProps = () => ({
+  title: t('confirm.deleteDefaultTitle'),
+  text: t('confirm.irreversible'),
+  confirmTitle: t('confirm.delete'),
+})
 
 export const openConfirmDialog = (dialogStore: ReturnType<typeof useDialog>, onConfirm: ConfirmCallback) => {
   dialogStore.open(ConfirmDialog, {
-    ...deleteProps,
+    ...deleteProps(),
     onConfirm
   })
 }

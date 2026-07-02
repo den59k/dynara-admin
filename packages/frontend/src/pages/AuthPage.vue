@@ -1,9 +1,9 @@
 <template>
   <div v-if="data" class="auth-page">
     <form class="auth-page__form" @submit.prevent="onSubmit">
-      <h1>{{ data?.title ?? 'Вход в аккаунт' }}</h1>
+      <h1>{{ data?.title ?? t('auth.title') }}</h1>
       <JsonInput :model-value="values" :schema="data.fields" />
-      <VButton>Вход</VButton>
+      <VButton>{{ t('auth.submit') }}</VButton>
       <div v-if="error" class="auth-page__error">{{ error }}</div>
     </form>
   </div>
@@ -18,6 +18,7 @@ import { reactive } from 'vue';
 import { shallowRef } from 'vue';
 import { HTTPError } from '../api/request';
 import { useRouter } from 'vue-router';
+import { t } from '../i18n';
 
 const { data } = useRequest(accountApi.getAuthData)
 const values = reactive({})
@@ -39,10 +40,10 @@ const onSubmit = async () => {
       if (typeof e.body === 'string') {
         error.value = e.body
       } else {
-        error.value = e.body?.error ?? 'Произошла ошибка'
+        error.value = e.body?.error ?? t('common.error')
       }
     } else {
-      error.value = "Произошла ошибка"
+      error.value = t('common.error')
     }
     pending.value = false
   }

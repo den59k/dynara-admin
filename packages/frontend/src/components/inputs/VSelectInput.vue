@@ -10,7 +10,7 @@
       @keydown.esc="open = false"
     >
       <span v-if="displayLabel" class="v-select-input__value">{{ displayLabel }}</span>
-      <span v-else class="v-select-input__placeholder">{{ placeholder ?? 'Не выбрано' }}</span>
+      <span v-else class="v-select-input__placeholder">{{ placeholder ?? t('select.empty') }}</span>
       <VIcon class="v-select-input__arrow" icon="v-collapse-arrow" />
 
       <div v-if="open" class="v-select-input__dropdown" @click.stop>
@@ -19,7 +19,7 @@
           ref="searchRef"
           class="v-select-input__search"
           v-model="search"
-          placeholder="Поиск..."
+          :placeholder="t('select.search')"
         />
         <div class="v-select-input__options">
           <button
@@ -27,7 +27,7 @@
             type="button"
             class="v-select-input__option v-select-input__clear"
             @click="select(null)"
-          >Очистить</button>
+          >{{ t('select.clear') }}</button>
           <button
             v-for="opt in resolvedOptions"
             :key="String(opt.value)"
@@ -37,7 +37,7 @@
             @click="select(opt.value)"
           >{{ opt.label }}</button>
           <div v-if="resolvedOptions.length === 0" class="v-select-input__empty">
-            {{ pending ? 'Загрузка…' : 'Нет вариантов' }}
+            {{ pending ? t('select.loading') : t('select.noOptions') }}
           </div>
         </div>
       </div>
@@ -51,6 +51,7 @@ import VFormControl from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import { dataApi } from '../../api/dataApi'
 import type { SelectOption, SelectReference } from './getInput'
+import { t } from '../../i18n'
 
 const props = defineProps<{
   label?: string

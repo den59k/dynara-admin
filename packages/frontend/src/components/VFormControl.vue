@@ -32,6 +32,7 @@ export type VFormControlProps = {
 
 <script lang="ts" setup>
 import { computed, inject } from 'vue';
+import { t } from '../i18n';
 
 const props = defineProps<VFormControlProps & { outline?: boolean }>()
 
@@ -42,7 +43,7 @@ const error = computed(() => {
   if (code && code in errorMap) {
     return errorMap[code] ?? ""
   }
-  return props.error.message ?? "Произошла ошибка"
+  return props.error.message ?? t('common.error')
 })
 
 const errorMap = inject("errorMap", {}) as Record<string, string>

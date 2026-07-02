@@ -14,7 +14,7 @@
     </template>
     <button style="margin-top: auto">
       <VIcon icon="logout"/>
-      Выйти из аккаунта
+      {{ t('sidebar.logout') }}
     </button>
   </aside>
 </template>
@@ -26,6 +26,7 @@ import { computed, watch } from 'vue';
 import { HTTPError } from '../api/request';
 import { useRouter } from 'vue-router';
 import VIcon from './VIcon.vue';
+import { t } from '../i18n';
 
 const title = (window as any).__DYNARA_TITLE__ ?? "Dynara Admin"
 

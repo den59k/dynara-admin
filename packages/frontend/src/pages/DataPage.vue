@@ -2,9 +2,9 @@
   <h1>{{ tableData?.title }}<br/></h1>
   <component v-if="customComponent" :is="customComponent" />
   <VButton v-if="selectedItems.length > 0 && tableData?.allowDelete" @click="deleteItems">
-    <VIcon icon="delete" /> Удалить {{ selectedItems.length > 1? "элементы": "элемент" }}
+    <VIcon icon="delete" /> {{ t('data.delete', { count: selectedItems.length }) }}
   </VButton>
-  <VButton v-else-if="tableData?.createForm" @click="addItem">Добавить элемент</VButton>
+  <VButton v-else-if="tableData?.createForm" @click="addItem">{{ t('data.add') }}</VButton>
   <VTable
     v-if="tableData && data"
     :item-key="tableData.primaryKey"
@@ -18,9 +18,9 @@
     @itemclick="onRowClick"
   />
   <div v-if="data && data.total > pageSize" class="data-page__pagination">
-    <VButton flat :disabled="page === 0" @click="page--">Назад</VButton>
-    <span>{{ page * pageSize + 1 }}–{{ Math.min((page + 1) * pageSize, data.total) }} из {{ data.total }}</span>
-    <VButton flat :disabled="(page + 1) * pageSize >= data.total" @click="page++">Вперёд</VButton>
+    <VButton flat :disabled="page === 0" @click="page--">{{ t('pager.prev') }}</VButton>
+    <span>{{ t('pager.range', { from: page * pageSize + 1, to: Math.min((page + 1) * pageSize, data.total), total: data.total }) }}</span>
+    <VButton flat :disabled="(page + 1) * pageSize >= data.total" @click="page++">{{ t('pager.next') }}</VButton>
   </div>
 </template>
 
@@ -29,6 +29,7 @@ import { mutateRequestFull, useRequestWatch } from 'vuesix';
 import { dataApi, type ListParams } from '../api/dataApi';
 import { UI_BASE } from '../api/request';
 import { HOME_VIEW_ID } from '../constants';
+import { t } from '../i18n';
 import { useRoute } from 'vue-router';
 import { computed, shallowRef, watch } from 'vue';
 import VButton from '../components/VButton.vue';
@@ -100,9 +101,9 @@ watch(tableData, async (tableData) => {
 const deleteItems = async () => {
   const ids = selectedItems.value.map((item: any) => item[tableData.value!.primaryKey])
   dialog.open(ConfirmDialog, {
-    title: `Удалить ${ ids.length > 1? "элементы": "элемент" }?`,
-    text: "Отменить действие будет невозможно",
-    confirmTitle: "Удалить",
+    title: t('confirm.deleteTitle', { count: ids.length }),
+    text: t('confirm.irreversible'),
+    confirmTitle: t('confirm.delete'),
     async onConfirm() {
       await dataApi.deleteItems(viewId.value, ids)
       await mutateRequestFull(dataApi.getData)

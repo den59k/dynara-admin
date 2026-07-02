@@ -1,11 +1,11 @@
 <template>
   <VDialog style="width: 600px">
-    <template #header>{{ isEdit? "Редактировать ": "Добавить "}} элемент</template>
+    <template #header>{{ isEdit? t('dialog.editTitle'): t('dialog.addTitle') }}</template>
     <JsonInput v-model="values" :schema="props.schema" />
     <template #actions>
-      <VButton flat @click="dialog.close">Отмена</VButton>
+      <VButton flat @click="dialog.close">{{ t('dialog.cancel') }}</VButton>
       <VButton :disabled="pending" @click="apply">
-        {{ isEdit? "Сохранить": "Добавить" }}
+        {{ isEdit? t('dialog.save'): t('dialog.add') }}
       </VButton>
     </template>
   </VDialog>
@@ -20,6 +20,7 @@ import { useDialog } from '../VDialogProvider.vue';
 import { mutateRequestFull, useForm } from 'vuesix';
 import { dataApi } from '../../api/dataApi';
 import { getDefaultValue } from '../../utils/getDefaultValue';
+import { t } from '../../i18n';
 
 const props = defineProps<{
   viewId: string,
