@@ -65,12 +65,17 @@ doing them after more consumers exist is not.
 
 ### 1.4 Panel configuration
 
-- [ ] `createAdminPanel(options)` — today it accepts nothing. Minimum:
+- [x] `createAdminPanel(options)` — today it accepts nothing. Minimum:
       ```ts
       { basePath?: string /* default "/admin" */, title?: string, locale?: "en" | "ru" }
       ```
       `/admin` and `/api/admin` are hardcoded in ~10 places across backend and
       frontend; derive both from `basePath`.
+      (Backend derives `uiBase`/`apiBase`; the served index.html has asset paths
+      rewritten and `__DYNARA_BASE__`/`__DYNARA_API_BASE__`/`__DYNARA_TITLE__`/
+      `__DYNARA_LOCALE__` injected, which the frontend reads. `locale` is accepted
+      and exposed but the string table itself is M2 i18n. Verified end-to-end
+      against a running server with `basePath: "/panel"`.)
 
 ### 1.5 Page registry hygiene
 

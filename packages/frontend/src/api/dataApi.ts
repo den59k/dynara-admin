@@ -1,4 +1,4 @@
-import { request } from "./request";
+import { request, apiUrl } from "./request";
 import type { TableColumn } from '../components/VTable.vue'
 
 type Page = {
@@ -39,13 +39,13 @@ const buildListQuery = (params: ListParams) => {
 }
 
 export const dataApi = {
-  getPages: () => request<Page[]>("/api/admin/pages"),
-  getPageData: (pageId: string) => request<FullPage>(`/api/admin/pages/${pageId}`),
+  getPages: () => request<Page[]>(apiUrl("/pages")),
+  getPageData: (pageId: string) => request<FullPage>(apiUrl(`/pages/${pageId}`)),
   getData: (pageId: string, params: ListParams = {}) =>
-    request<ListResult>(`/api/admin/data/${pageId}/items${buildListQuery(params)}`),
-  getItemData: (pageId: string, itemId: number) => request(`/api/admin/data/${pageId}/items/${itemId}`),
+    request<ListResult>(apiUrl(`/data/${pageId}/items${buildListQuery(params)}`)),
+  getItemData: (pageId: string, itemId: number) => request(apiUrl(`/data/${pageId}/items/${itemId}`)),
 
-  createItem: (pageId: string, values: any) => request(`/api/admin/data/${pageId}/items`, values),
-  updateItem: (pageId: string, itemId: any, values: any) => request(`/api/admin/data/${pageId}/items/${itemId}`, values),
-  deleteItems: (pageId: string, itemIds: any) => request(`/api/admin/data/${pageId}/items`, { itemIds }, { method: "DELETE" })
+  createItem: (pageId: string, values: any) => request(apiUrl(`/data/${pageId}/items`), values),
+  updateItem: (pageId: string, itemId: any, values: any) => request(apiUrl(`/data/${pageId}/items/${itemId}`), values),
+  deleteItems: (pageId: string, itemIds: any) => request(apiUrl(`/data/${pageId}/items`), { itemIds }, { method: "DELETE" })
 }

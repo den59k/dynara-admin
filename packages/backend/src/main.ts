@@ -12,6 +12,20 @@ export { HTTPError }
 // does not have to be spelled out by hand across the route builders.
 const HOME_PATH = "__home__"
 
+// The asset prefix baked into the frontend bundle at build time (see the
+// frontend build's PUBLIC_PATH). When a custom `basePath` is configured the
+// served index.html is rewritten from this prefix to the configured one.
+const BUILD_ASSET_PREFIX = "/admin/assets/"
+
+// Normalizes a configured UI base path: guarantees a leading slash and drops a
+// trailing one ("admin" → "/admin", "/panel/" → "/panel").
+const normalizeBasePath = (p: string) => {
+  let s = p.trim()
+  if (!s.startsWith("/")) s = "/" + s
+  if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1)
+  return s
+}
+
 type AdminPanelPlugin<T extends any[]> = (app: AdminPanel, ...options: T) => void | Promise<void>
 
 type AuthMethod<T extends SchemaItem, User> = {
@@ -78,7 +92,7 @@ type PageEntry = {
 
 declare const __PRODUCTION__: boolean
 
-export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
+export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOptions = {}): AdminPanelDynara<User> => {
 
   const plugins: [AdminPanelPlugin<any>, any][] = []
   const componentFiles = new Map<string, string>()
@@ -87,6 +101,13 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
   let authMethod: AuthMethodInternal<User> | null = null
 
   const isProduction = typeof __PRODUCTION__ !== "undefined" && __PRODUCTION__
+
+  // Everything the panel serves derives from these — the UI base and the API
+  // base are the only two prefixes that used to be hardcoded across the app.
+  const uiBase = normalizeBasePath(options.basePath ?? "/admin")   // e.g. "/admin"
+  const apiBase = "/api" + uiBase                                  // e.g. "/api/admin"
+  const title = options.title ?? "Dynara Admin"
+  const locale = options.locale ?? "en"
 
   // Normalizes a configured page path to the single URL segment used in routes.
   // "" / "/" → the home sentinel; a leading slash is stripped otherwise.
@@ -119,22 +140,22 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
       app.addHook("onRequest", async (req) => {
         // Exempt only the exact auth endpoint — matching a suffix would exempt any
         // URL ending in "/auth" (e.g. a string primary key or a componentData name).
-        if (new URL(req.raw.url).pathname === "/api/admin/auth") return
+        if (new URL(req.raw.url).pathname === `${apiBase}/auth`) return
         ;(req as any).user = await authenticate(req.raw)
       })
 
-      app.get("/api/admin/auth", () => {
+      app.get(`${apiBase}/auth`, () => {
         return { title: authMethod!.title, fields: authMethod!.fields }
       })
       const loginSchema: SchemaItem = authMethod.fields
-      app.post("/api/admin/auth", [{}, loginSchema], async (req) => {
+      app.post(`${apiBase}/auth`, [{}, loginSchema], async (req) => {
         const result = await authMethod!.onLogin(req.body)
         if (!result) throw new HTTPError("Invalid credentials", 401)
         return { token: result.token }
       })
     }
 
-    app.get("/api/admin/pages", async (req) => {
+    app.get(`${apiBase}/pages`, async (req) => {
       return pages.map(p => ({
         path: p.path,
         title: p.title
@@ -152,7 +173,7 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
       const path = toRouteSegment(page.path)
 
       if (page.data) {
-        app.get(`/api/admin/data/${path}/items`, [{}, querySchema], async (req) => {
+        app.get(`${apiBase}/data/${path}/items`, [{}, querySchema], async (req) => {
           const q = req.query as { take?: number, skip?: number, sortField?: string, sortDir?: string, search?: string }
           const options: ListOptions = {
             take: q.take,
@@ -166,19 +187,19 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
 
       const paramsSchema = schema({ itemId: page.primaryKeyType ?? 'string' })
       if (page.itemData) {
-        app.get(`/api/admin/data/${path}/items/:itemId`, [ paramsSchema ], async (req) => {
+        app.get(`${apiBase}/data/${path}/items/:itemId`, [ paramsSchema ], async (req) => {
           return await page.itemData!(req.params.itemId, { user: (req as any).user })
         })
       }
 
       if (page.createForm && page.onInsert) {
-        app.post(`/api/admin/data/${path}/items`, [{}, page.createForm.schema], async (req) => {
+        app.post(`${apiBase}/data/${path}/items`, [{}, page.createForm.schema], async (req) => {
           await page.onInsert!(req.body, { user: (req as any).user })
         })
       }
 
       if (page.updateForm && page.onUpdate) {
-        app.post(`/api/admin/data/${path}/items/:itemId`, [paramsSchema, page.updateForm.schema], async (req) => {
+        app.post(`${apiBase}/data/${path}/items/:itemId`, [paramsSchema, page.updateForm.schema], async (req) => {
           await page.onUpdate!(req.params.itemId, req.body, { user: (req as any).user })
         })
       }
@@ -186,18 +207,18 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
       if (page.onDelete) {
         const deleteSchema = schema({ itemIds: { type: "array", items: page.primaryKeyType ?? 'string' } })
 
-        app.delete(`/api/admin/data/${path}/items`, [{}, deleteSchema], async (req) => {
+        app.delete(`${apiBase}/data/${path}/items`, [{}, deleteSchema], async (req) => {
           await page.onDelete!((req.body as any).itemIds, { user: (req as any).user })
         })
       }
 
       for (let data of page.componentData) {
-        app.get(`/api/admin/data/${path}/component-data/${data.name}`, { query: data.schema }, async (req) => {
+        app.get(`${apiBase}/data/${path}/component-data/${data.name}`, { query: data.schema }, async (req) => {
           return await data.method(req.query as any, { user: (req as any).user })
         })
       }
 
-      app.get(`/api/admin/pages/${path}`, async (req) => {
+      app.get(`${apiBase}/pages/${path}`, async (req) => {
         return {
           title: page.title,
           path: page.path,
@@ -217,7 +238,7 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
     if (true || isProduction) {
       const frontendDir = join(import.meta.dir, "frontend")
 
-      const ASSETS_PREFIX = "/admin/assets/"
+      const ASSETS_PREFIX = `${uiBase}/assets/`
       routesRaw[ASSETS_PREFIX + "*"] = (req: Request) => {
         const { pathname } = new URL(req.url)
         const rel = normalize(pathname.slice(ASSETS_PREFIX.length))
@@ -228,27 +249,38 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
       // index.html читаем один раз и держим в памяти
       let indexHtml = await Bun.file(join(frontendDir, "index.html")).text()
 
-      const code = []
+      // The bundle bakes in BUILD_ASSET_PREFIX at build time; rewrite it to the
+      // configured base so a custom basePath serves the right asset/importmap URLs.
+      if (ASSETS_PREFIX !== BUILD_ASSET_PREFIX) {
+        indexHtml = indexHtml.split(BUILD_ASSET_PREFIX).join(ASSETS_PREFIX)
+      }
+
+      // Runtime config the frontend reads before its module scripts run (module
+      // scripts are deferred, so this classic inline script always executes first).
+      const code = [
+        `window.__DYNARA_BASE__=${JSON.stringify(uiBase)}`,
+        `window.__DYNARA_API_BASE__=${JSON.stringify(apiBase)}`,
+        `window.__DYNARA_TITLE__=${JSON.stringify(title)}`,
+        `window.__DYNARA_LOCALE__=${JSON.stringify(locale)}`,
+      ]
 
       if (pages.find(i => i.path === '/')) {
         code.push(`window.__DYNARA_CUSTOM_HOME_PAGE__ = true`)
       }
 
-      if (code.length > 0) {
-        indexHtml = indexHtml.replace("</body>", `<script>\n${code.join('\n')}\n</script>\n</body>`)
-      }
+      indexHtml = indexHtml.replace("</body>", `<script>\n${code.join('\n')}\n</script>\n</body>`)
 
       const serveIndex = () => new Response(indexHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } })
 
       // SPA-fallback
-      routesRaw["/admin"] = serveIndex
-      routesRaw["/admin/*"] = serveIndex
+      routesRaw[uiBase] = serveIndex
+      routesRaw[`${uiBase}/*`] = serveIndex
     } else {
       // routesRaw["/admin/*"] = frontendIndex
       // routesRaw["/admin"] = frontendIndex
     }
 
-    routesRaw["/admin/custom/:name"] = {
+    routesRaw[`${uiBase}/custom/:name`] = {
       GET: async (req: BunRequest) => {
         // This route is registered on the raw Bun router, so the dynara onRequest
         // hook never runs — authenticate explicitly when a method is configured.
@@ -376,6 +408,16 @@ export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
   }
 
   return plugin as any
+}
+
+type CreateAdminPanelOptions = {
+  // Where the panel UI is mounted. The API is served under "/api" + basePath.
+  // Default "/admin" (→ API under "/api/admin").
+  basePath?: string
+  // Shown in the sidebar / document title.
+  title?: string
+  // UI language. Default "en".
+  locale?: "en" | "ru"
 }
 
 type CreatePageOptions = {

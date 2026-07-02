@@ -82,6 +82,23 @@ The admin panel is available at `http://localhost:3000/admin`.
 
 ---
 
+## Panel configuration
+
+`createAdminPanel(options?)` accepts:
+
+| Option | Default | Description |
+|---|---|---|
+| `basePath` | `"/admin"` | Where the UI is mounted. The API is served under `"/api" + basePath` (e.g. `basePath: "/panel"` → UI at `/panel`, API at `/api/panel`). |
+| `title` | `"Dynara Admin"` | Shown in the sidebar and page title. |
+| `locale` | `"en"` | UI language (`"en"` or `"ru"`). |
+
+```typescript
+const adminPanel = createAdminPanel({ basePath: "/panel", title: "Acme Admin" });
+// UI: http://localhost:3000/panel   API: http://localhost:3000/api/panel
+```
+
+---
+
 ## Page builder API
 
 | Method | Description |

@@ -26,6 +26,7 @@
 <script lang="ts" setup>
 import { mutateRequestFull, useRequestWatch } from 'vuesix';
 import { dataApi, type ListParams } from '../api/dataApi';
+import { UI_BASE } from '../api/request';
 import { useRoute } from 'vue-router';
 import { computed, shallowRef, watch } from 'vue';
 import VButton from '../components/VButton.vue';
@@ -79,7 +80,7 @@ watch(tableData, async (tableData) => {
   if (tableData && tableData.component) {
     const jwt = window.localStorage.getItem("dynara-admin__token")
     const suffix = jwt ? `?token=${encodeURIComponent(jwt)}` : ''
-    const { default: component } = await import(/* @vite-ignore */ `/admin/custom/${tableData.component}${suffix}`)
+    const { default: component } = await import(/* @vite-ignore */ `${UI_BASE}/custom/${tableData.component}${suffix}`)
     customComponent.value = component
   } else {
     customComponent.value = null

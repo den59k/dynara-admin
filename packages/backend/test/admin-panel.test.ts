@@ -219,6 +219,42 @@ describe("admin panel — mutations", () => {
   })
 })
 
+describe("admin panel — basePath configuration", () => {
+  const buildPanelApp = () => {
+    const admin = createAdminPanel({ basePath: "/panel" })
+    admin.createPage({ title: "Users", path: "users" }).data(async () => ({ items: [], total: 0 }))
+    const app = new Router()
+    app.register(admin)
+    return app
+  }
+
+  it("serves the API under the derived base", async () => {
+    const app = buildPanelApp()
+    const res = await app.inject("/api/panel/pages")
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([{ path: "users", title: "Users" }])
+  })
+
+  it("no longer serves the default /api/admin base", async () => {
+    const app = buildPanelApp()
+    const res = await app.inject("/api/admin/pages")
+
+    expect(res.status).toBe(404)
+  })
+
+  it("normalizes a base path without a leading slash", async () => {
+    const admin = createAdminPanel({ basePath: "panel/" })
+    admin.createPage({ title: "Users", path: "users" }).data(async () => ({ items: [], total: 0 }))
+    const app = new Router()
+    app.register(admin)
+
+    const res = await app.inject("/api/panel/data/users/items")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [], total: 0 })
+  })
+})
+
 describe("admin panel — authentication", () => {
   it("blocks protected endpoints when no token is sent", async () => {
     const { app } = buildAuthApp()

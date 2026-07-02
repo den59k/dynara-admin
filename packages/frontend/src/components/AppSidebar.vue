@@ -1,6 +1,6 @@
 <template>
   <aside class="app-sidebar">
-    <h3>Dynara Admin</h3>
+    <h3>{{ title }}</h3>
     <RouterLink v-for="page in data" :to="page.path.startsWith('/')? page.path: `/${page.path}`">
       {{ page.title }}
     </RouterLink>
@@ -18,6 +18,8 @@ import { watch } from 'vue';
 import { HTTPError } from '../api/request';
 import { useRouter } from 'vue-router';
 import VIcon from './VIcon.vue';
+
+const title = (window as any).__DYNARA_TITLE__ ?? "Dynara Admin"
 
 const { data, error } = useRequest(dataApi.getPages)
 

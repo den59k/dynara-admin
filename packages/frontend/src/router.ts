@@ -3,7 +3,8 @@ import HomePage from "./pages/HomePage.vue";
 import DataPage from "./pages/DataPage.vue";
 import AuthPage from "./pages/AuthPage.vue";
 
-const basePath = document.head.querySelector("base")?.getAttribute("href")
+const basePath = (window as any).__DYNARA_BASE__
+  ?? document.head.querySelector("base")?.getAttribute("href")
 
 const routes: RouteRecordRaw[] = [
   { path: "/:viewId", component: DataPage, meta: { name: "#view" } },

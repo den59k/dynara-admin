@@ -1,5 +1,14 @@
 import { setUseFormErrorHandler } from "vuesix"
 
+// Base paths injected by the backend into index.html (see createAdminPanel's
+// basePath option). Fall back to the build-time defaults when unset.
+const dyn = (typeof window !== "undefined" ? window : {}) as any
+export const API_BASE: string = dyn.__DYNARA_API_BASE__ || "/api/admin"
+export const UI_BASE: string = dyn.__DYNARA_BASE__ || "/admin"
+
+// Prefixes an API path (starting with "/") with the configured API base.
+export const apiUrl = (path: string) => `${API_BASE}${path}`
+
 export class HTTPError extends Error {
   body: any
   statusCode: number
