@@ -122,6 +122,24 @@ Inside a custom component, invoke a `componentAction` with `sendAction(view, nam
 
 Form schemas use [`compact-json-schema`](https://github.com/den59k/compact-json-schema) format.
 
+### Select & reference fields
+
+A form field renders as a select when it carries `options` or `reference`:
+
+```typescript
+.createForm({
+  title: "string",
+  // Static options
+  status: { type: "string", options: [{ value: "draft", label: "Draft" }, { value: "live", label: "Live" }] },
+  // Foreign-key reference — a searchable select backed by another page's list.
+  // `label` is the field shown; `value` defaults to that page's primary key.
+  authorId: { type: "number", reference: { page: "users", label: "name" } },
+}, async (data) => { /* ... */ })
+```
+
+A `reference` field fetches options from the referenced page's `.data` (using the
+`search`/`take` params), so that page should honor `search` for the select to filter.
+
 ### Column types
 
 Pass an array of column descriptors to `.table()`. Each column must have a `title` and optionally a `width` (pixels or `"Nfr"` fraction).

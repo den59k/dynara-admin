@@ -115,9 +115,12 @@ doing them after more consumers exist is not.
 - [x] **Mutations from custom components** — `componentData` is GET-only; add
       `componentAction(name, schema, handler)` (POST) so custom pages can write
       without hand-rolling routes. SDK exposes `sendAction`/`useAction`.
-- [ ] **Reference/select inputs** — form field type that loads options from an async
+- [x] **Reference/select inputs** — form field type that loads options from an async
       source (another page's `.data` or an inline options handler). Needed for any
-      foreign-key field.
+      foreign-key field. `VSelectInput` renders when a field carries `options`
+      (static) or `reference: { page, label, value? }` (searchable, backed by the
+      referenced page's `.data` search/take). No backend change — the config rides
+      through `unfoldSchema` into `createForm`/`updateForm`.
 - [ ] **File uploads** — the frontend already ships `sendXHR` with progress; the core
       has no upload contract. Add a `file` schema type + upload endpoint per page.
 - [ ] **i18n** — UI strings are hardcoded Russian while README/package are English.

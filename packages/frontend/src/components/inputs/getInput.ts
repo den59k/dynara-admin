@@ -3,6 +3,14 @@ import VInputObject from "./VInputObject"
 import VInputText from "./VInputText.vue"
 import VCheckbox from './VCheckbox.vue'
 import VInputTextArea from "./VInputTextArea.vue"
+import VSelectInput from "./VSelectInput.vue"
+
+// A static option for a select field.
+export type SelectOption = { value: any, label: string }
+
+// Loads select options from another page's list (a foreign-key reference).
+// `label` is the field shown to the user; `value` defaults to that page's primary key.
+export type SelectReference = { page: string, label: string, value?: string }
 
 export type Schema = {
   type: string,
@@ -11,7 +19,9 @@ export type Schema = {
   required?: string[],
   multiline?: boolean,
   items?: Schema,
-  width?: number
+  width?: number,
+  options?: SelectOption[],
+  reference?: SelectReference
 }
 
 type JsonInputProps = { 
@@ -27,6 +37,9 @@ export const JsonInput = (props: JsonInputProps) => {
   const { schema, ...otherProps } = props
   if (schema.type === "object") {
     return h(VInputObject, { schema, ...otherProps })
+  }
+  if (schema.options || schema.reference) {
+    return h(VSelectInput, { options: schema.options, reference: schema.reference, ...otherProps })
   }
   if (schema.type === "string" && schema.multiline) {
     return h(VInputTextArea, otherProps)
