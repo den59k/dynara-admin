@@ -9,13 +9,18 @@
   },
   "private": true,
   "scripts": {
-    "dev": "bun --watch src/server.ts"
+    "dev": "bun --watch src/server.ts",
+    "test": "vitest run"
   },
   "type": "module",
   "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.0.0",
     "rollup": "^4.61.1",
     "rollup-plugin-dts": "^6.4.1",
     "typescript": "^6.0.3",
+    "vitest": "^3.2.4",
     "vue-tsc": "^3.3.3"
   }
 }

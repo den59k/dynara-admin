@@ -172,9 +172,10 @@ adapter, not direct coupling.
 - [~] **Frontend tests** — none exist. Start with component tests for the form
       generator (`getInput`/`JsonInput` + `getDefaultValue`) and an e2e smoke
       (login → list → create → edit → delete) against a fixture app.
-      (Done: `getDefaultValue` unit tests. Still to do: `getInput`/`JsonInput`
-      component tests (need an SFC test setup, e.g. vitest + @vue/test-utils) and
-      the e2e smoke — the latter depends on a runnable dev/app harness below.)
+      (Done: `getDefaultValue` unit tests (bun test) and `getInput`/`JsonInput`
+      dispatch + rendering component tests via vitest + @vue/test-utils + happy-dom
+      (`*.vitest.ts`, run by `bun run test` in `packages/frontend`; wired into CI).
+      Still to do: the e2e smoke — depends on a runnable dev/app harness below.)
 - [x] Static-asset handler: return 404 for missing files under `/admin/assets/`
       (currently throws → 500) and verify the traversal guard against
       percent-encoded `..` on Windows paths.

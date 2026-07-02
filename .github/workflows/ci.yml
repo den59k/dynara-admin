@@ -22,6 +22,10 @@ jobs:
       - name: Test (backend + frontend units)
         run: bun test
 
+      - name: Test frontend components (vitest)
+        run: bun run test
+        working-directory: packages/frontend
+
       - name: Typecheck frontend
         run: bunx vue-tsc --noEmit -p tsconfig.json
         working-directory: packages/frontend
