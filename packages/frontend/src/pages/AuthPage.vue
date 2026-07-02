@@ -30,11 +30,7 @@ const error = shallowRef<string | null>(null)
 const onSubmit = async () => {
   pending.value = true
   try {
-    const token = await accountApi.login(values)
-    if (!token) {
-      error.value = "Не удалось авторизоваться. \nОбратитесь к администратору"
-      return
-    }
+    const { token } = await accountApi.login(values)
     window.localStorage.setItem("dynara-admin__token", token)
     resetRequestCache()
     router.replace('/')

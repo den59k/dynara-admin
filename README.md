@@ -46,20 +46,23 @@ const adminPanel = createAdminPanel();
 // Register auth
 adminPanel.registerAuthMethod({
   fields: { login: { type: "string" }, password: { type: "string" } },
+  // Verify the credentials and return a bearer token, or null to reject.
   onLogin: async ({ login, password }) => {
     if (login !== "admin" || password !== "secret") return null;
-    return { id: 1, name: "Admin" };
+    return { token: signToken({ id: 1 }) };
   },
-  onRequest: async (token) => {
-    // verify JWT / session and return user, or null to reject
-    return verifyToken(token);
-  },
+  // Resolve the token to a user (returned as `ctx.user` to every page handler),
+  // or null to reject the request with 401.
+  onRequest: async (token) => verifyToken(token),
 });
 
 // Define a CRUD page
 adminPanel
   .createPage({ title: "Users", path: "users" })
-  .data(async ({ take, skip }) => db.users.findMany({ take, skip }))
+  .data(async ({ take, skip }) => ({
+    items: await db.users.findMany({ take, skip }),
+    total: await db.users.count(),
+  }))
   .primaryKey("id", "number")
   .item(async (id) => db.users.findFirst({ where: { id } }))
   .table([
@@ -83,7 +86,7 @@ The admin panel is available at `http://localhost:3000/admin`.
 
 | Method | Description |
 |---|---|
-| `.data(fn)` | Fetch the list — receives `{ take, skip }`, returns an array of rows |
+| `.data(fn)` | Fetch the list — receives `{ take, skip, sort?, search? }`, returns `{ items, total }` (the unpaginated `total` drives pagination) |
 | `.primaryKey(field, type)` | Declare the identity field (`"number"` or `"string"`) |
 | `.item(fn)` | Fetch a single record by id |
 | `.table(columns)` | Column definitions for the table view — see [Column types](#column-types) below |
@@ -93,6 +96,8 @@ The admin panel is available at `http://localhost:3000/admin`.
 | `.component(path)` | Absolute path to a `.vue` file rendered as the page body; compiled on-demand and served to the frontend |
 | `.componentData(name, fn)` | Register a named GET endpoint the custom component can fetch; `fn` receives query params |
 | `.componentData(name, schema, fn)` | Same as above with a [`compact-json-schema`](https://github.com/den59k/compact-json-schema) for query param validation |
+
+Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`, `.componentData`) receives a request context as its last argument — `ctx.user` is the value returned by `onRequest`, for per-user authorization and audit logging.
 
 Form schemas use [`compact-json-schema`](https://github.com/den59k/compact-json-schema) format.
 

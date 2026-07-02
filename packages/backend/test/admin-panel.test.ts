@@ -28,7 +28,8 @@ const buildUsersApp = () => {
     .createPage({ title: "Users", path: "users" })
     .data(async ({ take, skip }) => {
       const start = skip ?? 0
-      return take == null ? users.slice(start) : users.slice(start, start + take)
+      const items = take == null ? users.slice(start) : users.slice(start, start + take)
+      return { items, total: users.length }
     })
     .primaryKey("id", "number")
     .item(async (id) => users.find((u) => u.id === id) ?? null)
@@ -56,22 +57,30 @@ const buildUsersApp = () => {
 }
 
 // Builds an app whose panel requires authentication, so the onRequest hook is
-// installed for every non-/auth endpoint.
+// installed for every non-/auth endpoint. The "settings" page exposes handlers
+// used to assert the resolved user is threaded into page handlers.
 const buildAuthApp = () => {
   const seenTokens: Array<string | null> = []
+  const knownUsers: Record<string, User> = { "token-123": { id: 1, name: "root" } }
 
-  const admin = createAdminPanel()
+  const admin = createAdminPanel<User>()
   admin.registerAuthMethod({
     title: "Sign in",
     fields: { login: "string", password: "string" },
     onLogin: async ({ login, password }) =>
-      login === "root" && password === "secret" ? "token-123" : null,
+      login === "root" && password === "secret" ? { token: "token-123" } : null,
     onRequest: async (token) => {
       seenTokens.push(token)
-      if (token !== "token-123") throw new HTTPError("Invalid token", 401)
+      return knownUsers[token] ?? null
     },
   })
-  admin.createPage({ title: "Users", path: "users" }).data(async () => [])
+  admin
+    .createPage({ title: "Settings", path: "settings" })
+    .data(async () => ({ items: [], total: 0 }))
+    // A componentData literally named "auth" — the old endsWith("/auth") check
+    // would have served this without a token.
+    .componentData("auth", async () => ({ ok: true }))
+    .componentData("whoami", async (_args, ctx) => ctx.user)
 
   const app = new Router()
   app.register(admin)
@@ -104,25 +113,42 @@ describe("admin panel — page registry", () => {
     expect(meta.createForm).toBeDefined()
     expect(meta.updateForm).toBeDefined()
   })
+
+  it("rejects a duplicate page path", () => {
+    const admin = createAdminPanel()
+    admin.createPage({ title: "Users", path: "users" })
+    expect(() => admin.createPage({ title: "Users again", path: "users" })).toThrow()
+  })
+
+  it("rejects a page path with characters that break the route template", () => {
+    const admin = createAdminPanel()
+    expect(() => admin.createPage({ title: "Bad", path: "a/b" })).toThrow()
+  })
 })
 
 describe("admin panel — list & item data", () => {
-  it("returns the full list when no pagination is given", async () => {
+  it("returns items and the unpaginated total when no pagination is given", async () => {
     const { app } = buildUsersApp()
     const res = await app.inject("/api/admin/data/users/items")
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toHaveLength(3)
+    expect(await res.json()).toEqual({
+      items: seedUsers(),
+      total: 3,
+    })
   })
 
-  it("applies take/skip query params", async () => {
+  it("applies take/skip query params but keeps the full total", async () => {
     const { app } = buildUsersApp()
     const res = await app.inject("/api/admin/data/users/items?take=2&skip=1")
 
-    expect(await res.json()).toEqual([
-      { id: 2, name: "Bob" },
-      { id: 3, name: "Carol" },
-    ])
+    expect(await res.json()).toEqual({
+      items: [
+        { id: 2, name: "Bob" },
+        { id: 3, name: "Carol" },
+      ],
+      total: 3,
+    })
   })
 
   it("fetches a single item and coerces the numeric primary key", async () => {
@@ -211,6 +237,13 @@ describe("admin panel — authentication", () => {
     expect(body.fields).toBeTruthy()
   })
 
+  it("does not exempt other paths that merely end in /auth", async () => {
+    const { app } = buildAuthApp()
+    const res = await app.inject("/api/admin/data/settings/component-data/auth")
+
+    expect(res.status).toBe(403)
+  })
+
   it("issues a token for valid credentials", async () => {
     const { app } = buildAuthApp()
     const res = await app.inject({
@@ -220,10 +253,10 @@ describe("admin panel — authentication", () => {
     })
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toBe("token-123")
+    expect(await res.json()).toEqual({ token: "token-123" })
   })
 
-  it("returns null for invalid credentials", async () => {
+  it("returns 401 for invalid credentials", async () => {
     const { app } = buildAuthApp()
     const res = await app.inject({
       method: "POST",
@@ -231,7 +264,7 @@ describe("admin panel — authentication", () => {
       body: { login: "root", password: "nope" },
     })
 
-    expect(await res.json()).toBeNull()
+    expect(res.status).toBe(401)
   })
 
   it("grants access and strips the Bearer prefix before onRequest", async () => {
@@ -245,7 +278,7 @@ describe("admin panel — authentication", () => {
     expect(seenTokens.at(-1)).toBe("token-123")
   })
 
-  it("propagates an HTTPError thrown by onRequest", async () => {
+  it("returns 401 when onRequest resolves to no user", async () => {
     const { app } = buildAuthApp()
     const res = await app.inject({
       url: "/api/admin/pages",
@@ -253,5 +286,16 @@ describe("admin panel — authentication", () => {
     })
 
     expect(res.status).toBe(401)
+  })
+
+  it("threads the authenticated user into page handlers", async () => {
+    const { app } = buildAuthApp()
+    const res = await app.inject({
+      url: "/api/admin/data/settings/component-data/whoami",
+      headers: { Authorization: "Bearer token-123" },
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ id: 1, name: "root" })
   })
 })

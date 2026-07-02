@@ -8,51 +8,107 @@ import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-
 // Re-exported so consumers can `import { HTTPError } from "dynara-admin"` to reject requests.
 export { HTTPError }
 
+// The route path used for the home ("/") page. Kept in one place so the sentinel
+// does not have to be spelled out by hand across the route builders.
+const HOME_PATH = "__home__"
+
 type AdminPanelPlugin<T extends any[]> = (app: AdminPanel, ...options: T) => void | Promise<void>
 
-type AuthMethod<T extends SchemaItem, K> = {
+type AuthMethod<T extends SchemaItem, User> = {
   title?: string,
-  fields: T, 
-  onLogin: (data: SchemaType<T>) => K | Promise<K>,
-  onRequest: (token: K) => void | Promise<void>
+  fields: T,
+  // Resolves the submitted credentials to a bearer token, or null when they are invalid.
+  onLogin: (data: SchemaType<T>) => { token: string } | null | Promise<{ token: string } | null>,
+  // Resolves a bearer token to the authenticated user, or null → 401.
+  onRequest: (token: string) => User | null | Promise<User | null>
 }
 
-export type AdminPanel = {
-  createPage<T extends object, K extends keyof T>(options: CreatePageOptions): Page<T>,
+// Non-generic view of an AuthMethod used inside the plugin. The public generic
+// form is only needed at the `registerAuthMethod` boundary — instantiating
+// `SchemaType<any>` in the route builders blows up TypeScript's depth limit.
+type AuthMethodInternal<User> = {
+  title?: string,
+  fields: SchemaItem,
+  onLogin: (data: any) => { token: string } | null | Promise<{ token: string } | null>,
+  onRequest: (token: string) => User | null | Promise<User | null>
+}
+
+// Passed as the last argument to every page handler so implementations can read
+// the authenticated user (authorization, audit logging, per-user scoping).
+export type RequestContext<User = unknown> = { user: User }
+
+// The list request shape handed to `.data()`. `sort`/`search` are optional and
+// only present when the frontend sends them.
+export type ListOptions = {
+  take?: number,
+  skip?: number,
+  sort?: { field: string, dir: "asc" | "desc" },
+  search?: string
+}
+
+// The list response shape. `total` is the unpaginated row count so the UI can paginate.
+export type ListResult<T> = { items: T[], total: number }
+
+export type AdminPanel<User = unknown> = {
+  createPage<T extends object>(options: CreatePageOptions): PageWithPrimaryKey<T, string, T, User>,
   register<T extends any[]>(func: AdminPanelPlugin<T>, ...options: T): void
-  registerAuthMethod<T extends SchemaItem, K>(method: AuthMethod<T, K>): void
+  registerAuthMethod<T extends SchemaItem>(method: AuthMethod<T, User>): void
 }
 
-export type AdminPanelDynara = ((app: Router<any>) => Promise<void>) & AdminPanel
+export type AdminPanelDynara<User = unknown> = ((app: Router<any>) => Promise<void>) & AdminPanel<User>
+
+type Ctx = RequestContext<any>
 
 type PageEntry = {
   title?: string,
   path?: string,
-  table?: any
-  data?: (options: any) => Promise<any>,
-  itemData?: (id: any) => Promise<any>,
-  onInsert?: (obj: any) => Promise<void>,
-  onUpdate?: (key: any, obj: any) => Promise<void>,
-  onDelete?: (key: any[]) => Promise<void>
-  createForm?: any,
-  updateForm?: any,
-  primaryKey?: string | number | symbol,
+  table?: ColumnId<any, any>[],
+  data?: (options: ListOptions, ctx: Ctx) => ListResult<any> | Promise<ListResult<any>>,
+  itemData?: (id: any, ctx: Ctx) => Promise<any>,
+  onInsert?: (obj: any, ctx: Ctx) => Promise<void>,
+  onUpdate?: (key: any, obj: any, ctx: Ctx) => Promise<void>,
+  onDelete?: (keys: any[], ctx: Ctx) => Promise<void>,
+  createForm?: { schema: SchemaItem },
+  updateForm?: { schema: SchemaItem },
+  primaryKey?: PropertyKey,
   primaryKeyType?: SchemaItem,
-  component?: any,
-  componentData: { name: string, schema?: SchemaItem, method: any }[]
+  component?: string,
+  componentData: { name: string, schema?: SchemaItem, method: (args: any, ctx: Ctx) => any }[]
 }
 
 declare const __PRODUCTION__: boolean
 
-export const createAdminPanel = (): AdminPanelDynara => {
+export const createAdminPanel = <User = unknown>(): AdminPanelDynara<User> => {
 
   const plugins: [AdminPanelPlugin<any>, any][] = []
-  const componentFiles = new Map()
+  const componentFiles = new Map<string, string>()
 
   const pages: PageEntry[] = []
-  let authMethod: AuthMethod<any, any> | null = null
+  let authMethod: AuthMethodInternal<User> | null = null
 
   const isProduction = typeof __PRODUCTION__ !== "undefined" && __PRODUCTION__
+
+  // Normalizes a configured page path to the single URL segment used in routes.
+  // "" / "/" → the home sentinel; a leading slash is stripped otherwise.
+  const toRouteSegment = (path?: string) => {
+    let p = path ?? ''
+    if (p.startsWith('/')) p = p.slice(1)
+    return p === '' ? HOME_PATH : p
+  }
+
+  // Resolves the authenticated user from a request, or throws the HTTPError the
+  // client should see. The token is read from the `Authorization: Bearer` header,
+  // falling back to a `?token=` query param (browsers cannot set headers on a
+  // dynamic `import()`, so `/admin/custom/*` relies on the query form).
+  const authenticate = async (req: Request): Promise<User> => {
+    let token = req.headers.get("Authorization")
+    if (token?.startsWith("Bearer ")) token = token.slice(7)
+    if (!token) token = new URL(req.url).searchParams.get("token")
+    if (!token) throw new HTTPError("Authorization required", 403)
+    const user = await authMethod!.onRequest(token)
+    if (!user) throw new HTTPError("Invalid token", 401)
+    return user
+  }
 
   const plugin = async (app: Router) => {
     for (let childPlugin of plugins as any) {
@@ -61,22 +117,20 @@ export const createAdminPanel = (): AdminPanelDynara => {
 
     if (authMethod) {
       app.addHook("onRequest", async (req) => {
-        if (req.raw.url.endsWith("/auth")) {
-          return
-        }
-        let token = req.raw.headers.get("Authorization")
-        if (!token) throw new HTTPError("Authorization required", 403)
-        if (token.startsWith("Bearer ")) token = token.slice(7)
-        await authMethod!.onRequest(token)
+        // Exempt only the exact auth endpoint — matching a suffix would exempt any
+        // URL ending in "/auth" (e.g. a string primary key or a componentData name).
+        if (new URL(req.raw.url).pathname === "/api/admin/auth") return
+        ;(req as any).user = await authenticate(req.raw)
       })
 
       app.get("/api/admin/auth", () => {
         return { title: authMethod!.title, fields: authMethod!.fields }
       })
-      const loginSchema = authMethod.fields
-      app.post("/api/admin/auth", { body: loginSchema }, async (req) => {
-        // @ts-ignore
-        return await authMethod!.onLogin(req.body)
+      const loginSchema: SchemaItem = authMethod.fields
+      app.post("/api/admin/auth", [{}, loginSchema], async (req) => {
+        const result = await authMethod!.onLogin(req.body)
+        if (!result) throw new HTTPError("Invalid credentials", 401)
+        return { token: result.token }
       })
     }
 
@@ -88,38 +142,44 @@ export const createAdminPanel = (): AdminPanelDynara => {
     })
 
     for (let page of pages) {
-      const querySchema = schema({ take: "number?", skip: "number?" })
-      let path = page.path ?? ''
-      if (path?.startsWith('/')) path = path.slice(1)
-      if (path === '') path = '__home__'
+      const querySchema = schema({
+        take: "number?",
+        skip: "number?",
+        sortField: "string?",
+        sortDir: "string?",
+        search: "string?",
+      })
+      const path = toRouteSegment(page.path)
 
-      if (!page.data) {
-
-      } else {
-        app.get(`/api/admin/data/${path}/items`, [{}, querySchema], (req) => {
-          const items = page.data!(req.query)
-          return items
+      if (page.data) {
+        app.get(`/api/admin/data/${path}/items`, [{}, querySchema], async (req) => {
+          const q = req.query as { take?: number, skip?: number, sortField?: string, sortDir?: string, search?: string }
+          const options: ListOptions = {
+            take: q.take,
+            skip: q.skip,
+            sort: q.sortField ? { field: q.sortField, dir: q.sortDir === "asc" ? "asc" : "desc" } : undefined,
+            search: q.search,
+          }
+          return await page.data!(options, { user: (req as any).user })
         })
       }
 
       const paramsSchema = schema({ itemId: page.primaryKeyType ?? 'string' })
       if (page.itemData) {
         app.get(`/api/admin/data/${path}/items/:itemId`, [ paramsSchema ], async (req) => {
-          return await page.itemData!(req.params.itemId)
+          return await page.itemData!(req.params.itemId, { user: (req as any).user })
         })
       }
 
       if (page.createForm && page.onInsert) {
         app.post(`/api/admin/data/${path}/items`, [{}, page.createForm.schema], async (req) => {
-          // @ts-ignore
-          await page.onInsert!(req.body)
+          await page.onInsert!(req.body, { user: (req as any).user })
         })
       }
 
       if (page.updateForm && page.onUpdate) {
         app.post(`/api/admin/data/${path}/items/:itemId`, [paramsSchema, page.updateForm.schema], async (req) => {
-          // @ts-ignore
-          await page.onUpdate!(req.params.itemId, req.body)
+          await page.onUpdate!(req.params.itemId, req.body, { user: (req as any).user })
         })
       }
 
@@ -127,14 +187,13 @@ export const createAdminPanel = (): AdminPanelDynara => {
         const deleteSchema = schema({ itemIds: { type: "array", items: page.primaryKeyType ?? 'string' } })
 
         app.delete(`/api/admin/data/${path}/items`, [{}, deleteSchema], async (req) => {
-          // @ts-ignore
-          await page.onDelete!(req.body.itemIds)
+          await page.onDelete!((req.body as any).itemIds, { user: (req as any).user })
         })
       }
 
       for (let data of page.componentData) {
         app.get(`/api/admin/data/${path}/component-data/${data.name}`, { query: data.schema }, async (req) => {
-          return await data.method(req.query as any)
+          return await data.method(req.query as any, { user: (req as any).user })
         })
       }
 
@@ -157,7 +216,7 @@ export const createAdminPanel = (): AdminPanelDynara => {
     // Отдаем index.html и ассеты для frontend
     if (true || isProduction) {
       const frontendDir = join(import.meta.dir, "frontend")
-  
+
       const ASSETS_PREFIX = "/admin/assets/"
       routesRaw[ASSETS_PREFIX + "*"] = (req: Request) => {
         const { pathname } = new URL(req.url)
@@ -170,7 +229,7 @@ export const createAdminPanel = (): AdminPanelDynara => {
       let indexHtml = await Bun.file(join(frontendDir, "index.html")).text()
 
       const code = []
-      
+
       if (pages.find(i => i.path === '/')) {
         code.push(`window.__DYNARA_CUSTOM_HOME_PAGE__ = true`)
       }
@@ -180,7 +239,7 @@ export const createAdminPanel = (): AdminPanelDynara => {
       }
 
       const serveIndex = () => new Response(indexHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } })
-  
+
       // SPA-fallback
       routesRaw["/admin"] = serveIndex
       routesRaw["/admin/*"] = serveIndex
@@ -188,9 +247,20 @@ export const createAdminPanel = (): AdminPanelDynara => {
       // routesRaw["/admin/*"] = frontendIndex
       // routesRaw["/admin"] = frontendIndex
     }
-    
-    routesRaw["/admin/custom/:name"] = { 
+
+    routesRaw["/admin/custom/:name"] = {
       GET: async (req: BunRequest) => {
+        // This route is registered on the raw Bun router, so the dynara onRequest
+        // hook never runs — authenticate explicitly when a method is configured.
+        if (authMethod) {
+          try {
+            await authenticate(req)
+          } catch (e) {
+            if (e instanceof HTTPError) return new Response(e.message, { status: e.statusCode })
+            throw e
+          }
+        }
+
         const file = componentFiles.get(req.params.name)
         if (!file) return new Response("Not found", { status: 404 })
 
@@ -226,49 +296,62 @@ export const createAdminPanel = (): AdminPanelDynara => {
     if (!res.success) throw new Error(res.logs.join("\n"))
     return await res.outputs[0].text()
   }
-  
+
   plugin.createPage = <T extends object>(options: CreatePageOptions) => {
+
+    // Reject characters that would break the route template, and duplicate paths
+    // (two pages on the same path would silently collide on their routes).
+    const segment = toRouteSegment(options.path)
+    if (!/^[A-Za-z0-9_-]+$/.test(segment)) {
+      throw new Error(`Invalid page path "${options.path ?? ''}": only letters, digits, "-" and "_" are allowed`)
+    }
+    if (pages.some(p => toRouteSegment(p.path) === segment)) {
+      throw new Error(`Duplicate page path "${options.path ?? ''}"`)
+    }
 
     const currentPage: PageEntry = { path: options.path, title: options.title, componentData: [] }
     pages.push(currentPage)
 
-    const data: PageWithPrimaryKey<T, "string", T> = {
-      table(table) { 
-        currentPage.table = table
+    const data: PageWithPrimaryKey<T, string, T, User> = {
+      table(table) {
+        currentPage.table = table as any
         return this
       },
-      primaryKey(key, type?: SchemaItem){ 
+      primaryKey(key, type?: SchemaItem){
         currentPage.primaryKey = key
         currentPage.primaryKeyType = type ?? "string"
         return this as any
       },
       data(query) {
-        currentPage.data = query 
+        currentPage.data = query as any
         return this as any
       },
       item(query) {
-        currentPage.itemData = query
+        currentPage.itemData = query as any
         return this as any
       },
       createForm(schema, onInsert) {
         currentPage.createForm = { schema: unfoldSchema(schema) }
-        currentPage.onInsert = onInsert
+        currentPage.onInsert = onInsert as any
         return this
       },
       updateForm(schema, onUpdate) {
         currentPage.updateForm = { schema: unfoldSchema(schema) }
-        currentPage.onUpdate = onUpdate
-        return this
+        currentPage.onUpdate = onUpdate as any
+        return this as any
       },
       onDelete(onDelete) {
-        currentPage.onDelete = onDelete
-        return this
+        currentPage.onDelete = onDelete as any
+        return this as any
       },
       component(path: string) {
         const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
         const name = path.slice(index+1)
-        currentPage.component = name
-        componentFiles.set(name, path)                 // Map<name, absPath> на уровне панели
+        // Key by page segment + file name so identically-named component files on
+        // different pages don't overwrite each other.
+        const key = `${segment}__${name}`
+        currentPage.component = key
+        componentFiles.set(key, path)
         return this
       },
       componentData(...args: any) {
@@ -287,11 +370,11 @@ export const createAdminPanel = (): AdminPanelDynara => {
     plugins.push([func, options])
   }
 
-  plugin.registerAuthMethod = <T extends SchemaItem>(method: AuthMethod<T, any>) => { 
-    method.fields = unfoldSchema(method.fields)
-    authMethod = method
+  plugin.registerAuthMethod = <T extends SchemaItem>(method: AuthMethod<T, User>) => {
+    method.fields = unfoldSchema(method.fields) as T
+    authMethod = method as unknown as AuthMethodInternal<User>
   }
-  
+
   return plugin as any
 }
 
@@ -323,19 +406,19 @@ type ActionColumn<T, KeyType> = ColumnBase & {
 type Column<T> = FieldColumn<T> | TemplateColumn<T>
 type ColumnId<T, KeyType> = Column<T> | ActionColumn<T, KeyType>
 
-interface Page<T extends object> {
+interface Page<T extends object, User = unknown> {
   table(table: Column<T>[]): this,
-  createForm<S extends SchemaItem>(schema: S, onInsert: (data: SchemaType<S>) => Promise<void>): this,
-  primaryKey<KeyType extends SchemaItem = "string">(key: keyof T, type?: KeyType): PageWithPrimaryKey<T, SchemaType<KeyType>, T>,
-  data<T2 extends object>(query: (options: { skip: number, take: number }) => Promise<T2[]>): Page<T2>,
+  createForm<S extends SchemaItem>(schema: S, onInsert: (data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): this,
+  primaryKey<KeyType extends SchemaItem = "string">(key: keyof T, type?: KeyType): PageWithPrimaryKey<T, SchemaType<KeyType>, T, User>,
+  data<T2 extends object>(query: (options: ListOptions, ctx: RequestContext<User>) => ListResult<T2> | Promise<ListResult<T2>>): Page<T2, User>,
   component(url: any): this
-  componentData(name: string, data: (args: Record<string,any>) => Promise<any> | any): this
-  componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>) => Promise<any> | any): this
+  componentData(name: string, data: (args: Record<string,any>, ctx: RequestContext<User>) => Promise<any> | any): this
+  componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this
 }
 
-interface PageWithPrimaryKey<T extends object, KeyType, Item extends object> extends Page<T> {
+interface PageWithPrimaryKey<T extends object, KeyType, Item extends object, User = unknown> extends Page<T, User> {
   table(table: ColumnId<T, KeyType>[]): this,
-  item<T2 extends object>(query: (itemId: KeyType) => Promise<T2 | null>): PageWithPrimaryKey<T, KeyType, T2>,
-  updateForm<S extends SchemaItem>(schema: S, onUpdate: (id: KeyType, data: SchemaType<S>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item>,
-  onDelete(onDelete: (ids: KeyType[]) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item>
+  item<T2 extends object>(query: (itemId: KeyType, ctx: RequestContext<User>) => Promise<T2 | null>): PageWithPrimaryKey<T, KeyType, T2, User>,
+  updateForm<S extends SchemaItem>(schema: S, onUpdate: (id: KeyType, data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item, User>,
+  onDelete(onDelete: (ids: KeyType[], ctx: RequestContext<User>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item, User>
 }
