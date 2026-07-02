@@ -1,0 +1,22 @@
+{
+  "name": "dev-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable demo app that dogfoods dynara-admin against an embedded MarciDB.",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "generate": "marcidb generate schema.marci src/db"
+  },
+  "dependencies": {
+    "marcidb-client": "^0.8.0",
+    "marcidb-embedded": "^0.8.0"
+  },
+  "devDependencies": {
+    "dynara": "^0.0.2"
+  },
+  "peerDependencies": {
+    "compact-json-schema": "^0.1.3"
+  }
+}

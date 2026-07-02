@@ -1,0 +1,16 @@
+// Demo schema for the dev-app. Two related models so the panel can show off a
+// list/CRUD page plus a foreign-key `reference` field (Post.author -> User).
+
+model User {
+  name   String
+  email  String?
+  age    Int
+  posts  Post[] @bind(Post.author)
+}
+
+model Post {
+  title     String
+  body      String?
+  published Boolean
+  author    User?
+}

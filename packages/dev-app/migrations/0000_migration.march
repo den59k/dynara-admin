@@ -1,0 +1,12 @@
+create entity User
+add field User.id UInt @id @default(autoincrement())
+add field User.name String @slot(4)
+add field User.email String @nullable @slot(8)
+add field User.age Int @slot(12)
+add field User.posts Post[] @nullable @virtual @index_tree(User.posts->Post) @rev(author)
+create entity Post
+add field Post.id UInt @id @default(autoincrement())
+add field Post.title String @slot(4)
+add field Post.body String @nullable @slot(8)
+add field Post.published Bool @slot(12)
+add field Post.author User @nullable @slot(16) @field_value @rev(posts)

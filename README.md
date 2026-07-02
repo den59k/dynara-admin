@@ -16,6 +16,7 @@ A headless admin panel framework for [Bun](https://bun.sh), built as a plugin fo
 | [`packages/backend`](packages/backend) | **`dynara-admin`** — the publishable npm package |
 | [`packages/frontend`](packages/frontend) | Vue 3 SPA bundled into the backend package at build time |
 | [`packages/dyn-orm`](packages/dyn-orm) | Lightweight type-safe ORM (not published to npm, local workspace only) |
+| [`packages/dev-app`](packages/dev-app) | Runnable demo app that dogfoods the panel against an embedded MarciDB (not published) |
 | [`packages/plugins`](packages/plugins) | Bun build plugins for Vue SFC and SVG sprites |
 
 ---

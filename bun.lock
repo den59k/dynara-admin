@@ -32,6 +32,20 @@
         "dynara": "^0.0.2",
       },
     },
+    "packages/dev-app": {
+      "name": "dev-app",
+      "version": "0.0.0",
+      "dependencies": {
+        "marcidb-client": "^0.8.0",
+        "marcidb-embedded": "^0.8.0",
+      },
+      "devDependencies": {
+        "dynara": "^0.0.2",
+      },
+      "peerDependencies": {
+        "compact-json-schema": "^0.1.3",
+      },
+    },
     "packages/dyn-orm": {
       "name": "dyn-orm",
       "version": "0.0.1",
@@ -452,6 +466,8 @@
 
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
+    "dev-app": ["dev-app@workspace:packages/dev-app"],
+
     "dyn-orm": ["dyn-orm@workspace:packages/dyn-orm"],
 
     "dynara": ["dynara@0.0.2", "", { "dependencies": { "@sinclair/typebox": "^0.34.37", "compact-json-schema": "^0.1.4" }, "peerDependencies": { "@types/bun": "*", "typescript": "^5" } }, "sha512-ve1BLXvAN7lk/dXARdS10KkvlU1+lsW/RwMRE7c8OwcT4mWb/ulaegFAMGEkN0j1YOaTtS3rkejg2jUHp0nAHA=="],
@@ -508,6 +524,8 @@
 
     "js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 
+    "koffi": ["koffi@2.16.2", "", {}, "sha512-owU0MRwv6xkrVqCd+33uw6BaYppkTRXbO/rVdJNI2dvZG0gzyRhYwW25eWtc5pauwK8TGh3AbkFONSezdykfSA=="],
+
     "lightningcss": ["lightningcss@1.32.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.32.0", "lightningcss-darwin-arm64": "1.32.0", "lightningcss-darwin-x64": "1.32.0", "lightningcss-freebsd-x64": "1.32.0", "lightningcss-linux-arm-gnueabihf": "1.32.0", "lightningcss-linux-arm64-gnu": "1.32.0", "lightningcss-linux-arm64-musl": "1.32.0", "lightningcss-linux-x64-gnu": "1.32.0", "lightningcss-linux-x64-musl": "1.32.0", "lightningcss-win32-arm64-msvc": "1.32.0", "lightningcss-win32-x64-msvc": "1.32.0" } }, "sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ=="],
 
     "lightningcss-android-arm64": ["lightningcss-android-arm64@1.32.0", "", { "os": "android", "cpu": "arm64" }, "sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg=="],
@@ -537,6 +555,10 @@
     "lru-cache": ["lru-cache@10.4.3", "", {}, "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
+
+    "marcidb-client": ["marcidb-client@0.8.0", "", { "bin": { "marcidb": "bin.js" } }, "sha512-nFRbTAebBWExDxE71oblIsgMEI6fc53FB3VyHqxICW3E7mXBPp47ThXGPlFsDtuYAdiJ9h0d9+Jrn8pxePlYYQ=="],
+
+    "marcidb-embedded": ["marcidb-embedded@0.8.0", "", { "dependencies": { "koffi": "^2.12.0" }, "peerDependencies": { "marcidb-client": "^0.8.0" }, "optionalPeers": ["marcidb-client"] }, "sha512-sydQpZYEvUuc1XThoaw9wzOXioHxsj9SmPhd9ZRiHnjiY65qSe3AfuxXYqVSopMFZ+oANtNRIoG28gKbWRoDiw=="],
 
     "minimatch": ["minimatch@9.0.9", "", { "dependencies": { "brace-expansion": "^2.0.2" } }, "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg=="],
 
