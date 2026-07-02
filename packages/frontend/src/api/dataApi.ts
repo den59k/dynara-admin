@@ -4,6 +4,8 @@ import type { TableColumn } from '../components/VTable.vue'
 type Page = {
   title: string,
   path: string,
+  group?: string,
+  icon?: string,
 }
 
 // Mirror of the backend `PageMeta` type (the `/pages/:path` response). Keep the

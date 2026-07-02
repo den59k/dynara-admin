@@ -120,6 +120,8 @@ Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`,
 
 Inside a custom component, invoke a `componentAction` with `sendAction(view, name, body)` or the route-bound `useAction(name)` helper (both exported from `dynara-admin/ui`).
 
+`createPage` also accepts a `group` (sidebar section) and `icon` (from the built-in icon set), e.g. `createPage({ title: "Users", path: "users", group: "People", icon: "users" })`. Pages without a group are listed first.
+
 Form schemas use [`compact-json-schema`](https://github.com/den59k/compact-json-schema) format.
 
 ### Select & reference fields

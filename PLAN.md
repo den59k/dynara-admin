@@ -126,7 +126,9 @@ doing them after more consumers exist is not.
 - [ ] **i18n** — UI strings are hardcoded Russian while README/package are English.
       Extract to a locale table, default `en`, ship `ru`. Small surface now; painful
       later.
-- [ ] **Sidebar structure** — page groups/sections and icons in `createPage` options.
+- [x] **Sidebar structure** — page groups/sections and icons in `createPage` options.
+      `createPage({ group, icon })`; the pages list carries both and `AppSidebar`
+      renders grouped sections (ungrouped first) with per-page icons.
 
 ---
 

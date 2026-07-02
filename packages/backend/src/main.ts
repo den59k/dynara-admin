@@ -91,6 +91,8 @@ type Ctx = RequestContext<any>
 type PageEntry = {
   title?: string,
   path?: string,
+  group?: string,
+  icon?: string,
   table?: ColumnId<any, any>[],
   data?: (options: ListOptions, ctx: Ctx) => ListResult<any> | Promise<ListResult<any>>,
   itemData?: (id: any, ctx: Ctx) => Promise<any>,
@@ -174,7 +176,9 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
     app.get(`${apiBase}/pages`, async (req) => {
       return pages.map(p => ({
         path: p.path,
-        title: p.title
+        title: p.title,
+        group: p.group,
+        icon: p.icon
       }))
     })
 
@@ -372,7 +376,14 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       throw new Error(`Duplicate page path "${options.path ?? ''}"`)
     }
 
-    const currentPage: PageEntry = { path: options.path, title: options.title, componentData: [], componentActions: [] }
+    const currentPage: PageEntry = {
+      path: options.path,
+      title: options.title,
+      group: options.group,
+      icon: options.icon,
+      componentData: [],
+      componentActions: [],
+    }
     pages.push(currentPage)
 
     const data: PageWithPrimaryKey<T, string, T, User> = {
@@ -462,6 +473,11 @@ type CreateAdminPanelOptions = {
 type CreatePageOptions = {
   title?: string
   path?: string
+  // Sidebar section this page is listed under. Pages without a group are
+  // listed first, ungrouped, in registration order.
+  group?: string
+  // Icon name (from the built-in icon set) shown next to the sidebar link.
+  icon?: string
 }
 
 interface ColumnBase {

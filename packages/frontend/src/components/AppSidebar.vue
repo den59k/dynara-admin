@@ -1,9 +1,17 @@
 <template>
   <aside class="app-sidebar">
     <h3>{{ title }}</h3>
-    <RouterLink v-for="page in data" :to="page.path.startsWith('/')? page.path: `/${page.path}`">
+    <RouterLink v-for="page in sections.ungrouped" :key="page.path" :to="pageTo(page)">
+      <VIcon v-if="page.icon" :icon="page.icon" />
       {{ page.title }}
     </RouterLink>
+    <template v-for="[group, pages] in sections.groups" :key="group">
+      <div class="app-sidebar__group">{{ group }}</div>
+      <RouterLink v-for="page in pages" :key="page.path" :to="pageTo(page)">
+        <VIcon v-if="page.icon" :icon="page.icon" />
+        {{ page.title }}
+      </RouterLink>
+    </template>
     <button style="margin-top: auto">
       <VIcon icon="logout"/>
       Выйти из аккаунта
@@ -13,8 +21,8 @@
 
 <script lang="ts" setup>
 import { useRequest } from 'vuesix';
-import { dataApi } from '../api/dataApi';
-import { watch } from 'vue';
+import { dataApi, type FullPage } from '../api/dataApi';
+import { computed, watch } from 'vue';
 import { HTTPError } from '../api/request';
 import { useRouter } from 'vue-router';
 import VIcon from './VIcon.vue';
@@ -22,6 +30,22 @@ import VIcon from './VIcon.vue';
 const title = (window as any).__DYNARA_TITLE__ ?? "Dynara Admin"
 
 const { data, error } = useRequest(dataApi.getPages)
+
+type SidebarPage = Pick<FullPage, 'title' | 'path' | 'group' | 'icon'>
+
+// Ungrouped pages first (registration order), then each group (in first-seen order).
+const sections = computed(() => {
+  const ungrouped: SidebarPage[] = []
+  const groups = new Map<string, SidebarPage[]>()
+  for (const page of (data.value ?? []) as SidebarPage[]) {
+    if (!page.group) { ungrouped.push(page); continue }
+    if (!groups.has(page.group)) groups.set(page.group, [])
+    groups.get(page.group)!.push(page)
+  }
+  return { ungrouped, groups: [...groups.entries()] }
+})
+
+const pageTo = (page: SidebarPage) => page.path.startsWith('/') ? page.path : `/${page.path}`
 
 const router = useRouter()
 watch(error, (error) => {
@@ -51,7 +75,7 @@ watch(error, (error) => {
     padding: 0 24px
 
   &>a, &>button
-    text-decoration: none 
+    text-decoration: none
     height: 40px
     padding: 0 16px
     display: flex
@@ -71,5 +95,19 @@ watch(error, (error) => {
     &.router-link-active
       background-color: var(--background-active-color)
       color: var(--text-color)
+
+    &>svg
+      width: 18px
+      height: 18px
+      flex-shrink: 0
+
+.app-sidebar__group
+  font-size: 11px
+  font-weight: 600
+  text-transform: uppercase
+  letter-spacing: 0.04em
+  color: var(--text-secondary-color)
+  padding: 16px 22px 6px
+  user-select: none
 
 </style>

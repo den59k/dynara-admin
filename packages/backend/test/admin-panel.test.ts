@@ -96,6 +96,20 @@ describe("admin panel — page registry", () => {
     expect(await res.json()).toEqual([{ path: "users", title: "Users" }])
   })
 
+  it("includes sidebar group and icon in the pages list", async () => {
+    const admin = createAdminPanel()
+    admin.createPage({ title: "Users", path: "users", group: "People", icon: "users" }).data(async () => ({ items: [], total: 0 }))
+    admin.createPage({ title: "Home", path: "home" }).data(async () => ({ items: [], total: 0 }))
+    const app = new Router()
+    app.register(admin)
+
+    const res = await app.inject("/api/admin/pages")
+    expect(await res.json()).toEqual([
+      { path: "users", title: "Users", group: "People", icon: "users" },
+      { path: "home", title: "Home", group: undefined, icon: undefined },
+    ])
+  })
+
   it("exposes a page's metadata", async () => {
     const { app } = buildUsersApp()
     const res = await app.inject("/api/admin/pages/users")
