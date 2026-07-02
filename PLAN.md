@@ -112,9 +112,9 @@ doing them after more consumers exist is not.
 - [x] **Sorting UI** — clickable headers for `sortable` columns (depends on 1.2).
       `VTable` cycles asc→desc→unsorted per sortable header and emits `v-model:sort`;
       `DataPage` threads it into the list request (resets to page 0 on change).
-- [ ] **Mutations from custom components** — `componentData` is GET-only; add
+- [x] **Mutations from custom components** — `componentData` is GET-only; add
       `componentAction(name, schema, handler)` (POST) so custom pages can write
-      without hand-rolling routes.
+      without hand-rolling routes. SDK exposes `sendAction`/`useAction`.
 - [ ] **Reference/select inputs** — form field type that loads options from an async
       source (another page's `.data` or an inline options handler). Needed for any
       foreign-key field.

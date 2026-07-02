@@ -102,7 +102,8 @@ type PageEntry = {
   primaryKey?: PropertyKey,
   primaryKeyType?: SchemaItem,
   component?: string,
-  componentData: { name: string, schema?: SchemaItem, method: (args: any, ctx: Ctx) => any }[]
+  componentData: { name: string, schema?: SchemaItem, method: (args: any, ctx: Ctx) => any }[],
+  componentActions: { name: string, schema?: SchemaItem, method: (...args: any[]) => any }[]
 }
 
 declare const __PRODUCTION__: boolean
@@ -233,6 +234,21 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         })
       }
 
+      for (let action of page.componentActions) {
+        const route = `${apiBase}/data/${path}/component-action/${action.name}`
+        if (action.schema) {
+          // Payload action: validate the body, then hand (data, ctx) to the handler.
+          app.post(route, [{}, action.schema], async (req) => {
+            return await action.method(req.body, { user: (req as any).user })
+          })
+        } else {
+          // No-payload action: the handler receives just the context.
+          app.post(route, async (req) => {
+            return await action.method({ user: (req as any).user })
+          })
+        }
+      }
+
       app.get(`${apiBase}/pages/${path}`, async (req): Promise<PageMeta> => {
         return {
           title: page.title,
@@ -356,7 +372,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       throw new Error(`Duplicate page path "${options.path ?? ''}"`)
     }
 
-    const currentPage: PageEntry = { path: options.path, title: options.title, componentData: [] }
+    const currentPage: PageEntry = { path: options.path, title: options.title, componentData: [], componentActions: [] }
     pages.push(currentPage)
 
     const data: PageWithPrimaryKey<T, string, T, User> = {
@@ -406,6 +422,14 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
           currentPage.componentData.push({ name: args[0], method: args[1] })
         } else {
           currentPage.componentData.push({ name: args[0], schema: args[1], method: args[2] })
+        }
+        return this
+      },
+      componentAction(...args: any) {
+        if (args.length === 2) {
+          currentPage.componentActions.push({ name: args[0], method: args[1] })
+        } else {
+          currentPage.componentActions.push({ name: args[0], schema: args[1], method: args[2] })
         }
         return this
       }
@@ -471,6 +495,8 @@ interface Page<T extends object, User = unknown> {
   component(url: any): this
   componentData(name: string, data: (args: Record<string,any>, ctx: RequestContext<User>) => Promise<any> | any): this
   componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this
+  componentAction(name: string, handler: (ctx: RequestContext<User>) => Promise<any> | any): this
+  componentAction<S extends SchemaItem>(name: string, schema: S, handler: (data: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this
 }
 
 interface PageWithPrimaryKey<T extends object, KeyType, Item extends object, User = unknown> extends Page<T, User> {

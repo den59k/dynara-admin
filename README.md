@@ -113,8 +113,12 @@ const adminPanel = createAdminPanel({ basePath: "/panel", title: "Acme Admin" })
 | `.component(path)` | Absolute path to a `.vue` file rendered as the page body; compiled on-demand and served to the frontend |
 | `.componentData(name, fn)` | Register a named GET endpoint the custom component can fetch; `fn` receives query params |
 | `.componentData(name, schema, fn)` | Same as above with a [`compact-json-schema`](https://github.com/den59k/compact-json-schema) for query param validation |
+| `.componentAction(name, fn)` | Register a named POST endpoint (a mutation) the custom component can invoke; `fn` receives just the request context |
+| `.componentAction(name, schema, fn)` | Same as above with a `compact-json-schema` validating the request body; `fn` receives `(data, ctx)` |
 
-Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`, `.componentData`) receives a request context as its last argument — `ctx.user` is the value returned by `onRequest`, for per-user authorization and audit logging.
+Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`, `.componentData`, `.componentAction`) receives a request context as its last argument — `ctx.user` is the value returned by `onRequest`, for per-user authorization and audit logging.
+
+Inside a custom component, invoke a `componentAction` with `sendAction(view, name, body)` or the route-bound `useAction(name)` helper (both exported from `dynara-admin/ui`).
 
 Form schemas use [`compact-json-schema`](https://github.com/den59k/compact-json-schema) format.
 

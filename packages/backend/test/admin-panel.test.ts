@@ -219,6 +219,64 @@ describe("admin panel — mutations", () => {
   })
 })
 
+describe("admin panel — component actions", () => {
+  const buildActionApp = () => {
+    const calls = { promoted: [] as unknown[], pinged: 0 }
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Users", path: "users" })
+      .data(async () => ({ items: [], total: 0 }))
+      .componentAction("promote", { userId: "number" }, async (data) => {
+        calls.promoted.push(data)
+        return { ok: true }
+      })
+      .componentAction("ping", async () => {
+        calls.pinged++
+        return { pong: true }
+      })
+    const app = new Router()
+    app.register(admin)
+    return { app, calls }
+  }
+
+  it("runs a payload action and validates the body", async () => {
+    const { app, calls } = buildActionApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/component-action/promote",
+      body: { userId: 7 },
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    expect(calls.promoted).toEqual([{ userId: 7 }])
+  })
+
+  it("rejects a payload action with an invalid body", async () => {
+    const { app, calls } = buildActionApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/component-action/promote",
+      body: {},
+    })
+
+    expect(res.status).toBe(400)
+    expect(calls.promoted).toEqual([])
+  })
+
+  it("runs a no-payload action", async () => {
+    const { app, calls } = buildActionApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/component-action/ping",
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ pong: true })
+    expect(calls.pinged).toBe(1)
+  })
+})
+
 describe("admin panel — list options parsing", () => {
   const buildOptionsApp = () => {
     let received: unknown = null
