@@ -14,6 +14,7 @@
     :checkable="tableData.allowDelete"
     v-model:checked="selectedItems"
     :row-component="tableData.updateForm? 'button': undefined"
+    v-model:sort="sort"
     @itemclick="onRowClick"
   />
   <div v-if="data && data.total > pageSize" class="data-page__pagination">
@@ -33,7 +34,7 @@ import { computed, shallowRef, watch } from 'vue';
 import VButton from '../components/VButton.vue';
 import { useDialog } from '../components/VDialogProvider.vue';
 import AddItemDialog from '../components/dialogs/AddItemDialog.vue';
-import VTable from '../components/VTable.vue';
+import VTable, { type SortState } from '../components/VTable.vue';
 import VIcon from '../components/VIcon.vue';
 import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
@@ -42,10 +43,18 @@ const viewId = computed(() => currentRoute.params.viewId as string ?? HOME_VIEW_
 
 const pageSize = 20
 const page = shallowRef(0)
-// Reset to the first page whenever the active view changes.
-watch(viewId, () => { page.value = 0 })
+const sort = shallowRef<SortState | undefined>(undefined)
 
-const listParams = computed<ListParams>(() => ({ take: pageSize, skip: page.value * pageSize }))
+// Reset paging/sorting whenever the active view changes.
+watch(viewId, () => { page.value = 0; sort.value = undefined })
+// Any sort change returns to the first page.
+watch(sort, () => { page.value = 0 })
+
+const listParams = computed<ListParams>(() => ({
+  take: pageSize,
+  skip: page.value * pageSize,
+  sort: sort.value,
+}))
 
 const { data: tableData } = useRequestWatch(dataApi.getPageData, viewId)
 const { data } = useRequestWatch(dataApi.getData, viewId, listParams)

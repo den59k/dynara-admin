@@ -219,6 +219,48 @@ describe("admin panel — mutations", () => {
   })
 })
 
+describe("admin panel — list options parsing", () => {
+  const buildOptionsApp = () => {
+    let received: unknown = null
+    const admin = createAdminPanel()
+    admin.createPage({ title: "Users", path: "users" }).data(async (options) => {
+      received = options
+      return { items: [], total: 0 }
+    })
+    const app = new Router()
+    app.register(admin)
+    return { app, getReceived: () => received }
+  }
+
+  it("parses sortField/sortDir into a sort object", async () => {
+    const { app, getReceived } = buildOptionsApp()
+    await app.inject("/api/admin/data/users/items?take=10&skip=5&sortField=name&sortDir=desc")
+
+    expect(getReceived()).toMatchObject({
+      take: 10,
+      skip: 5,
+      sort: { field: "name", dir: "desc" },
+    })
+  })
+
+  it("defaults an unknown sort direction to desc and passes search through", async () => {
+    const { app, getReceived } = buildOptionsApp()
+    await app.inject("/api/admin/data/users/items?sortField=name&search=bob")
+
+    expect(getReceived()).toMatchObject({
+      sort: { field: "name", dir: "desc" },
+      search: "bob",
+    })
+  })
+
+  it("omits sort when no sortField is given", async () => {
+    const { app, getReceived } = buildOptionsApp()
+    await app.inject("/api/admin/data/users/items")
+
+    expect((getReceived() as { sort?: unknown }).sort).toBeUndefined()
+  })
+})
+
 describe("admin panel — basePath configuration", () => {
   const buildPanelApp = () => {
     const admin = createAdminPanel({ basePath: "/panel" })

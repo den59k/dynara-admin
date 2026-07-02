@@ -107,8 +107,11 @@ doing them after more consumers exist is not.
 
 ## Milestone 2 — Features the dogfooding projects keep hitting → v0.2.x
 
-- [ ] **Pagination UI** in `VTable`/`DataPage` (depends on 1.2).
-- [ ] **Sorting UI** — clickable headers for `sortable` columns (depends on 1.2).
+- [x] **Pagination UI** in `VTable`/`DataPage` (depends on 1.2). Prev/next pager
+      in `DataPage` driven by the `total` from `.data()`.
+- [x] **Sorting UI** — clickable headers for `sortable` columns (depends on 1.2).
+      `VTable` cycles asc→desc→unsorted per sortable header and emits `v-model:sort`;
+      `DataPage` threads it into the list request (resets to page 0 on change).
 - [ ] **Mutations from custom components** — `componentData` is GET-only; add
       `componentAction(name, schema, handler)` (POST) so custom pages can write
       without hand-rolling routes.

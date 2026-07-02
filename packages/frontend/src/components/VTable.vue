@@ -7,8 +7,14 @@
           <VIcon v-else icon="check" />
         </div>
       </div>
-      <div v-for="(col, i) in columns" :key="i">
+      <div
+        v-for="(col, i) in columns"
+        :key="i"
+        :class="{ 'v-table__sortable': isSortable(col) }"
+        @click="isSortable(col) && toggleSort(col as FieldColumn<T>)"
+      >
         {{ col.title }}
+        <VIcon v-if="sortIcon(col)" class="v-table__sort-icon" :icon="sortIcon(col)!" />
       </div>
     </div>
     <component
@@ -53,17 +59,40 @@ const props = defineProps<{
   rowProps?: (obj: T) => Record<string, any>
   checkable?: boolean
   checked?: T[]
+  sort?: SortState
 }>()
 
 const emit = defineEmits<{
   itemclick: [item: T]
   itemcontext: [event: MouseEvent, item: T]
   'update:checked': [items: T[]]
+  'update:sort': [sort: SortState | undefined]
 }>()
 
 const isFieldColumn = (col: TableColumn<T>): col is FieldColumn<T> => 'field' in col
 const isTemplateColumn = (col: TableColumn<T>): col is TemplateColumn<T> => 'template' in col
 const isActionColumn = (col: TableColumn<T>): col is ActionColumn<T> => 'onClick' in col
+
+const isSortable = (col: TableColumn<T>): boolean => isFieldColumn(col) && !!col.sortable
+
+// Clicking a sortable header cycles asc → desc → unsorted.
+const toggleSort = (col: FieldColumn<T>) => {
+  const field = String(col.field)
+  const current = props.sort
+  if (!current || current.field !== field) {
+    emit('update:sort', { field, dir: 'asc' })
+  } else if (current.dir === 'asc') {
+    emit('update:sort', { field, dir: 'desc' })
+  } else {
+    emit('update:sort', undefined)
+  }
+}
+
+const sortIcon = (col: TableColumn<T>): string | undefined => {
+  if (!isFieldColumn(col) || !col.sortable) return undefined
+  if (props.sort?.field !== String(col.field)) return undefined
+  return props.sort.dir === 'asc' ? 'arrow-up' : 'arrow-down'
+}
 
 const templateCache = new Map<string, (row: Record<string, unknown>) => string>()
 const getTemplateRenderer = (template: string) => {
@@ -120,8 +149,11 @@ interface ColumnBase {
   width?: number | `${number}fr`
 }
 
+export type SortState = { field: string, dir: 'asc' | 'desc' }
+
 export type FieldColumn<T> = ColumnBase & {
   field: keyof T
+  sortable?: boolean
 }
 
 export type TemplateColumn<T> = ColumnBase & {
@@ -161,6 +193,18 @@ export type TableColumn<T, KeyType = any> = FieldColumn<T> | TemplateColumn<T> |
   box-sizing: border-box
   background-color: var(--paper-color)
   border-bottom: 1px solid var(--border-color)
+
+  .v-table__sortable
+    cursor: pointer
+    user-select: none
+    gap: 4px
+
+    &:hover
+      color: var(--text-color)
+
+  .v-table__sort-icon
+    width: 14px
+    height: 14px
 
 
 .v-table__row
