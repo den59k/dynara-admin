@@ -9,9 +9,13 @@ import VFileInput from "./VFileInput.vue"
 // A static option for a select field.
 export type SelectOption = { value: any, label: string }
 
-// Loads select options from another page's list (a foreign-key reference).
-// `label` is the field shown to the user; `value` defaults to that page's primary key.
-export type SelectReference = { page: string, label: string, value?: string }
+// Loads select options for a foreign-key reference. Either from another page's
+// list (`page` — `label` is the field shown, `value` defaults to that page's
+// primary key), or from an async method declared inline in the form schema and
+// resolved server-side (`method` — served from `/select/:method`).
+export type SelectReference =
+  | { page: string, label: string, value?: string }
+  | { method: string }
 
 export type Schema = {
   type: string,

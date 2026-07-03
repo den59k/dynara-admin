@@ -85,6 +85,22 @@ export type ListResult<T> = { items: T[], total: number }
 // The `${apiBase}/pages/:path` response — the single source of truth for a
 // page's metadata shape. The frontend's `FullPage` mirrors this (the two
 // packages can't share a type until this one is published).
+// A single select option returned by a reference method.
+export type SelectOption = { value: any, label: string }
+
+// The query a reference method receives. `search` is the user's current search
+// text. `value` is set instead (search absent) when the frontend needs to
+// resolve the label of an already-selected value — e.g. opening an edit form.
+export type ReferenceQuery = { search?: string, value?: string }
+
+// An async options source for a select field, declared inline in a form schema
+// as `{ type, reference: async (query, ctx) => SelectOption[] }`. It is pulled
+// out of the schema at registration time (see registerReferenceMethods), stored
+// server-side, and exposed at `${apiBase}/select/:refId`; the serialized schema
+// carries only a `{ method: refId }` descriptor, so it stays plain JSON.
+export type ReferenceMethod<User = unknown> =
+  (query: ReferenceQuery, ctx: RequestContext<User>) => SelectOption[] | Promise<SelectOption[]>
+
 export type PageMeta = {
   title?: string,
   path?: string,
@@ -136,6 +152,9 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
   const componentFiles = new Map<string, string>()
 
   const pages: PageEntry[] = []
+  // Reference methods extracted from form schemas (see registerReferenceMethods),
+  // keyed by a page-qualified id and served from `${apiBase}/select/:refId`.
+  const referenceMethods = new Map<string, ReferenceMethod<User>>()
   let authMethod: AuthMethodInternal<User> | null = null
 
   const isProduction = typeof __PRODUCTION__ !== "undefined" && __PRODUCTION__
@@ -153,6 +172,27 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
     let p = path ?? ''
     if (p.startsWith('/')) p = p.slice(1)
     return p === '' ? HOME_PATH : p
+  }
+
+  // Walks an unfolded form schema and pulls out inline reference methods
+  // (`reference: async (query, ctx) => ...`). Each is registered under a
+  // page-qualified id and replaced in the schema with a serializable
+  // `{ method: id }` descriptor, so the schema handed to the frontend stays
+  // plain JSON. Recurses into object properties and array items.
+  const sanitizeRefId = (id: string) => id.replace(/[^A-Za-z0-9._-]/g, "_")
+  const registerReferenceMethods = (node: any, idPath: string) => {
+    if (!node || typeof node !== "object") return
+    if (typeof node.reference === "function") {
+      const id = sanitizeRefId(idPath)
+      referenceMethods.set(id, node.reference)
+      node.reference = { method: id }
+    }
+    if (node.properties) {
+      for (const [key, child] of Object.entries(node.properties)) {
+        registerReferenceMethods(child, `${idPath}.${key}`)
+      }
+    }
+    if (node.items) registerReferenceMethods(node.items, `${idPath}.items`)
   }
 
   // Resolves the authenticated user from a request, or throws the HTTPError the
@@ -305,6 +345,19 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       })
     }
 
+    // Async options for select fields declared with an inline `reference` method.
+    // One route serves every form's reference methods, keyed by page-qualified id.
+    if (referenceMethods.size > 0) {
+      const selectQuerySchema = schema({ search: "string?", value: "string?" })
+      app.get(`${apiBase}/select/:refId`, [schema({ refId: "string" }), selectQuerySchema], async (req) => {
+        const method = referenceMethods.get(req.params.refId)
+        if (!method) throw new HTTPError("Unknown reference", 404)
+        const q = req.query as ReferenceQuery
+        const items = await method({ search: q.search, value: q.value }, { user: (req as any).user })
+        return { items }
+      })
+    }
+
     const routesRaw = (app as any).routes
     // Отдаем index.html и ассеты для frontend
     if (true || isProduction) {
@@ -450,12 +503,16 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         return this as any
       },
       createForm(schema, onInsert) {
-        currentPage.createForm = { schema: unfoldSchema(schema) }
+        const unfolded = unfoldSchema(schema)
+        registerReferenceMethods(unfolded, `${segment}.create`)
+        currentPage.createForm = { schema: unfolded }
         currentPage.onInsert = onInsert as any
         return this
       },
       updateForm(schema, onUpdate) {
-        currentPage.updateForm = { schema: unfoldSchema(schema) }
+        const unfolded = unfoldSchema(schema)
+        registerReferenceMethods(unfolded, `${segment}.update`)
+        currentPage.updateForm = { schema: unfolded }
         currentPage.onUpdate = onUpdate as any
         return this as any
       },

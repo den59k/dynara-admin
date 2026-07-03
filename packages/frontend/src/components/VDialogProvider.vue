@@ -98,26 +98,33 @@ export const useDialog = () => inject("dialogStore") as DialogStore
 <style lang="sass">
 .v-dialog-backdrop
   position: fixed
-  top: 0
-  bottom: 0
-  width: 100vw
+  inset: 0
   background-color: rgba(0, 0, 0, 0.75)
+  // Scroll the overlay, not the dialog: the whole backdrop is the scroll
+  // container, and the dialog is centered with `margin: auto` so it stays
+  // reachable (top included) once it grows taller than the viewport.
   display: flex
-  align-items: center
-  flex-direction: column
-  justify-content: center
+  overflow-y: auto
+  overflow-x: hidden
+  padding: 24px
   z-index: 2000
   box-sizing: border-box
 
-  &.v-enter-active, &.v-leave-active 
+  .v-dialog
+    margin: auto
+
+  &.v-enter-active, &.v-leave-active
     transition: opacity 0.14s ease
     .v-dialog
       transition: transform 0.1s cubic-bezier(0, 0, 0.2, 1)
 
-  &.v-enter-from, &.v-leave-to 
+  &.v-enter-from, &.v-leave-to
     opacity: 0
 
     .v-dialog
       transform: scale(0.8)
+
+  @media(max-width: 800px)
+    padding: 0
 
 </style>

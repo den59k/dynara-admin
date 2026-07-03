@@ -5,22 +5,36 @@
       class="v-select-input__control"
       :class="{ open }"
       tabindex="0"
-      @click="toggle"
-      @keydown.enter.prevent="toggle"
-      @keydown.esc="open = false"
+      @click="onControlClick"
+      @keydown.enter.prevent="onControlClick"
+      @keydown.down.prevent="onControlClick"
+      @keydown.esc="close"
     >
-      <span v-if="displayLabel" class="v-select-input__value">{{ displayLabel }}</span>
-      <span v-else class="v-select-input__placeholder">{{ placeholder ?? t('select.empty') }}</span>
-      <VIcon class="v-select-input__arrow" icon="v-collapse-arrow" />
+      <!-- When open the control itself becomes the search box (combobox style). -->
+      <input
+        v-if="open"
+        ref="searchRef"
+        class="v-select-input__search"
+        v-model="search"
+        :placeholder="displayLabel || (placeholder ?? t('select.empty'))"
+        @click.stop
+      />
+      <template v-else>
+        <span v-if="displayLabel" class="v-select-input__value">{{ displayLabel }}</span>
+        <span v-else class="v-select-input__placeholder">{{ placeholder ?? t('select.empty') }}</span>
+      </template>
+      <VIcon class="v-select-input__arrow" icon="arrow-down" />
+    </div>
 
-      <div v-if="open" class="v-select-input__dropdown" @click.stop>
-        <input
-          v-if="reference"
-          ref="searchRef"
-          class="v-select-input__search"
-          v-model="search"
-          :placeholder="t('select.search')"
-        />
+    <Teleport to="body">
+      <div
+        v-if="open"
+        class="v-select-input__scrim"
+        @pointerdown="close"
+        @wheel.prevent="close"
+        @contextmenu.prevent="close"
+      ></div>
+      <div v-if="open" class="v-select-input__dropdown" :style="dropdownStyle">
         <div class="v-select-input__options">
           <button
             v-if="model != null"
@@ -35,18 +49,21 @@
             class="v-select-input__option"
             :class="{ active: opt.value === model }"
             @click="select(opt.value)"
-          >{{ opt.label }}</button>
+          >
+            <span class="v-select-input__option-label">{{ opt.label }}</span>
+            <VIcon v-if="opt.value === model" class="v-select-input__check" icon="check" />
+          </button>
           <div v-if="resolvedOptions.length === 0" class="v-select-input__empty">
             {{ pending ? t('select.loading') : t('select.noOptions') }}
           </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </VFormControl>
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, type CSSProperties, nextTick, ref, shallowRef, watch } from 'vue'
 import VFormControl from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import { dataApi } from '../../api/dataApi'
@@ -69,46 +86,67 @@ const search = ref('')
 const rootRef = ref<HTMLElement>()
 const searchRef = ref<HTMLInputElement>()
 
-// --- Options source: static list, or rows loaded from the referenced page ---
+// --- Options source: static list, rows from a referenced page, or a reference
+// method resolved server-side. A `reference` is one of two variants:
+//   { page, label, value? } — load & filter another page's list
+//   { method }              — call an async method that returns SelectOptions
 const staticOptions = computed(() => props.options ?? [])
 const loadedOptions = shallowRef<SelectOption[]>([])
 const pending = shallowRef(false)
 
 // The referenced page's value field (defaults to its primary key) and whether
 // it exposes single-item access (used to resolve a pre-selected value's label).
-const valueField = shallowRef<string | undefined>(props.reference?.value)
+const valueField = shallowRef<string | undefined>(
+  props.reference && 'page' in props.reference ? props.reference.value : undefined
+)
 const itemAccess = shallowRef(false)
 let metaLoaded = false
 
-const loadPageMeta = async () => {
-  if (!props.reference || metaLoaded) return
-  const meta = await dataApi.getPageData(props.reference.page)
+const loadPageMeta = async (ref: { page: string }) => {
+  if (metaLoaded) return
+  const meta = await dataApi.getPageData(ref.page)
   if (!valueField.value) valueField.value = meta.primaryKey
   itemAccess.value = !!meta.itemAccess
   metaLoaded = true
 }
 
-const toOption = (row: any): SelectOption => ({
+const toOption = (row: any, labelField: string): SelectOption => ({
   value: valueField.value ? row[valueField.value] : row,
-  label: String(row[props.reference!.label] ?? ''),
+  label: String(row[labelField] ?? ''),
 })
+
+const normalizeOption = (o: any): SelectOption => ({ value: o.value, label: String(o.label ?? '') })
 
 let reqId = 0
 const loadOptions = async () => {
-  if (!props.reference) return
+  const ref = props.reference
+  if (!ref) return
   const id = ++reqId
   pending.value = true
   try {
-    await loadPageMeta()
-    const { items } = await dataApi.getData(props.reference.page, { take: 20, search: search.value || undefined })
-    if (id !== reqId) return
-    loadedOptions.value = items.map(toOption)
+    if ('method' in ref) {
+      const { items } = await dataApi.getReferenceOptions(ref.method, { search: search.value || undefined })
+      if (id !== reqId) return
+      loadedOptions.value = items.map(normalizeOption)
+    } else {
+      await loadPageMeta(ref)
+      const { items } = await dataApi.getData(ref.page, { take: 20, search: search.value || undefined })
+      if (id !== reqId) return
+      loadedOptions.value = items.map((row) => toOption(row, ref.label))
+    }
   } finally {
     if (id === reqId) pending.value = false
   }
 }
 
-const resolvedOptions = computed(() => props.reference ? loadedOptions.value : staticOptions.value)
+// Static options are filtered client-side; reference options are filtered
+// server-side (loadOptions re-fetches with the query).
+const filteredStatic = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return staticOptions.value
+  return staticOptions.value.filter(o => o.label.toLowerCase().includes(q))
+})
+const resolvedOptions = computed(() => props.reference ? loadedOptions.value : filteredStatic.value)
 
 // --- Selected-value label (may need resolving in edit mode) ---
 const resolvedLabel = shallowRef<string | null>(null)
@@ -121,27 +159,64 @@ const displayLabel = computed(() => {
 })
 
 const resolveSelectedLabel = async () => {
-  if (!props.reference || model.value == null) { resolvedLabel.value = null; return }
+  const ref = props.reference
+  if (!ref || model.value == null) { resolvedLabel.value = null; return }
   if (resolvedOptions.value.some(o => o.value === model.value)) return
-  await loadPageMeta()
+  if ('method' in ref) {
+    try {
+      const { items } = await dataApi.getReferenceOptions(ref.method, { value: model.value })
+      const opts = items.map(normalizeOption)
+      const found = opts.find(o => o.value === model.value) ?? opts[0]
+      resolvedLabel.value = found ? found.label : null
+    } catch { resolvedLabel.value = null }
+    return
+  }
+  await loadPageMeta(ref)
   if (!itemAccess.value) { resolvedLabel.value = null; return }
   try {
-    const row = await dataApi.getItemData(props.reference.page, model.value)
-    resolvedLabel.value = row ? String((row as any)[props.reference.label] ?? '') : null
+    const row = await dataApi.getItemData(ref.page, model.value)
+    resolvedLabel.value = row ? String((row as any)[ref.label] ?? '') : null
   } catch { resolvedLabel.value = null }
 }
 
+// --- Dropdown positioning (teleported to body, so it escapes any clipping
+// container). Recomputed on open; scrolling/resizing closes the dropdown, so a
+// single measurement is enough. ---
+const dropdownStyle = ref<CSSProperties>({})
+const positionDropdown = () => {
+  const el = rootRef.value
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  const GAP = 4
+  const MAX_H = 264
+  const spaceBelow = window.innerHeight - r.bottom
+  const flipUp = spaceBelow < MAX_H && r.top > spaceBelow
+  dropdownStyle.value = {
+    position: 'fixed',
+    left: `${r.left}px`,
+    width: `${r.width}px`,
+    ...(flipUp
+      ? { bottom: `${window.innerHeight - r.top + GAP}px` }
+      : { top: `${r.bottom + GAP}px` }),
+  }
+}
+
 // --- Interactions ---
-const toggle = () => {
-  open.value = !open.value
-  if (open.value && props.reference && loadedOptions.value.length === 0) loadOptions()
-  if (open.value && props.reference) nextTick(() => searchRef.value?.focus())
+const onControlClick = () => {
+  if (open.value) return
+  open.value = true
+  if (props.reference && loadedOptions.value.length === 0) loadOptions()
+  nextTick(() => { positionDropdown(); searchRef.value?.focus() })
+}
+
+const close = () => {
+  open.value = false
+  search.value = ''
 }
 
 const select = (value: any) => {
   model.value = value
-  open.value = false
-  search.value = ''
+  close()
 }
 
 let debounce: ReturnType<typeof setTimeout>
@@ -153,12 +228,6 @@ watch(search, () => {
 
 // Resolve the label for a value supplied from outside (opening an edit form).
 watch(model, resolveSelectedLabel, { immediate: true })
-
-const onDocMouseDown = (e: MouseEvent) => {
-  if (open.value && rootRef.value && !rootRef.value.contains(e.target as Node)) open.value = false
-}
-onMounted(() => document.addEventListener('mousedown', onDocMouseDown))
-onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
 </script>
 
 <style lang="sass">
@@ -195,6 +264,21 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
   flex-grow: 1
   color: var(--placeholder-color)
 
+.v-select-input__search
+  flex-grow: 1
+  min-width: 0
+  height: 100%
+  border: none
+  background: none
+  outline: none
+  color: var(--text-color)
+  font-size: 13px
+  font-family: inherit
+  padding: 0
+
+  &::placeholder
+    color: var(--placeholder-color)
+
 .v-select-input__arrow
   width: 16px
   height: 16px
@@ -202,39 +286,31 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
   transition: transform 0.12s
   flex-shrink: 0
 
+// --- Teleported dropdown + scrim ---
+.v-select-input__scrim
+  position: fixed
+  inset: 0
+  z-index: 2100
+
 .v-select-input__dropdown
-  position: absolute
-  z-index: 10
-  top: calc(100% + 4px)
-  left: 0
-  right: 0
+  z-index: 2101
   background: var(--paper-color, #fff)
   border: 1px solid var(--border-color)
   border-radius: 8px
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12)
   padding: 4px
-  cursor: default
-
-.v-select-input__search
-  width: 100%
   box-sizing: border-box
-  height: 32px
-  padding: 0 8px
-  margin-bottom: 4px
-  border: 1px solid var(--border-color)
-  border-radius: 6px
-  background: none
-  outline: none
-  color: var(--text-color)
-  font-size: 13px
 
 .v-select-input__options
-  max-height: 220px
+  max-height: 256px
   overflow-y: auto
   display: flex
   flex-direction: column
 
 .v-select-input__option
+  display: flex
+  align-items: center
+  gap: 8px
   text-align: left
   background: none
   border: none
@@ -249,6 +325,19 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMouseDown))
 
   &.active
     background-color: var(--background-active-color)
+
+.v-select-input__option-label
+  flex-grow: 1
+  min-width: 0
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.v-select-input__check
+  width: 15px
+  height: 15px
+  flex-shrink: 0
+  color: var(--primary-color)
 
 .v-select-input__clear
   color: var(--text-secondary-color)

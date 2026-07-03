@@ -32,11 +32,11 @@ const dialog = useDialog()
   background-color: var(--paper-color)
   border-radius: 16px
   position: relative
-  max-height: 86vh
   max-width: 94vw
   --padding: 0 24px
   min-width: 250px
-  overflow-y: auto
+  // No inner scroll: the overlay (.v-dialog-backdrop) is the scroll container.
+  flex-shrink: 0
 
   &.standart
     width: 650px
@@ -44,13 +44,12 @@ const dialog = useDialog()
   @media(max-width: 800px)
     position: fixed
     max-width: unset
-    max-height: unset
     top: 0
     bottom: 0
     right: 0
     left: 0
-    max-height: 100%
     max-width: 100%
+    min-height: 100%
     margin: 0
     border-radius: 0
 

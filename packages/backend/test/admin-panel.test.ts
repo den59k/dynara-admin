@@ -292,6 +292,66 @@ describe("admin panel — component actions", () => {
   })
 })
 
+describe("admin panel — reference select methods", () => {
+  const buildRefApp = () => {
+    const users = seedUsers()
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Posts", path: "posts" })
+      .data(async () => ({ items: [], total: 0 }))
+      .primaryKey("id", "number")
+      .createForm(
+        {
+          title: "string",
+          authorId: {
+            type: "number",
+            reference: async ({ search, value }: { search?: string; value?: string }) => {
+              const list =
+                value != null ? users.filter((u) => u.id === Number(value)) :
+                search ? users.filter((u) => u.name.toLowerCase().includes(search.toLowerCase())) :
+                users
+              return list.map((u) => ({ value: u.id, label: u.name }))
+            },
+          },
+        },
+        async () => {}
+      )
+    const app = new Router()
+    app.register(admin)
+    return { app }
+  }
+
+  it("replaces an inline reference method with a { method } descriptor in the schema", async () => {
+    const { app } = buildRefApp()
+    const res = await app.inject("/api/admin/pages/posts")
+    const meta = await res.json()
+    expect(meta.createForm.schema.properties.authorId.reference).toEqual({ method: "posts.create.authorId" })
+  })
+
+  it("serves reference options filtered by search", async () => {
+    const { app } = buildRefApp()
+    const res = await app.inject("/api/admin/select/posts.create.authorId?search=bo")
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [{ value: 2, label: "Bob" }] })
+  })
+
+  it("resolves a single option by value", async () => {
+    const { app } = buildRefApp()
+    const res = await app.inject("/api/admin/select/posts.create.authorId?value=3")
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [{ value: 3, label: "Carol" }] })
+  })
+
+  it("returns 404 for an unknown reference id", async () => {
+    const { app } = buildRefApp()
+    const res = await app.inject("/api/admin/select/posts.create.unknown")
+
+    expect(res.status).toBe(404)
+  })
+})
+
 describe("static asset path resolution", () => {
   const dir = normalize("/srv/app/frontend")
   const prefix = "/admin/assets/"

@@ -67,8 +67,26 @@ const postForm = {
   title: "string",
   body: "string?",
   published: "boolean",
-  // Renders as a searchable select backed by the "users" page's list.
-  authorId: { type: "number", reference: { page: "users", label: "name" } },
+  // Renders as a searchable select backed by an async method (resolved
+  // server-side, exposed at /select/:id) rather than another page's list. It is
+  // called with the current `search`; and with `value` to resolve the label of
+  // an already-selected author when the edit form opens.
+  authorId: {
+    type: "number",
+    reference: async ({ search, value }: { search?: string; value?: string }) => {
+      const $where =
+        value != null ? { id: Number(value) } :
+        search ? { name: { $includes: search } } : undefined
+      const users = await client.user.findMany({
+        id: true,
+        name: true,
+        $where,
+        $order: { name: "asc" },
+        $limit: 20,
+      })
+      return users.map((u) => ({ value: u.id, label: u.name }))
+    },
+  },
 } as const
 
 admin
