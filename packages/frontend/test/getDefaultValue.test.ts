@@ -35,6 +35,12 @@ describe("getDefaultValue", () => {
     expect(getDefaultValue({ type: "string", format: "file" })).toBeNull()
   })
 
+  it("starts enum and date fields empty (null)", () => {
+    expect(getDefaultValue({ type: "string", enum: ["user", "moderator"] })).toBeNull()
+    expect(getDefaultValue({ type: "string", format: "date" })).toBeNull()
+    expect(getDefaultValue({ type: "string", format: "datetime" })).toBeNull()
+  })
+
   it("builds an object, defaulting required fields and leaving optionals undefined", () => {
     const schema = {
       type: "object",

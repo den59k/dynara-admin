@@ -2,10 +2,12 @@
 // list/CRUD page plus a foreign-key `reference` field (Post.author -> User).
 
 model User {
-  name   String
-  email  String?
-  age    Int
-  posts  Post[] @bind(Post.author)
+  name     String
+  email    String?
+  age      Int
+  role     String
+  birthday DateTime?
+  posts    Post[] @bind(Post.author)
 }
 
 model Post {

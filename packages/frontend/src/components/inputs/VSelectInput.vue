@@ -23,6 +23,7 @@
         <span v-if="displayLabel" class="v-select-input__value">{{ displayLabel }}</span>
         <span v-else class="v-select-input__placeholder">{{ placeholder ?? t('select.empty') }}</span>
       </template>
+      <VInputClear v-if="nullable && model != null && !open" @clear="select(null)" />
       <VIcon class="v-select-input__arrow" icon="arrow-down" />
     </div>
 
@@ -37,7 +38,7 @@
       <div v-if="open" class="v-select-input__dropdown" :style="dropdownStyle">
         <div class="v-select-input__options">
           <button
-            v-if="model != null"
+            v-if="nullable && model != null"
             type="button"
             class="v-select-input__option v-select-input__clear"
             @click="select(null)"
@@ -66,6 +67,7 @@
 import { computed, type CSSProperties, nextTick, ref, shallowRef, watch } from 'vue'
 import VFormControl from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
+import VInputClear from './VInputClear.vue'
 import { dataApi } from '../../api/dataApi'
 import type { SelectOption, SelectReference } from './getInput'
 import { t } from '../../i18n'
@@ -76,7 +78,10 @@ const props = defineProps<{
   error?: string
   placeholder?: string
   options?: SelectOption[]
+  // Plain enum values from the schema — rendered as options with the value as label.
+  enum?: (string | number)[]
   reference?: SelectReference
+  nullable?: boolean
 }>()
 
 const model = defineModel<any>()
@@ -86,11 +91,13 @@ const search = ref('')
 const rootRef = ref<HTMLElement>()
 const searchRef = ref<HTMLInputElement>()
 
-// --- Options source: static list, rows from a referenced page, or a reference
-// method resolved server-side. A `reference` is one of two variants:
+// --- Options source: static list, enum values, rows from a referenced page, or
+// a reference method resolved server-side. A `reference` is one of two variants:
 //   { page, label, value? } — load & filter another page's list
 //   { method }              — call an async method that returns SelectOptions
-const staticOptions = computed(() => props.options ?? [])
+const staticOptions = computed(() =>
+  props.options ?? props.enum?.map((v) => ({ value: v, label: String(v) })) ?? []
+)
 const loadedOptions = shallowRef<SelectOption[]>([])
 const pending = shallowRef(false)
 

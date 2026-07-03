@@ -22,7 +22,17 @@ admin.registerAuthMethod({
 })
 
 // Shared form schema for the Users page (create + update use the same fields).
-const userForm = { name: "string", email: "string?", age: "number", role: [ "user", "moderator" ] } as const
+// `email`/`birthday` are nullable (`??` / `string??`) so the form shows a clear
+// cross that resets them to null; `role` renders as a select from the enum;
+// `birthday` renders as a date picker (`date` isn't a validatable body type in
+// dynara, so date fields are strings with `format: "date"`).
+const userForm = {
+  name: "string",
+  email: "string??",
+  age: "number",
+  role: ["user", "moderator"],
+  birthday: { type: "string??", format: "date" },
+} as const
 
 admin
   .createPage({ title: "Users", path: "users", icon: "users" })
@@ -34,6 +44,7 @@ admin
       name: true,
       email: true,
       age: true,
+      role: true,
       $where,
       $order: $order as any,
       $limit: take,
@@ -43,20 +54,24 @@ admin
     return { items, total }
   })
   .primaryKey("id", "number")
-  .item(async (id) =>
-    client.user.findFirst({ id: true, name: true, email: true, age: true, $where: { id } })
-  )
+  .item(async (id) => {
+    const user = await client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, birthday: true, $where: { id } })
+    if (!user) return null
+    // MarciDB returns DateTime as epoch millis; the form schema declares a string.
+    return { ...user, birthday: user.birthday != null ? new Date(user.birthday).toISOString() : null }
+  })
   .table([
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Name", field: "name", sortable: true },
     { title: "Email", field: "email" },
+    { title: "Role", field: "role", width: 110 },
     { title: "Age", field: "age", width: 80, sortable: true },
   ])
-  .createForm(userForm, async (data) => {
-    await client.user.insert(data)
+  .createForm(userForm, async ({ birthday, ...rest }) => {
+    await client.user.insert({ ...rest, birthday: birthday ? new Date(birthday) : null })
   })
-  .updateForm(userForm, async (id, data) => {
-    await client.user.update({ id }, data)
+  .updateForm(userForm, async (id, { birthday, ...rest }) => {
+    await client.user.update({ id }, { ...rest, birthday: birthday ? new Date(birthday) : null })
   })
   .onDelete(async (ids) => {
     await client.$transaction(ids.map((id) => client.user.delete({ id })))
@@ -65,14 +80,17 @@ admin
 // Posts — showcases a foreign-key `reference` field pointing at the Users page.
 const postForm = {
   title: "string",
-  body: "string?",
+  // `??` (nullable), not `?` (optional): the DB column is nullable and `item()`
+  // returns null, which the update form must be able to resubmit.
+  body: "string??",
   published: "boolean",
   // Renders as a searchable select backed by an async method (resolved
   // server-side, exposed at /select/:id) rather than another page's list. It is
   // called with the current `search`; and with `value` to resolve the label of
-  // an already-selected author when the edit form opens.
+  // an already-selected author when the edit form opens. Nullable (`??`), so
+  // the select shows a clear cross — Post.author is optional in the DB.
   authorId: {
-    type: "number",
+    type: "number??",
     reference: async ({ search, value }: { search?: string; value?: string }) => {
       const $where =
         value != null ? { id: Number(value) } :

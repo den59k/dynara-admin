@@ -1,30 +1,33 @@
 <template>
   <VFormControl class="v-input-text" :label-id="labelId" :label="props.label" :error="error" outline>
-    <input 
-      :id="labelId" 
-      v-model="model" 
-      ref="inputRef" 
-      :type="props.hidden? 'password': undefined" 
-      :name="name" 
+    <input
+      :id="labelId"
+      v-model="model"
+      ref="inputRef"
+      :type="props.hidden? 'password': undefined"
+      :name="name"
       :placeholder="placeholder"
     />
+    <VInputClear v-if="nullable && model" @clear="model = null" />
   </VFormControl>
 </template>
 
 <script lang="ts" setup>
 import { onMounted, ref, useId } from 'vue';
 import VFormControl from '../VFormControl.vue';
+import VInputClear from './VInputClear.vue';
 
-const props = defineProps<{ 
-  id?: string, 
-  label?: string, 
-  error?: string, 
-  autofocus?: boolean, 
-  name?: string, 
+const props = defineProps<{
+  id?: string,
+  label?: string,
+  error?: string,
+  autofocus?: boolean,
+  name?: string,
   hidden?: boolean,
-  placeholder?: string 
+  placeholder?: string,
+  nullable?: boolean
 }>()
-const model = defineModel<string>()
+const model = defineModel<string | null>()
 
 const labelId = props.id ?? useId()
 
@@ -66,6 +69,9 @@ onMounted(() => {
 
   input
     padding-right: 4px
+
+  .v-input-clear
+    margin-right: 8px
 
   textarea
     box-sizing: border-box

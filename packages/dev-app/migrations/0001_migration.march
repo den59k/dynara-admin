@@ -1,0 +1,2 @@
+add field User.role String @slot(16)
+add field User.birthday DateTime @nullable @slot(20)
