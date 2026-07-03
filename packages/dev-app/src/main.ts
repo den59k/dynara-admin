@@ -22,7 +22,7 @@ admin.registerAuthMethod({
 })
 
 // Shared form schema for the Users page (create + update use the same fields).
-const userForm = { name: "string", email: "string?", age: "number" } as const
+const userForm = { name: "string", email: "string?", age: "number", role: [ "user", "moderator" ] } as const
 
 admin
   .createPage({ title: "Users", path: "users", icon: "users" })

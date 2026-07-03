@@ -36,8 +36,8 @@
       "name": "dev-app",
       "version": "0.0.0",
       "dependencies": {
-        "marcidb-client": "^0.8.0",
-        "marcidb-embedded": "^0.8.0",
+        "marcidb-client": "^0.8.1",
+        "marcidb-embedded": "^0.8.1",
       },
       "devDependencies": {
         "dynara": "^0.0.2",
@@ -556,9 +556,9 @@
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
-    "marcidb-client": ["marcidb-client@0.8.0", "", { "bin": { "marcidb": "bin.js" } }, "sha512-nFRbTAebBWExDxE71oblIsgMEI6fc53FB3VyHqxICW3E7mXBPp47ThXGPlFsDtuYAdiJ9h0d9+Jrn8pxePlYYQ=="],
+    "marcidb-client": ["marcidb-client@0.8.1", "", { "bin": { "marcidb": "bin.js" } }, "sha512-5aa5CZkSHOrcZY/OQ2a+sFN7MFaYmDt7wCDyn34u9kzlbhB3r6GLWE6hDe6/aDN/DkyQ/nS+kHRVzZUtqyDD2w=="],
 
-    "marcidb-embedded": ["marcidb-embedded@0.8.0", "", { "dependencies": { "koffi": "^2.12.0" }, "peerDependencies": { "marcidb-client": "^0.8.0" }, "optionalPeers": ["marcidb-client"] }, "sha512-sydQpZYEvUuc1XThoaw9wzOXioHxsj9SmPhd9ZRiHnjiY65qSe3AfuxXYqVSopMFZ+oANtNRIoG28gKbWRoDiw=="],
+    "marcidb-embedded": ["marcidb-embedded@0.8.1", "", { "dependencies": { "koffi": "^2.12.0" }, "peerDependencies": { "marcidb-client": "^0.8.1" }, "optionalPeers": ["marcidb-client"] }, "sha512-sNZk//Bez3xlIcUerf5vyiwfFy2XdZshw+7XotabVD7tb2iWqFl7Pg4XrTwAyNU7OllllyEAh4KdBtpH9JCKFg=="],
 
     "minimatch": ["minimatch@9.0.9", "", { "dependencies": { "brace-expansion": "^2.0.2" } }, "sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg=="],
 
