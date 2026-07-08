@@ -14,7 +14,7 @@ enum, file upload, nullable fields), static options + async `reference` selects,
 columns, pagination, sidebar groups/icons, custom Vue page components with
 `componentData` / `componentAction`, i18n (en/ru), path-traversal-safe asset serving.
 
-### ✅ Delivered in this pass (M1 core + toasts + auth fixes)
+### ✅ Delivered so far (M1 core, M2 presentation, toasts, auth fixes)
 
 - **Declarative actions (1.1 + 1.2)** — `.action(name, config, handler)` with three kinds:
   row (per-row, receives the id; optional `form` dialog reusing the full input stack),
@@ -24,6 +24,13 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
   "top up balance" scenario is live in the dev-app.
 - **Search box (1.3)** — opt-in via `createPage({ search: true })` → `PageMeta.search`;
   debounced input in `DataPage.vue` wired to the already-working `search` list param.
+- **Column formatters (2.1)** — a `type` hint on field columns: `boolean` (✓/✗), `date`
+  (localized, `format: "datetime"`), `badge` (colored pill via `colors`), `image`
+  (thumbnail), `money` (`currency`-formatted). Empty/`null` values render a muted `—`.
+- **URL-synced list state (2.2)** — page / sort / search live in the route query
+  (`?page=2&sort=-name&q=alice`), so deep links, refresh, and back/forward all work.
+- **Table states (2.3)** — loading, empty (with a context-aware "add" / "clear search"
+  action), and error (with Retry) states in `DataPage.vue`.
 - **Toasts (3.1)** — `VToastProvider` + `useToast()`; action results surface their
   returned `message` as a toast.
 - **Auth hygiene (3.2, partial)** — the sidebar logout button now clears the token and
@@ -32,12 +39,11 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
 
 ### Remaining known gaps
 
-- List state (page, sort, search) is not reflected in the URL — no deep links, broken
-  back button, state lost on refresh. *(M2.2)*
-- No loading/empty/error states in the table yet. *(M2.3)*
 - `HomePage.vue` is an empty stub. *(M3.4)*
-- All values render via `{{ value }}`: booleans as `true/false`, dates as epoch millis,
-  no badges/images/links. *(M2.1)*
+- No skeleton rows during a param-change refetch (only a first-load "Loading…"). *(M2.3
+  polish)*
+- No page-size selector or numbered pages yet. *(M2.3 polish)*
+- The `link` column type (cross-page navigation) waits on the item detail view. *(M4.1)*
 
 ---
 
@@ -266,8 +272,8 @@ already there for the client side.)
 |---|---|---|
 | ✅ done | 1.3 search input, 3.1 toasts, 3.2 auth fixes (logout, 401) | Small, fixes visible papercuts, prerequisites for actions landing well |
 | ✅ done | **1.1 item actions** (+ 1.2 bulk) | The flagship gap — makes the panel *operational*, not just CRUD |
-| **P0** | 2.3 table states (loading / empty / error) | The last of the visible papercuts |
-| **P1** | 1.4 filters, 2.1 column formatters, 2.2 URL state | Makes tables genuinely usable on real data |
+| ✅ done | 2.1 column formatters, 2.2 URL state, 2.3 table states | Makes tables genuinely usable on real data |
+| **P1** | 1.4 filters | Typed filtering beyond free-text search |
 | **P1** | 3.3 access control, 3.4 dashboard | Expected of any admin framework |
 | **P2** | 4.1 item view, 4.2 forms, 4.3 export | Depth features |
 | **P3** | Milestone 5 | Platform maturity |

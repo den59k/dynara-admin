@@ -256,6 +256,27 @@ Pass an array of column descriptors to `.table()`. Each column must have a `titl
 
 > **Note:** `.table()` expects an array, not an object map. Passing the old `{ id: { ... } }` object form makes the frontend throw `columns.map is not a function`.
 
+A field column can carry a `type` hint so the value renders as more than raw text
+(an empty/`null` value always shows a muted `—`):
+
+```typescript
+.table([
+  { title: "Active", field: "active", type: "boolean" },                    // ✓ / ✗
+  { title: "Created", field: "createdAt", type: "date", format: "datetime" }, // localized (accepts epoch millis or ISO)
+  { title: "Role", field: "role", type: "badge", colors: { admin: "red", user: "gray" } }, // colored pill
+  { title: "Avatar", field: "avatar", type: "image" },                      // thumbnail (value is the src)
+  { title: "Balance", field: "balance", type: "money", currency: "USD" },   // currency-formatted number
+])
+```
+
+| `type` | Extra fields | Renders as |
+|---|---|---|
+| `boolean` | — | A green ✓ (truthy) or muted ✗ (falsy) |
+| `date` | `format?: "date" \| "datetime"` | Localized date (default) or date-time |
+| `badge` | `colors?: Record<value, color>` | A colored pill; `color` is a name (`red`, `green`, `blue`, `yellow`, `orange`, `purple`, `gray`) or any CSS color / hex |
+| `image` | — | A small rounded thumbnail from the value URL |
+| `money` | `currency?: string` | `Intl`-formatted number (with the currency symbol when set) |
+
 ---
 
 ## dyn-orm

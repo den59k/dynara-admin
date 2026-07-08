@@ -64,8 +64,10 @@ admin
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Name", field: "name", sortable: true },
     { title: "Email", field: "email" },
-    { title: "Role", field: "role", width: 110 },
-    { title: "Balance", field: "balance", width: 90, sortable: true },
+    // A colored pill keyed on the role value.
+    { title: "Role", field: "role", width: 120, type: "badge", colors: { moderator: "purple", user: "gray" } },
+    // Currency-formatted number.
+    { title: "Balance", field: "balance", width: 110, sortable: true, type: "money", currency: "USD" },
     { title: "Age", field: "age", width: 80, sortable: true },
   ])
   // `birthday` arrives as a JS Date (or null) — dynara decoded the native `date`
@@ -84,7 +86,7 @@ admin
   .action("topUp", {
     title: "Top up balance",
     icon: "add",
-    form: { amount: { type: "number", label: "Amount to add" }, comment: "string?" },
+    form: { amount: "number", comment: "string?" },
   }, async (id, { amount }) => {
     const user = await client.user.findFirst({ balance: true, name: true, $where: { id } })
     if (!user) throw new HTTPError("User not found", 404)
@@ -145,7 +147,7 @@ const postForm = {
 } as const
 
 admin
-  .createPage({ title: "Posts", path: "posts", icon: "file" })
+  .createPage({ title: "Posts", path: "posts", icon: "file", search: true })
   .data(async ({ take, skip, sort, search }) => {
     const $where = search ? { title: { $includes: search } } : undefined
     const $order = sort ? { [sort.field]: sort.dir } : { id: "asc" }
@@ -181,7 +183,8 @@ admin
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Title", field: "title", sortable: true },
     { title: "Author", field: "authorName", width: "1fr" },
-    { title: "Published", field: "published", width: 100, sortable: true },
+    // Renders a ✓ / ✗ instead of the raw "true"/"false".
+    { title: "Published", field: "published", width: 100, sortable: true, type: "boolean" },
   ])
   .createForm(postForm, async ({ authorId, ...rest }) => {
     await client.post.insert({ ...rest, author: authorId ? { id: authorId } : null })

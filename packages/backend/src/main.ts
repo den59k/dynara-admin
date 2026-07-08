@@ -729,9 +729,19 @@ interface ColumnBase {
   width?: number | `${number}fr`
 }
 
+// A cell renderer hint for a field column. Omitted → the raw value as text.
+//   boolean → ✓ / ✗   | date → localized date (`format: "datetime"` adds time)
+//   badge   → colored pill (`colors` maps value → color name/hex)
+//   image   → thumbnail (value is the src) | money → `currency`-formatted number
+type ColumnType = "text" | "boolean" | "date" | "badge" | "image" | "money"
+
 type FieldColumn<T> = ColumnBase & {
   field: keyof T
   sortable?: boolean
+  type?: ColumnType
+  format?: "date" | "datetime"
+  currency?: string
+  colors?: Record<string, string>
 }
 
 type TemplateColumn<T> = ColumnBase & {

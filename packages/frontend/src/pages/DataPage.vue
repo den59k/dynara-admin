@@ -2,8 +2,8 @@
   <h1>{{ tableData?.title }}<br/></h1>
   <component v-if="customComponent" :is="customComponent" />
 
-  <div class="data-page__toolbar">
-    <div v-if="tableData?.search" class="data-page__search">
+  <div v-if="tableData" class="data-page__toolbar">
+    <div v-if="tableData.search" class="data-page__search">
       <VIcon icon="list" class="data-page__search-icon" />
       <input v-model="searchInput" :placeholder="t('data.search')" />
       <VIconButton v-if="searchInput" icon="close" @click="searchInput = ''" />
@@ -21,7 +21,7 @@
       >
         <VIcon v-if="action.icon" :icon="action.icon" /> {{ action.title }}
       </VButton>
-      <VButton v-if="tableData?.allowDelete" class="danger" @click="deleteItems">
+      <VButton v-if="tableData.allowDelete" class="danger" @click="deleteItems">
         <VIcon icon="delete" /> {{ t('data.delete', { count: selectedItems.length }) }}
       </VButton>
     </template>
@@ -35,36 +35,52 @@
       >
         <VIcon v-if="action.icon" :icon="action.icon" /> {{ action.title }}
       </VButton>
-      <VButton v-if="tableData?.createForm" @click="addItem">{{ t('data.add') }}</VButton>
+      <VButton v-if="tableData.createForm" @click="addItem">{{ t('data.add') }}</VButton>
     </template>
   </div>
 
-  <VTable
-    v-if="tableData && data"
-    :item-key="tableData.primaryKey"
-    class="data-page__table"
-    :columns="columns"
-    :data="data.items"
-    :checkable="tableData.allowDelete"
-    v-model:checked="selectedItems"
-    :row-component="tableData.updateForm? 'button': undefined"
-    v-model:sort="sort"
-    @itemclick="onRowClick"
-  />
-  <div v-if="data && data.total > pageSize" class="data-page__pagination">
-    <VButton flat :disabled="page === 0" @click="page--">{{ t('pager.prev') }}</VButton>
-    <span>{{ t('pager.range', { from: page * pageSize + 1, to: Math.min((page + 1) * pageSize, data.total), total: data.total }) }}</span>
-    <VButton flat :disabled="(page + 1) * pageSize >= data.total" @click="page++">{{ t('pager.next') }}</VButton>
+  <!-- Error / loading / empty / table, in that precedence. -->
+  <div v-if="error" class="data-page__state">
+    <p>{{ errorMessage }}</p>
+    <VButton outline @click="retry">{{ t('data.retry') }}</VButton>
   </div>
+  <div v-else-if="pending && !data" class="data-page__state data-page__state--muted">
+    {{ t('data.loading') }}
+  </div>
+  <template v-else-if="data && tableData">
+    <VTable
+      v-if="data.items.length > 0"
+      :item-key="tableData.primaryKey"
+      class="data-page__table"
+      :columns="columns"
+      :data="data.items"
+      :checkable="tableData.allowDelete"
+      v-model:checked="selectedItems"
+      :row-component="tableData.updateForm? 'button': undefined"
+      :sort="sort"
+      @update:sort="setSort"
+      @itemclick="onRowClick"
+    />
+    <div v-else class="data-page__state data-page__state--muted">
+      <p>{{ search ? t('data.emptySearch') : t('data.empty') }}</p>
+      <VButton v-if="search" outline @click="searchInput = ''">{{ t('data.clearSearch') }}</VButton>
+      <VButton v-else-if="tableData.createForm" @click="addItem">{{ t('data.add') }}</VButton>
+    </div>
+    <div v-if="data.total > pageSize" class="data-page__pagination">
+      <VButton flat :disabled="page === 0" @click="setPage(page - 1)">{{ t('pager.prev') }}</VButton>
+      <span>{{ t('pager.range', { from: page * pageSize + 1, to: Math.min((page + 1) * pageSize, data.total), total: data.total }) }}</span>
+      <VButton flat :disabled="(page + 1) * pageSize >= data.total" @click="setPage(page + 1)">{{ t('pager.next') }}</VButton>
+    </div>
+  </template>
 </template>
 
 <script lang="ts" setup>
 import { mutateRequestFull, useRequestWatch } from 'vuesix';
 import { dataApi, type ActionMeta, type ListParams } from '../api/dataApi';
-import { UI_BASE } from '../api/request';
+import { UI_BASE, HTTPError } from '../api/request';
 import { HOME_VIEW_ID } from '../constants';
 import { t } from '../i18n';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { computed, shallowRef, watch } from 'vue';
 import VButton from '../components/VButton.vue';
 import VIcon from '../components/VIcon.vue';
@@ -77,25 +93,45 @@ import VTable, { type SortState, type TableColumn } from '../components/VTable.v
 import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
 const currentRoute = useRoute()
+const router = useRouter()
 const viewId = computed(() => currentRoute.params.viewId as string ?? HOME_VIEW_ID)
 
 const pageSize = 20
-const page = shallowRef(0)
-const sort = shallowRef<SortState | undefined>(undefined)
 
-// The committed search term (debounced from `searchInput`).
-const search = shallowRef<string>('')
-const searchInput = shallowRef<string>('')
+// The route query is the single source of truth for list state, so deep links,
+// refresh, and the browser back/forward buttons all just work.
+//   ?page=2   (1-based)   ?sort=name / ?sort=-name   ?q=alice
+const page = computed(() => Math.max(0, (Number(currentRoute.query.page) || 1) - 1))
+const sort = computed<SortState | undefined>(() => {
+  const raw = currentRoute.query.sort as string | undefined
+  if (!raw) return undefined
+  return raw.startsWith('-') ? { field: raw.slice(1), dir: 'desc' } : { field: raw, dir: 'asc' }
+})
+const search = computed(() => (currentRoute.query.q as string) ?? '')
+
+// Merge a patch into the current query, dropping empty values, and replace the
+// URL (no history entry per keystroke/sort).
+const setQuery = (patch: Record<string, string | undefined>) => {
+  const query: Record<string, string> = {}
+  for (const [key, value] of Object.entries({ ...currentRoute.query, ...patch })) {
+    if (value != null && value !== '') query[key] = String(value)
+  }
+  router.replace({ query })
+}
+const setPage = (p: number) => setQuery({ page: p > 0 ? String(p + 1) : undefined })
+const setSort = (s: SortState | undefined) =>
+  setQuery({ sort: s ? (s.dir === 'desc' ? '-' + s.field : s.field) : undefined, page: undefined })
+const setSearch = (q: string) => setQuery({ q: q || undefined, page: undefined })
+
+// Debounce the search box into the query; keep the box in sync when the query
+// changes elsewhere (navigation, back button).
+const searchInput = shallowRef<string>(search.value)
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(searchInput, (value) => {
   clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => { search.value = value; page.value = 0 }, 300)
+  searchTimer = setTimeout(() => setSearch(value), 300)
 })
-
-// Reset paging/sorting/search whenever the active view changes.
-watch(viewId, () => { page.value = 0; sort.value = undefined; searchInput.value = ''; search.value = '' })
-// Any sort change returns to the first page.
-watch(sort, () => { page.value = 0 })
+watch(search, (value) => { if (value !== searchInput.value) searchInput.value = value })
 
 const listParams = computed<ListParams>(() => ({
   take: pageSize,
@@ -105,7 +141,14 @@ const listParams = computed<ListParams>(() => ({
 }))
 
 const { data: tableData } = useRequestWatch(dataApi.getPageData, viewId)
-const { data } = useRequestWatch(dataApi.getData, viewId, listParams)
+const { data, pending, error } = useRequestWatch(dataApi.getData, viewId, listParams)
+
+const errorMessage = computed(() => {
+  const e = error.value
+  if (e instanceof HTTPError && typeof e.body === 'string' && e.body) return e.body
+  return t('data.error')
+})
+const retry = () => mutateRequestFull(dataApi.getData)
 
 const dialog = useDialog()
 const toast = useToast()
@@ -274,6 +317,23 @@ const deleteItems = async () => {
 
   .v-table__header
     border-radius: 12px 12px 0 0
+
+.data-page__state
+  margin-top: 12px
+  padding: 48px 24px
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 14px
+  border: 1px solid var(--border-color)
+  border-radius: 12px
+  text-align: center
+
+  &.data-page__state--muted
+    color: var(--text-secondary-color)
+
+  p
+    margin: 0
 
 .data-page__pagination
   display: flex

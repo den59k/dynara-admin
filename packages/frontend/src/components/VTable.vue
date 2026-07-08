@@ -32,7 +32,23 @@
         </div>
       </div>
       <template v-for="(col, i) in columns" :key="i">
-        <div v-if="isFieldColumn(col)">{{ (item as any)[col.field] }}</div>
+        <div v-if="isFieldColumn(col)" class="v-table__cell">
+          <template v-if="cellValue(item, col) == null || cellValue(item, col) === ''">
+            <span class="v-table__empty">—</span>
+          </template>
+          <template v-else-if="col.type === 'boolean'">
+            <VIcon
+              class="v-table__bool"
+              :class="cellValue(item, col) ? 'v-table__bool--true' : 'v-table__bool--false'"
+              :icon="cellValue(item, col) ? 'check' : 'close'"
+            />
+          </template>
+          <span v-else-if="col.type === 'badge'" class="v-table__badge" :style="badgeStyle(cellValue(item, col), col)">
+            {{ cellValue(item, col) }}
+          </span>
+          <img v-else-if="col.type === 'image'" class="v-table__image" :src="String(cellValue(item, col))" alt="" />
+          <template v-else>{{ formatValue(cellValue(item, col), col) }}</template>
+        </div>
         <div v-else-if="isTemplateColumn(col)">{{ getTemplateRenderer(col.template)(item as any) }}</div>
         <div v-else-if="isActionColumn(col)" class="v-table__actions">
           <VButton flat @click.stop="col.onClick(itemKey ? (item as any)[itemKey] : item)">
@@ -50,6 +66,7 @@ import { type CSSProperties, computed, reactive, watch } from 'vue'
 import { compileTemplate } from 'itomori'
 import VIcon from './VIcon.vue'
 import VButton from './VButton.vue'
+import { badgeColor, formatValue } from '../utils/formatCell'
 
 const props = defineProps<{
   data: T[]
@@ -72,6 +89,16 @@ const emit = defineEmits<{
 const isFieldColumn = (col: TableColumn<T>): col is FieldColumn<T> => 'field' in col
 const isTemplateColumn = (col: TableColumn<T>): col is TemplateColumn<T> => 'template' in col
 const isActionColumn = (col: TableColumn<T>): col is ActionColumn<T> => 'onClick' in col
+
+const cellValue = (item: T, col: FieldColumn<T>): any => (item as any)[col.field]
+
+const badgeStyle = (value: any, col: FieldColumn<T>) => {
+  const color = badgeColor(value, col)
+  return {
+    color,
+    backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
+  }
+}
 
 const isSortable = (col: TableColumn<T>): boolean => isFieldColumn(col) && !!col.sortable
 
@@ -151,9 +178,19 @@ interface ColumnBase {
 
 export type SortState = { field: string, dir: 'asc' | 'desc' }
 
+// A cell renderer hint. Omitted → the raw value as text.
+//   boolean → ✓ / ✗   | date → localized date (`format: "datetime"` adds time)
+//   badge   → colored pill (`colors` maps value → color name/hex)
+//   image   → thumbnail (value is the src) | money → `currency`-formatted number
+export type ColumnType = "text" | "boolean" | "date" | "badge" | "image" | "money"
+
 export type FieldColumn<T> = ColumnBase & {
   field: keyof T
   sortable?: boolean
+  type?: ColumnType
+  format?: "date" | "datetime"
+  currency?: string
+  colors?: Record<string, string>
 }
 
 export type TemplateColumn<T> = ColumnBase & {
@@ -231,6 +268,43 @@ button.v-table__row, a.v-table__row
 
 a.v-table__row
   text-decoration: none
+
+.v-table__cell
+  min-width: 0
+
+  & > span:not(.v-table__badge)
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+.v-table__empty
+  color: var(--text-secondary-color)
+
+.v-table__bool
+  width: 16px
+  height: 16px
+
+  &.v-table__bool--true
+    color: #2ecc71
+
+  &.v-table__bool--false
+    color: var(--text-secondary-color)
+
+.v-table__badge
+  display: inline-flex
+  align-items: center
+  height: 22px
+  padding: 0 10px
+  border-radius: 999px
+  font-size: 12px
+  font-weight: 600
+  text-transform: capitalize
+
+.v-table__image
+  width: 32px
+  height: 32px
+  border-radius: 6px
+  object-fit: cover
 
 .v-table__row .v-table__actions
   padding: 0
