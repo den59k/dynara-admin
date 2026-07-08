@@ -6,23 +6,15 @@ import { join, normalize, sep, isAbsolute } from "node:path"
 import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
 import { FormatRegistry } from "@sinclair/typebox";
 
-// TypeBox rejects any string carrying a format it doesn't know, so the formats
-// the panel's form schemas use must be registered (into the same registry
-// dynara's validator reads — typebox is a shared peer). Guarded so a host
-// app's own registration of these names wins.
+// TypeBox rejects a string carrying a format it doesn't know, so the `file`
+// format the panel's upload fields use must be registered (into the same
+// registry dynara's validator reads — typebox is a shared peer). The value of a
+// file field is whatever URL/id the page's upload handler returned — an opaque
+// string — so the checker is permissive. Guarded so a host app's own
+// registration wins.
 //
-// `date` / `datetime` accept what the native inputs emit ("YYYY-MM-DD" /
-// "YYYY-MM-DDTHH:mm") and also a full ISO string — an edit form seeded from a
-// DB Date resubmits it unchanged when the field isn't touched.
-const TIME_PART = /T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?/
-if (!FormatRegistry.Has("date")) {
-  FormatRegistry.Set("date", (v) => new RegExp(`^\\d{4}-\\d{2}-\\d{2}(${TIME_PART.source})?$`).test(v))
-}
-if (!FormatRegistry.Has("datetime")) {
-  FormatRegistry.Set("datetime", (v) => new RegExp(`^\\d{4}-\\d{2}-\\d{2}${TIME_PART.source}$`).test(v))
-}
-// The value of a file field is whatever URL/id the page's upload handler
-// returned — an opaque string.
+// Date fields use dynara's native `date` type (declared as `"date"`), which
+// validates and decodes to a JS Date on its own — no format registration here.
 if (!FormatRegistry.Has("file")) {
   FormatRegistry.Set("file", () => true)
 }

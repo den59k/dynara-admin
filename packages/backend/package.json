@@ -19,12 +19,12 @@
   },
   "devDependencies": {
     "bunup": "^0.16.31",
-    "dynara": "^0.0.2",
+    "dynara": "^0.0.3",
     "@sinclair/typebox": "^0.34.37"
   },
   "peerDependencies": {
-    "dynara": "^0.0.2",
-    "compact-json-schema": "^0.1.3",
+    "dynara": "^0.0.3",
+    "compact-json-schema": "^0.1.6",
     "@sinclair/typebox": "^0.34.0"
   },
   "files": ["dist"],

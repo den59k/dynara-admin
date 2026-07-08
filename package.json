@@ -6,7 +6,8 @@
     "packages/*"
   ],
   "dependencies": {
-    "compact-json-schema": "^0.1.3"
+    "compact-json-schema": "^0.1.7",
+    "dynara": "^0.0.3"
   },
   "devDependencies": {
     "@eckidevs/bun-plugin-vue": "^0.3.0",

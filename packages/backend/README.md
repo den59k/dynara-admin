@@ -167,19 +167,19 @@ Form schemas (`compact-json-schema`) and auth `fields` share the same field opti
 
 | Option | Description |
 | --- | --- |
-| `type` | Field type, e.g. `"string"`. `"number"` / `"integer"` render a numeric input. |
+| `type` | Field type, e.g. `"string"`. `"number"` / `"integer"` render a numeric input; `"date"` renders a date picker. |
 | `label` | Field label shown in the UI. |
 | `width` | Fraction of the row the field occupies, e.g. `0.5` for half-width. |
 | `multiline` | Render a multi-line text area instead of a single-line input. |
 | `hidden` | Mask the input (e.g. for passwords). |
-| `format` | `"date"` / `"datetime"` render a date picker on a string field; `"file"` renders an upload field. |
+| `format` | `"datetime"` switches a `date` field to a date+time picker; `"file"` renders an upload field. |
 
 An array of values renders as a select (a `compact-json-schema` enum):
 
 ```typescript
 const userForm = schema({
-  role: ["user", "moderator"],                     // enum → select
-  birthday: { type: "string??", format: "date" },  // nullable date picker
+  role: ["user", "moderator"],  // enum → select
+  birthday: "date??",           // nullable date picker; handler gets a JS Date
 })
 ```
 
@@ -187,7 +187,11 @@ const userForm = schema({
 
 A `?` suffix makes a field *optional* (may be omitted from the request), while `??` makes it *nullable* (an explicit `null` is accepted). Nullable fields show a clear cross in the form that resets the value to `null` — use `??` for DB-nullable columns, so an edit form can both display and resubmit the `null` your `item()` handler returns.
 
-> **Note:** `type: "date"` is not a validatable body type — declare date fields as strings with `format: "date"` (or `"datetime"`). The value is the native input's string (`"YYYY-MM-DD"` / `"YYYY-MM-DDTHH:mm"`); a full ISO string is also accepted, but your handlers should convert to/from your DB's date representation (see the dev-app's Users page).
+#### Dates
+
+Declare a date field with dynara's native `date` type (`"date"`, `"date?"`, or `"date??"`). dynara validates the incoming value and **decodes it into a JS `Date`** before your `createForm` / `updateForm` handler runs, so no manual conversion is needed. On the wire the picker sends `"YYYY-MM-DD"` (or a full ISO string), and an untouched edit form resends whatever your `item()` returned — a `Date`, ISO string, or epoch-millis number are all accepted. Add `format: "datetime"` (`{ type: "date??", format: "datetime" }`) to get a date+time picker.
+
+> Requires `dynara ^0.0.3` and `compact-json-schema ^0.1.6`. Plain-string date fields with `format: "date"` are still honored by the frontend for older setups, but the native type is preferred.
 
 ## Why dynara (and Fastify)
 

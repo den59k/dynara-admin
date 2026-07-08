@@ -37,6 +37,7 @@ describe("getDefaultValue", () => {
 
   it("starts enum and date fields empty (null)", () => {
     expect(getDefaultValue({ type: "string", enum: ["user", "moderator"] })).toBeNull()
+    expect(getDefaultValue({ type: "date" })).toBeNull()
     expect(getDefaultValue({ type: "string", format: "date" })).toBeNull()
     expect(getDefaultValue({ type: "string", format: "datetime" })).toBeNull()
   })

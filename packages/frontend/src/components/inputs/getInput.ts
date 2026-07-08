@@ -59,7 +59,11 @@ export const JsonInput = (props: JsonInputProps) => {
   if (schema.options || schema.reference || schema.enum) {
     return h(VSelectInput, { options: schema.options, reference: schema.reference, enum: schema.enum, ...otherProps })
   }
-  if (schema.type === "string" && (schema.format === "date" || schema.format === "datetime")) {
+  // dynara's native `date` type (serialized as `{ type: "date" }`). A
+  // `format: "datetime"` hint selects the datetime-local variant; a plain
+  // `format: "date"/"datetime"` on a string is still honored for callers not
+  // yet on the native type.
+  if (schema.type === "date" || schema.format === "date" || schema.format === "datetime") {
     return h(VDateInput, { datetime: schema.format === "datetime", ...otherProps })
   }
   if (schema.type === "string" && schema.multiline) {

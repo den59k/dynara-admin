@@ -57,9 +57,18 @@ describe("JsonInput dispatch", () => {
     expect(typeOf({ type: "integer" })).toBe(VInputNumber)
   })
 
-  it("renders a date input for format:date and format:datetime", () => {
+  it("renders a date input for the native date type", () => {
+    expect(typeOf({ type: "date" })).toBe(VDateInput)
+  })
+
+  it("still renders a date input for the format:date/datetime hint", () => {
     expect(typeOf({ type: "string", format: "date" })).toBe(VDateInput)
     expect(typeOf({ type: "string", format: "datetime" })).toBe(VDateInput)
+  })
+
+  it("passes datetime:true only for the datetime hint", () => {
+    expect((JsonInput({ schema: { type: "date" } }) as any).props.datetime).toBe(false)
+    expect((JsonInput({ schema: { type: "date", format: "datetime" } }) as any).props.datetime).toBe(true)
   })
 
   it("forwards enum values and nullable to the select", () => {

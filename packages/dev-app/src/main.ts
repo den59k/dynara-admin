@@ -22,16 +22,15 @@ admin.registerAuthMethod({
 })
 
 // Shared form schema for the Users page (create + update use the same fields).
-// `email`/`birthday` are nullable (`??` / `string??`) so the form shows a clear
-// cross that resets them to null; `role` renders as a select from the enum;
-// `birthday` renders as a date picker (`date` isn't a validatable body type in
-// dynara, so date fields are strings with `format: "date"`).
+// `email`/`birthday` are nullable (`??`) so the form shows a clear cross that
+// resets them to null; `role` renders as a select from the enum; `birthday`
+// uses dynara's native `date` type — the handler receives a JS Date directly.
 const userForm = {
   name: "string",
   email: "string??",
   age: "number",
   role: ["user", "moderator"],
-  birthday: { type: "string??", format: "date" },
+  birthday: "date??",
 } as const
 
 admin
@@ -54,12 +53,11 @@ admin
     return { items, total }
   })
   .primaryKey("id", "number")
-  .item(async (id) => {
-    const user = await client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, birthday: true, $where: { id } })
-    if (!user) return null
-    // MarciDB returns DateTime as epoch millis; the form schema declares a string.
-    return { ...user, birthday: user.birthday != null ? new Date(user.birthday).toISOString() : null }
-  })
+  // MarciDB returns DateTime as epoch millis; the date input accepts that as-is,
+  // so the row is returned unchanged.
+  .item(async (id) =>
+    client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, birthday: true, $where: { id } })
+  )
   .table([
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Name", field: "name", sortable: true },
@@ -67,11 +65,13 @@ admin
     { title: "Role", field: "role", width: 110 },
     { title: "Age", field: "age", width: 80, sortable: true },
   ])
-  .createForm(userForm, async ({ birthday, ...rest }) => {
-    await client.user.insert({ ...rest, birthday: birthday ? new Date(birthday) : null })
+  // `birthday` arrives as a JS Date (or null) — dynara decoded the native `date`
+  // field — so it goes straight to the DB with no conversion.
+  .createForm(userForm, async (data) => {
+    await client.user.insert(data)
   })
-  .updateForm(userForm, async (id, { birthday, ...rest }) => {
-    await client.user.update({ id }, { ...rest, birthday: birthday ? new Date(birthday) : null })
+  .updateForm(userForm, async (id, data) => {
+    await client.user.update({ id }, data)
   })
   .onDelete(async (ids) => {
     await client.$transaction(ids.map((id) => client.user.delete({ id })))
