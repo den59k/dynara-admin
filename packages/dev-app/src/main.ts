@@ -2,7 +2,7 @@ import { Router } from "dynara"
 // Imported straight from the local package source (not the built `dist`) so this
 // harness dogfoods whatever you're editing in `packages/backend` with no build
 // step — `bun --watch` reloads the panel on every change.
-import { createAdminPanel } from "../../backend/src/main"
+import { createAdminPanel, HTTPError } from "../../backend/src/main"
 import { client, db } from "./db"
 
 // The user object `onRequest` resolves and every page handler receives as `ctx.user`.
@@ -30,11 +30,12 @@ const userForm = {
   email: "string??",
   age: "number",
   role: ["user", "moderator"],
+  balance: "number",
   birthday: "date??",
 } as const
 
 admin
-  .createPage({ title: "Users", path: "users", icon: "users" })
+  .createPage({ title: "Users", path: "users", icon: "users", search: true })
   .data(async ({ take, skip, sort, search }) => {
     const $where = search ? { name: { $includes: search } } : undefined
     const $order = sort ? { [sort.field]: sort.dir } : { id: "asc" }
@@ -44,6 +45,7 @@ admin
       email: true,
       age: true,
       role: true,
+      balance: true,
       $where,
       $order: $order as any,
       $limit: take,
@@ -56,13 +58,14 @@ admin
   // MarciDB returns DateTime as epoch millis; the date input accepts that as-is,
   // so the row is returned unchanged.
   .item(async (id) =>
-    client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, birthday: true, $where: { id } })
+    client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, balance: true, birthday: true, $where: { id } })
   )
   .table([
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Name", field: "name", sortable: true },
     { title: "Email", field: "email" },
     { title: "Role", field: "role", width: 110 },
+    { title: "Balance", field: "balance", width: 90, sortable: true },
     { title: "Age", field: "age", width: 80, sortable: true },
   ])
   // `birthday` arrives as a JS Date (or null) — dynara decoded the native `date`
@@ -75,6 +78,40 @@ admin
   })
   .onDelete(async (ids) => {
     await client.$transaction(ids.map((id) => client.user.delete({ id })))
+  })
+  // Flagship row action: opens a form dialog to top up a single user's balance,
+  // then returns a message shown as a toast. `id` is the row's primary key.
+  .action("topUp", {
+    title: "Top up balance",
+    icon: "add",
+    form: { amount: { type: "number", label: "Amount to add" }, comment: "string?" },
+  }, async (id, { amount }) => {
+    const user = await client.user.findFirst({ balance: true, name: true, $where: { id } })
+    if (!user) throw new HTTPError("User not found", 404)
+    await client.user.update({ id }, { balance: user.balance + amount })
+    return { message: `Topped up ${user.name} by ${amount}` }
+  })
+  // A confirm-only row action (no form): resets one user's balance to zero.
+  .action("resetBalance", {
+    title: "Reset balance",
+    confirm: "Set this user's balance back to zero?",
+    danger: true,
+  }, async (id) => {
+    await client.user.update({ id }, { balance: 0 })
+    return { message: "Balance reset" }
+  })
+  // A bulk action over the current checkbox selection: `ids` are the checked
+  // primary keys. Renders next to Delete when rows are selected.
+  .action("grantBonus", {
+    title: "Grant 100 bonus",
+    icon: "like",
+    bulk: true,
+  }, async (ids) => {
+    const users = await client.user.findMany({ id: true, balance: true, $where: { id: { $in: ids } } })
+    for (const u of users) {
+      await client.user.update({ id: u.id }, { balance: u.balance + 100 })
+    }
+    return { message: `Granted a bonus to ${users.length} user(s)` }
   })
 
 // Posts — showcases a foreign-key `reference` field pointing at the Users page.

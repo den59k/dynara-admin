@@ -1,0 +1,1 @@
+add field User.balance Int @slot(24)

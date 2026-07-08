@@ -12,7 +12,7 @@
         {{ page.title }}
       </RouterLink>
     </template>
-    <button style="margin-top: auto">
+    <button style="margin-top: auto" @click="logout">
       <VIcon icon="logout"/>
       {{ t('sidebar.logout') }}
     </button>
@@ -49,11 +49,19 @@ const sections = computed(() => {
 const pageTo = (page: SidebarPage) => page.path.startsWith('/') ? page.path : `/${page.path}`
 
 const router = useRouter()
+// Redirect to the login page whenever the panel rejects us — a missing token
+// (403) or an invalid/expired one (401). The sidebar's page request runs on
+// every view, so an expired session is caught here instead of stranding the user.
 watch(error, (error) => {
-  if (error && error instanceof HTTPError && error.statusCode === 403) {
+  if (error && error instanceof HTTPError && (error.statusCode === 401 || error.statusCode === 403)) {
     router.push("/auth")
   }
 })
+
+const logout = () => {
+  window.localStorage.removeItem("dynara-admin__token")
+  router.push("/auth")
+}
 
 </script>
 

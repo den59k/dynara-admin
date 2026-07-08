@@ -31,6 +31,8 @@ async function seed() {
       email: `user${i + 1}@example.com`,
       age: 20 + (i % 40),
       role: i % 5 === 0 ? "moderator" : "user",
+      // Seed a spread of balances so the top-up action has something to change.
+      balance: (i % 7) * 500,
       // A few users without a birthday so the nullable date field shows both states.
       birthday: i % 4 === 3 ? null : new Date(Date.UTC(1970 + (i % 40), i % 12, 1 + (i % 28))),
     })

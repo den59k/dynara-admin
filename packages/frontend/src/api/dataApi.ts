@@ -8,6 +8,17 @@ type Page = {
   icon?: string,
 }
 
+// A declared action's serializable descriptor (mirror of the backend `ActionMeta`).
+export type ActionMeta = {
+  name: string,
+  title: string,
+  icon?: string,
+  form?: { schema: any },
+  confirm?: string,
+  danger?: boolean,
+  kind: "row" | "toolbar" | "bulk",
+}
+
 // Mirror of the backend `PageMeta` type (the `/pages/:path` response). Keep the
 // two in sync — they can't share a type until the backend package is published.
 export type FullPage = Page & {
@@ -17,7 +28,9 @@ export type FullPage = Page & {
   updateForm: { schema: any }
   component?: string,
   itemAccess: boolean,
-  allowDelete?: boolean
+  allowDelete?: boolean,
+  search?: boolean,
+  actions?: ActionMeta[],
 }
 
 export type ListParams = {
@@ -62,5 +75,21 @@ export const dataApi = {
 
   createItem: (pageId: string, values: any) => request(apiUrl(`/data/${pageId}/items`), values),
   updateItem: (pageId: string, itemId: any, values: any) => request(apiUrl(`/data/${pageId}/items/${itemId}`), values),
-  deleteItems: (pageId: string, itemIds: any) => request(apiUrl(`/data/${pageId}/items`), { itemIds }, { method: "DELETE" })
+  deleteItems: (pageId: string, itemIds: any) => request(apiUrl(`/data/${pageId}/items`), { itemIds }, { method: "DELETE" }),
+
+  // Invoke a declared action. Target goes in the query (itemId for a row action,
+  // comma-separated itemIds for a bulk action, neither for a toolbar action);
+  // the optional form `data` is the JSON body. The handler's return value is
+  // passed back (e.g. `{ message }` for a toast).
+  runAction: (pageId: string, name: string, opts: { itemId?: any, itemIds?: any[], data?: any } = {}) => {
+    const qs = new URLSearchParams()
+    if (opts.itemId != null) qs.set("itemId", String(opts.itemId))
+    if (opts.itemIds && opts.itemIds.length) qs.set("itemIds", opts.itemIds.map(String).join(","))
+    const q = qs.toString()
+    return request<{ message?: string } | null>(
+      apiUrl(`/data/${pageId}/actions/${name}${q ? `?${q}` : ""}`),
+      opts.data,
+      { method: "POST" }
+    )
+  },
 }

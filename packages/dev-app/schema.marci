@@ -6,6 +6,7 @@ model User {
   email    String?
   age      Int
   role     String
+  balance  Int
   birthday DateTime?
   posts    Post[] @bind(Post.author)
 }

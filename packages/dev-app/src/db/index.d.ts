@@ -110,6 +110,7 @@ type UserModel = UserModelId & {
   email: string | null
   age: number
   role: string
+  balance: number
   birthday: Date | number | null
   posts: PostModel[]
 }
@@ -119,6 +120,7 @@ type UserModelInsert = {
   email?: string | null
   age: number
   role: string
+  balance: number
   birthday?: Date | number | null
   posts?: PostModelId[]
 }
@@ -128,6 +130,7 @@ type UserModelUpdate = {
   email?: string | null
   age?: number
   role?: string
+  balance?: number
   birthday?: Date | number | null
   posts?: RefListUpdate<PostModelId>[]
 }
@@ -137,6 +140,7 @@ type UserModelSelect = {
   email?: boolean
   age?: boolean
   role?: boolean
+  balance?: boolean
   birthday?: boolean
   posts?: PostModelQuery | PostModelAggregateQuery | boolean
 }
@@ -146,6 +150,7 @@ type UserModel$Where = {
   email?: CompareValue<string | null> | CompareStrValue
   age?: CompareValue<number> | CompareNumValue<number>
   role?: CompareValue<string> | CompareStrValue
+  balance?: CompareValue<number> | CompareNumValue<number>
   birthday?: CompareValue<Date | number | null> | CompareNumValue<Date | number>
   posts?: CompareRefListValue<PostModel$Where>
 }
@@ -155,6 +160,7 @@ type UserModel$Order = {
   email?: "asc" | "desc"
   age?: "asc" | "desc"
   role?: "asc" | "desc"
+  balance?: "asc" | "desc"
   birthday?: "asc" | "desc"
 }
 type UserModelQuery = UserModelSelect & {
@@ -167,10 +173,10 @@ type UserModelQuery = UserModelSelect & {
 type UserModelAggregateQuery = {
   $where?: UserModel$Where
   $count?: true
-  $sum?: "id" | "age"
-  $avg?: "id" | "age"
-  $min?: "id" | "name" | "email" | "age" | "role" | "birthday"
-  $max?: "id" | "name" | "email" | "age" | "role" | "birthday"
+  $sum?: "id" | "age" | "balance"
+  $avg?: "id" | "age" | "balance"
+  $min?: "id" | "name" | "email" | "age" | "role" | "balance" | "birthday"
+  $max?: "id" | "name" | "email" | "age" | "role" | "balance" | "birthday"
 }
 
 // Post

@@ -352,6 +352,122 @@ describe("admin panel — reference select methods", () => {
   })
 })
 
+describe("admin panel — declared actions", () => {
+  const buildActionsApp = () => {
+    const users = seedUsers().map((u) => ({ ...u, balance: 0 }))
+    const calls = { recalculated: 0 }
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Users", path: "users", search: true })
+      .data(async () => ({ items: users, total: users.length }))
+      .primaryKey("id", "number")
+      // Row action with a form — tops up a single user's balance.
+      .action("topUp", { title: "Top up", icon: "add", form: { amount: "number" } }, async (id, { amount }) => {
+        const user = users.find((u) => u.id === id)!
+        user.balance += amount
+        return { message: `+${amount}` }
+      })
+      // Formless row action.
+      .action("reset", { title: "Reset", confirm: "Sure?" }, async (id) => {
+        users.find((u) => u.id === id)!.balance = 0
+        return { message: "reset" }
+      })
+      // Bulk action over a selection.
+      .action("grant", { title: "Grant", bulk: true, form: { amount: "number" } }, async (ids: number[], { amount }) => {
+        for (const id of ids) users.find((u) => u.id === id)!.balance += amount
+        return { message: `granted ${ids.length}` }
+      })
+      // Toolbar (page-level) action, no target.
+      .action("recalc", { title: "Recalc", placement: "toolbar" }, async () => {
+        calls.recalculated++
+        return { message: "done" }
+      })
+    const app = new Router()
+    app.register(admin)
+    return { app, users, calls }
+  }
+
+  it("advertises actions and the search flag in the page metadata", async () => {
+    const { app } = buildActionsApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json()
+
+    expect(meta.search).toBe(true)
+    expect(meta.actions).toEqual([
+      { name: "topUp", title: "Top up", icon: "add", kind: "row", form: { schema: expect.any(Object) }, confirm: undefined, danger: undefined },
+      { name: "reset", title: "Reset", icon: undefined, kind: "row", form: undefined, confirm: "Sure?", danger: undefined },
+      { name: "grant", title: "Grant", icon: undefined, kind: "bulk", form: { schema: expect.any(Object) }, confirm: undefined, danger: undefined },
+      { name: "recalc", title: "Recalc", icon: undefined, kind: "toolbar", form: undefined, confirm: undefined, danger: undefined },
+    ])
+    // The handlers must never be serialized.
+    expect(JSON.stringify(meta.actions)).not.toContain("function")
+  })
+
+  it("runs a row action with a validated form body against the coerced id", async () => {
+    const { app, users } = buildActionsApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/actions/topUp?itemId=2",
+      body: { amount: 500 },
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ message: "+500" })
+    expect(users.find((u) => u.id === 2)!.balance).toBe(500)
+  })
+
+  it("rejects a row action whose form body is invalid", async () => {
+    const { app } = buildActionsApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/actions/topUp?itemId=2",
+      body: { amount: "lots" },
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  it("runs a formless row action", async () => {
+    const { app, users } = buildActionsApp()
+    users.find((u) => u.id === 1)!.balance = 999
+    const res = await app.inject({ method: "POST", url: "/api/admin/data/users/actions/reset?itemId=1" })
+
+    expect(res.status).toBe(200)
+    expect(users.find((u) => u.id === 1)!.balance).toBe(0)
+  })
+
+  it("runs a bulk action over comma-separated ids coerced to the key type", async () => {
+    const { app, users } = buildActionsApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/actions/grant?itemIds=1,3",
+      body: { amount: 10 },
+    })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ message: "granted 2" })
+    expect(users.find((u) => u.id === 1)!.balance).toBe(10)
+    expect(users.find((u) => u.id === 2)!.balance).toBe(0)
+    expect(users.find((u) => u.id === 3)!.balance).toBe(10)
+  })
+
+  it("runs a toolbar action with no target", async () => {
+    const { app, calls } = buildActionsApp()
+    const res = await app.inject({ method: "POST", url: "/api/admin/data/users/actions/recalc" })
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ message: "done" })
+    expect(calls.recalculated).toBe(1)
+  })
+
+  it("omits actions and search from metadata when none are declared", async () => {
+    const { app } = buildUsersApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json()
+
+    expect(meta.actions).toBeUndefined()
+    expect(meta.search).toBeUndefined()
+  })
+})
+
 describe("static asset path resolution", () => {
   const dir = normalize("/srv/app/frontend")
   const prefix = "/admin/assets/"

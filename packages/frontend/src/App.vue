@@ -1,6 +1,7 @@
 <template>
   <AppSidebar v-if="router.currentRoute.value.path !== '/auth'" />
   <VDialogProvider/>
+  <VToastProvider/>
   <RouterView v-if="router.currentRoute.value.path === '/auth'" />
   <div v-else class="app-layout">
     <RouterView />
@@ -11,6 +12,7 @@
 import { RouterView, useRouter } from 'vue-router';
 import AppSidebar from './components/AppSidebar.vue';
 import VDialogProvider from './components/VDialogProvider.vue';
+import VToastProvider from './components/VToastProvider.vue';
 
 const router = useRouter()
 

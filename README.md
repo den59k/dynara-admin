@@ -111,6 +111,7 @@ const adminPanel = createAdminPanel({ basePath: "/panel", title: "Acme Admin" })
 | `.createForm(schema, fn)` | Form schema + async handler for record creation |
 | `.updateForm(schema, fn)` | Form schema + async handler for record update |
 | `.onDelete(fn)` | Async handler for bulk delete — receives an array of ids |
+| `.action(name, config, fn)` | Declare a row / bulk / toolbar action — see [Actions](#actions) below |
 | `.component(path)` | Absolute path to a `.vue` file rendered as the page body; compiled on-demand and served to the frontend |
 | `.componentData(name, fn)` | Register a named GET endpoint the custom component can fetch; `fn` receives query params |
 | `.componentData(name, schema, fn)` | Same as above with a [`compact-json-schema`](https://github.com/den59k/compact-json-schema) for query param validation |
@@ -122,7 +123,89 @@ Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`,
 
 Inside a custom component, invoke a `componentAction` with `sendAction(view, name, body)` or the route-bound `useAction(name)` helper (both exported from `dynara-admin/ui`).
 
-`createPage` also accepts a `group` (sidebar section) and `icon` (from the built-in icon set), e.g. `createPage({ title: "Users", path: "users", group: "People", icon: "users" })`. Pages without a group are listed first.
+`createPage` also accepts a `group` (sidebar section), `icon` (from the built-in
+icon set), and `search` (opt in to the list search box), e.g.
+`createPage({ title: "Users", path: "users", group: "People", icon: "users", search: true })`.
+Pages without a group are listed first.
+
+### Search
+
+Set `search: true` on `createPage` to render a search box above the table. The
+typed text arrives (debounced) as the `search` field of the `.data()` list
+options — the panel does not filter for you, so your handler decides what
+`search` means:
+
+```typescript
+adminPanel
+  .createPage({ title: "Users", path: "users", search: true })
+  .data(async ({ take, skip, search }) => {
+    const where = search ? { name: { $includes: search } } : undefined
+    return { items: await db.users.findMany({ where, take, skip }), total: await db.users.count({ where }) }
+  })
+```
+
+The box only appears when `search: true` is set — because the panel can't tell
+whether a given `.data()` honors the option.
+
+### Actions
+
+An action is a server-side operation the user triggers from the UI. Declare it
+with `.action(name, config, handler)`; the panel renders a button and (when the
+action has a `form`) a dialog, POSTs to the handler, and shows the returned
+`message` as a toast. The handler stays on the server — only its descriptor is
+sent to the frontend.
+
+There are three kinds, chosen by the config:
+
+```typescript
+adminPanel
+  .createPage({ title: "Users", path: "users" })
+  .primaryKey("id", "number")
+  // ...
+
+  // Row action (default) — a per-row button (visible on hover) that receives
+  // that row's primary key. A `form` opens a dialog first; the validated body
+  // is the handler's second argument. Forms use the same schema as createForm,
+  // so every input type works (selects, references, file uploads, …).
+  .action("topUp", {
+    title: "Top up balance",
+    icon: "wallet",
+    form: { amount: "number", comment: "string?" },
+  }, async (id, data, ctx) => {
+    await db.users.update({ where: { id }, data: { balance: { increment: data.amount } } })
+    return { message: `Topped up by ${data.amount}` }   // shown as a toast
+  })
+
+  // Row action with no form — runs immediately, or after a plain confirm.
+  // `danger: true` styles it red.
+  .action("ban", { title: "Ban user", confirm: "Ban this user?", danger: true },
+    async (id, data, ctx) => { await db.users.update({ where: { id }, data: { banned: true } }) })
+
+  // Bulk action — appears next to Delete when rows are checked; receives the
+  // selected primary keys.
+  .action("grantBonus", { title: "Grant bonus", bulk: true, form: { amount: "number" } },
+    async (ids, data, ctx) => { /* ids: number[] */ return { message: `Granted to ${ids.length}` } })
+
+  // Toolbar action — a page-level button (no target row), placement "toolbar".
+  .action("recalculate", { title: "Recalculate all", placement: "toolbar" },
+    async (data, ctx) => { await recalcRatings(); return { message: "Recalculated" } })
+```
+
+**Action config**
+
+| Field | Description |
+|---|---|
+| `title` | Button label (and dialog title when `form` is set) |
+| `icon` | Icon name from the built-in set (optional) |
+| `form` | A `compact-json-schema` form; when present, a dialog collects the payload passed to the handler as `data` |
+| `confirm` | Plain-text confirmation shown before running (ignored when `form` is set) |
+| `danger` | Style the button red |
+| `placement: "toolbar"` | Page-level action with no target row |
+| `bulk: true` | Operates on the checkbox selection; the handler receives `ids[]` |
+
+Every handler receives the request `ctx` (`ctx.user`) as its last argument, and
+may throw `HTTPError` to reject. Its return value is sent back to the UI; a
+`{ message }` is surfaced as a toast.
 
 Form schemas use [`compact-json-schema`](https://github.com/den59k/compact-json-schema) format.
 

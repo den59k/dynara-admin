@@ -115,6 +115,23 @@ export type ReferenceQuery = { search?: string, value?: string }
 export type ReferenceMethod<User = unknown> =
   (query: ReferenceQuery, ctx: RequestContext<User>) => SelectOption[] | Promise<SelectOption[]>
 
+// The serializable form of a declared action, as delivered to the frontend in
+// `PageMeta.actions`. The handler stays server-side; only its descriptor travels.
+export type ActionMeta = {
+  name: string,
+  title: string,
+  icon?: string,
+  // When present, the UI opens a form dialog (built from this schema) before
+  // invoking the action; otherwise the action runs immediately (or after a
+  // plain confirm, if `confirm` is set).
+  form?: { schema: SchemaItem },
+  confirm?: string,
+  danger?: boolean,
+  // "row" (per-row, receives the row id), "toolbar" (page-level, no target),
+  // or "bulk" (operates on the current checkbox selection).
+  kind: "row" | "toolbar" | "bulk",
+}
+
 export type PageMeta = {
   title?: string,
   path?: string,
@@ -125,6 +142,10 @@ export type PageMeta = {
   updateForm?: { schema: SchemaItem },
   itemAccess: boolean,
   allowDelete?: true,
+  // True when the page opted in via `createPage({ search: true })` — only then
+  // does the UI show a search box (the panel can't know if `.data` honors search).
+  search?: true,
+  actions?: ActionMeta[],
 }
 
 export type AdminPanel<User = unknown> = {
@@ -137,11 +158,26 @@ export type AdminPanelDynara<User = unknown> = ((app: Router<any>) => Promise<vo
 
 type Ctx = RequestContext<any>
 
+// Internal storage for a declared action: its serializable descriptor plus the
+// server-side handler and the (already-unfolded) form schema.
+type ActionEntry = {
+  name: string,
+  title: string,
+  icon?: string,
+  confirm?: string,
+  danger?: boolean,
+  kind: "row" | "toolbar" | "bulk",
+  schema?: SchemaItem,
+  handler: (...args: any[]) => any,
+}
+
 type PageEntry = {
   title?: string,
   path?: string,
   group?: string,
   icon?: string,
+  search?: boolean,
+  actions: ActionEntry[],
   table?: ColumnId<any, any>[],
   data?: (options: ListOptions, ctx: Ctx) => ListResult<any> | Promise<ListResult<any>>,
   itemData?: (id: any, ctx: Ctx) => Promise<any>,
@@ -344,6 +380,32 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         }
       }
 
+      // Declared actions. Row/bulk actions read their target(s) from the query
+      // (itemId / comma-separated itemIds, coerced to the primary-key type);
+      // toolbar actions have none. A `form` schema, when present, validates the
+      // JSON body — the payload passed to the handler as its `data` argument.
+      const coerceKey = (raw: string): any => (page.primaryKeyType === "number" ? Number(raw) : raw)
+      const actionQuerySchema = schema({ itemId: "string?", itemIds: "string?" })
+      for (let action of page.actions) {
+        const route = `${apiBase}/data/${path}/actions/${action.name}`
+        const run = async (req: any) => {
+          const ctx = { user: req.user }
+          const q = req.query as { itemId?: string, itemIds?: string }
+          // `data` is the validated form body, or undefined for a formless action.
+          const data = action.schema ? req.body : undefined
+          if (action.kind === "bulk") {
+            const ids = (q.itemIds ?? "").split(",").filter(Boolean).map(coerceKey)
+            return await action.handler(ids, data, ctx)
+          }
+          if (action.kind === "toolbar") {
+            return await action.handler(data, ctx)
+          }
+          const id = q.itemId != null ? coerceKey(q.itemId) : undefined
+          return await action.handler(id, data, ctx)
+        }
+        app.post(route, action.schema ? { query: actionQuerySchema, body: action.schema } : { query: actionQuerySchema }, run)
+      }
+
       app.get(`${apiBase}/pages/${path}`, async (req): Promise<PageMeta> => {
         return {
           title: page.title,
@@ -354,7 +416,19 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
           createForm: page.createForm,
           updateForm: page.updateForm,
           itemAccess: !!page.itemData,
-          allowDelete: page.onDelete ? true: undefined
+          allowDelete: page.onDelete ? true: undefined,
+          search: page.search ? true : undefined,
+          actions: page.actions.length > 0
+            ? page.actions.map((a): ActionMeta => ({
+                name: a.name,
+                title: a.title,
+                icon: a.icon,
+                confirm: a.confirm,
+                danger: a.danger,
+                kind: a.kind,
+                form: a.schema ? { schema: a.schema } : undefined,
+              }))
+            : undefined,
         }
       })
     }
@@ -493,6 +567,8 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       title: options.title,
       group: options.group,
       icon: options.icon,
+      search: options.search,
+      actions: [],
       componentData: [],
       componentActions: [],
     }
@@ -532,6 +608,26 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       },
       onDelete(onDelete) {
         currentPage.onDelete = onDelete as any
+        return this as any
+      },
+      action(name: string, config: any, handler: any) {
+        let schema: SchemaItem | undefined
+        if (config.form) {
+          schema = unfoldSchema(config.form)
+          // Action forms can carry inline `reference` selects too — extract them
+          // so the schema handed to the frontend stays plain JSON.
+          registerReferenceMethods(schema, `${segment}.action.${name}`)
+        }
+        currentPage.actions.push({
+          name,
+          title: config.title,
+          icon: config.icon,
+          confirm: config.confirm,
+          danger: config.danger,
+          kind: config.bulk ? "bulk" : (config.placement === "toolbar" ? "toolbar" : "row"),
+          schema,
+          handler,
+        })
         return this as any
       },
       component(path: string) {
@@ -598,7 +694,35 @@ type CreatePageOptions = {
   group?: string
   // Icon name (from the built-in icon set) shown next to the sidebar link.
   icon?: string
+  // Opt in to the list search box. The panel can't tell whether a page's
+  // `.data` honors the `search` option, so it only renders the input when this
+  // is set. The `.data` handler is responsible for actually filtering.
+  search?: boolean
 }
+
+// Shared descriptor for a declared action, minus the target-specific handler.
+// `form` is a plain `SchemaItem` (not a generic) — the many action overloads
+// would otherwise instantiate `SchemaType<S>` deeply enough to blow TypeScript's
+// recursion limit, the same reason the route builders avoid it. The handler's
+// `data` argument is therefore typed loosely; validate it via the schema.
+type ActionConfigBase = {
+  // Button label (and dialog title when a form is shown).
+  title: string
+  // Icon name from the built-in set, shown on the action button.
+  icon?: string
+  // Opens a form dialog built from this schema before running; the validated
+  // body is passed to the handler as `data`.
+  form?: SchemaItem
+  // Plain-text confirmation shown before running (ignored when `form` is set —
+  // the form dialog is itself the confirmation step).
+  confirm?: string
+  // Style the action as destructive (red).
+  danger?: boolean
+}
+
+type RowActionConfig = ActionConfigBase & { placement?: "row", bulk?: false }
+type ToolbarActionConfig = ActionConfigBase & { placement: "toolbar", bulk?: false }
+type BulkActionConfig = ActionConfigBase & { bulk: true }
 
 interface ColumnBase {
   title: string
@@ -636,6 +760,10 @@ interface Page<T extends object, User = unknown> {
   // Handle file uploads for `{ format: "file" }` form fields. Store the file and
   // return the URL/id that becomes the field value. `ctx.field` is the field name.
   upload(handler: (file: File, ctx: RequestContext<User> & { field?: string }) => string | Promise<string>): this
+  // Toolbar (page-level) action — rendered as a button above the table, receives
+  // no target row. With a `form`, the handler also receives the collected `data`
+  // as its first argument. Its return value's `message`, if any, is shown as a toast.
+  action(name: string, config: ToolbarActionConfig, handler: (data: any, ctx: RequestContext<User>) => any): this
 }
 
 interface PageWithPrimaryKey<T extends object, KeyType, Item extends object, User = unknown> extends Page<T, User> {
@@ -643,4 +771,15 @@ interface PageWithPrimaryKey<T extends object, KeyType, Item extends object, Use
   item<T2 extends object>(query: (itemId: KeyType, ctx: RequestContext<User>) => Promise<T2 | null>): PageWithPrimaryKey<T, KeyType, T2, User>,
   updateForm<S extends SchemaItem>(schema: S, onUpdate: (id: KeyType, data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item, User>,
   onDelete(onDelete: (ids: KeyType[], ctx: RequestContext<User>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item, User>
+  // Row action — rendered per row (hover buttons + the edit dialog footer),
+  // receives that row's primary key. With `form`, a dialog collects `data`
+  // first (passed as the second argument). The handler's returned `message`,
+  // if any, is shown as a toast.
+  action(name: string, config: RowActionConfig, handler: (id: KeyType, data: any, ctx: RequestContext<User>) => any): this
+  // Bulk action — rendered next to Delete when rows are checked, receives the
+  // selected primary keys (and collected `data` when a `form` is set).
+  action(name: string, config: BulkActionConfig, handler: (ids: KeyType[], data: any, ctx: RequestContext<User>) => any): this
+  // Toolbar action (inherited shape from Page, restated so this interface's
+  // `action` remains assignable to the base).
+  action(name: string, config: ToolbarActionConfig, handler: (data: any, ctx: RequestContext<User>) => any): this
 }
