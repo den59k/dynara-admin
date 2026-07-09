@@ -36,8 +36,18 @@ const userForm = {
 
 admin
   .createPage({ title: "Users", path: "users", icon: "users", search: true })
-  .data(async ({ take, skip, sort, search }) => {
-    const $where = search ? { name: { $includes: search } } : undefined
+  // Typed filters render above the table; their validated values arrive on the
+  // list options as `filter`. Every field is optional (apply-if-set).
+  .filters({
+    role: { type: "string?", options: [{ value: "user", label: "User" }, { value: "moderator", label: "Moderator" }] },
+    minBalance: "number?",
+  })
+  .data(async ({ take, skip, sort, search, filter }) => {
+    const conditions: any[] = []
+    if (search) conditions.push({ name: { $includes: search } })
+    if (filter?.role) conditions.push({ role: filter.role })
+    if (filter?.minBalance != null) conditions.push({ balance: { $gte: filter.minBalance } })
+    const $where: any = conditions.length ? { $and: conditions } : undefined
     const $order = sort ? { [sort.field]: sort.dir } : { id: "asc" }
     const items = await client.user.findMany({
       id: true,
@@ -86,7 +96,9 @@ admin
   .action("topUp", {
     title: "Top up balance",
     icon: "add",
-    form: { amount: "number", comment: "string?" },
+    // `label` (and static `options`, `reference`, …) type-check inline thanks to
+    // the SchemaAnnotations augmentation in dynara-admin.
+    form: { amount: { type: "number", label: "Amount to add" }, comment: { type: "string?", label: "Comment", multiline: true } },
   }, async (id, { amount }) => {
     const user = await client.user.findFirst({ balance: true, name: true, $where: { id } })
     if (!user) throw new HTTPError("User not found", 404)
