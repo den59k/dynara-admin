@@ -83,6 +83,7 @@ const go = (target: number) => {
   display: flex
   align-items: center
   gap: 4px
+  flex-wrap: wrap
 
 .v-pagination__button
   display: flex

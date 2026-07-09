@@ -330,4 +330,13 @@ a.v-table__row
   justify-content: flex-end
   gap: 8px
   display: flex
+
+// Mobile: keep columns readable and scroll the table sideways inside its card
+// instead of crushing every cell to a few characters.
+@media (max-width: 800px)
+  .v-table
+    overflow-x: auto
+
+  .v-table__cell
+    min-width: 110px
 </style>

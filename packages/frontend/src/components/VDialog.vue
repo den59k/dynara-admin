@@ -55,6 +55,17 @@ const dialog = useDialog()
     min-height: 100%
     margin: 0
     border-radius: 0
+    // Full-screen dialog: its height is pinned to the viewport, so the content
+    // scrolls between the pinned header and actions bar.
+    display: flex
+    flex-direction: column
+
+    .v-dialog__header, .v-dialog__actions
+      flex-shrink: 0
+
+    .v-dialog__content
+      flex: 1 1 auto
+      overflow-y: auto
 
     &.standart
       width: 100%

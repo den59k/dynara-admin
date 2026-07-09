@@ -26,9 +26,18 @@ if (!token) {
 <style lang="sass">
 :root
   --sidebar-width: 220px
+  --topbar-height: 52px
   --padding: 36px
 .app-layout
   padding: 28px var(--padding) 48px
   padding-left: calc(var(--sidebar-width) + var(--padding))
+
+// Mobile: the sidebar is an off-canvas drawer (see AppSidebar.vue), so the
+// content takes the full width, below the fixed top bar.
+@media (max-width: 800px)
+  :root
+    --padding: 16px
+  .app-layout
+    padding: calc(var(--topbar-height) + 16px) var(--padding) 32px
 
 </style>

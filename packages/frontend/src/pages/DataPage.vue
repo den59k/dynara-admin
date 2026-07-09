@@ -438,4 +438,12 @@ const deleteItems = async () => {
   padding: 8px 10px
   border-top: 1px solid var(--border-color)
 
+@media (max-width: 800px)
+  // The search box takes whatever row space the wrapping toolbar gives it.
+  .data-card__search
+    max-width: none
+
+  .data-card__footer
+    flex-wrap: wrap
+
 </style>
