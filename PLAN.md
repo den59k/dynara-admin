@@ -24,6 +24,10 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
   "top up balance" scenario is live in the dev-app.
 - **Search box (1.3)** — opt-in via `createPage({ search: true })` → `PageMeta.search`;
   debounced input in `DataPage.vue` wired to the already-working `search` list param.
+- **Typed filters (1.4)** — `.filters(schema)` renders a filter bar (selects, numbers,
+  dates, toggles) reusing the form input stack; values are validated/decoded server-side
+  (dependency-free coercer against the unfolded JSON schema — dates → `Date`, bad values →
+  400) and passed to `.data()` as `filter`. State lives in the URL (`?filter=…`).
 - **Column formatters (2.1)** — a `type` hint on field columns: `boolean` (✓/✗), `date`
   (localized, `format: "datetime"`), `badge` (colored pill via `colors`), `image`
   (thumbnail), `money` (`currency`-formatted). Empty/`null` values render a muted `—`.
@@ -36,6 +40,35 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
 - **Auth hygiene (3.2, partial)** — the sidebar logout button now clears the token and
   redirects; the frontend redirects to `/auth` on **401 and 403** (expired tokens no
   longer strand the user).
+- **Access control (3.3)** — `createPage({ access })`, a per-user predicate or a granular
+  `{ read, write, delete }`. Enforced server-side (403 on the routes) and reflected in the
+  UI with no frontend changes: `/pages` is filtered by `read`, and each page's metadata is
+  computed per user so hidden facets drop their Add/Edit/Delete/action affordances.
+
+### Upstream package improvements (dynara / compact-json-schema are ours too)
+
+- **✅ Done in-repo — schema annotations.** compact-json-schema's `SchemaAnnotations`
+  only declared `default`, so `{ type: "number", label }` / `{ type: "string", options }`
+  tripped TS excess-property errors and forced generic-inference tricks. dynara-admin now
+  declaration-merges the panel's keywords (`label`, `options`, `reference`, `format`,
+  `multiline`) into `SchemaAnnotations` — the extension path the interface's own doc
+  comment invites — so they type-check inline everywhere. No package release needed.
+- **✅ Done — deduped `compact-json-schema`.** The root pinned `^0.1.7` but
+  `dynara@0.0.3` pinned `^0.1.6`, so two physical copies installed. dynara registers the
+  **full** TypeBox base map (string/number/date/…) via `provideTypeBoxMap` at import — but
+  into *its* copy, invisible to the copy dynara-admin loads, so dynara-admin's
+  `unfoldTypeBoxSchema` threw `Unknown schema type "string"`. Fixed by bumping `dynara`'s
+  dep to `^0.1.7` (published as `dynara@0.0.4`) and dynara-admin's pins to `^0.0.4` /
+  `^0.1.7`. The lockfile now has a single `compact-json-schema@0.1.7`; a runtime probe
+  confirms dynara-admin's copy sees dynara's registration (string/date resolve, dates
+  decode).
+  - **✅ Follow-up done:** filter validation now uses `unfoldTypeBoxSchema` + TypeBox
+    `Value.Parse` — the same engine dynara uses for request bodies (decodes dates, drops
+    unknown keys, rejects type mismatches, and supports nested/array/format schemas) —
+    replacing the interim dependency-free coercer.
+- **Optional (not needed for us) — `compact-json-schema` self-registers its base type
+  factories.** Would only help someone using `unfoldTypeBoxSchema` *without* dynara loaded;
+  the panel always runs inside dynara, so the dedup above is sufficient.
 
 ### Remaining known gaps
 
@@ -273,8 +306,9 @@ already there for the client side.)
 | ✅ done | 1.3 search input, 3.1 toasts, 3.2 auth fixes (logout, 401) | Small, fixes visible papercuts, prerequisites for actions landing well |
 | ✅ done | **1.1 item actions** (+ 1.2 bulk) | The flagship gap — makes the panel *operational*, not just CRUD |
 | ✅ done | 2.1 column formatters, 2.2 URL state, 2.3 table states | Makes tables genuinely usable on real data |
-| **P1** | 1.4 filters | Typed filtering beyond free-text search |
-| **P1** | 3.3 access control, 3.4 dashboard | Expected of any admin framework |
+| ✅ done | 1.4 typed filters | Typed filtering beyond free-text search |
+| ✅ done | 3.3 access control | Per-user RBAC, zero-DB |
+| **P1** | 3.4 dashboard | Replace the empty HomePage stub |
 | **P2** | 4.1 item view, 4.2 forms, 4.3 export | Depth features |
 | **P3** | Milestone 5 | Platform maturity |
 

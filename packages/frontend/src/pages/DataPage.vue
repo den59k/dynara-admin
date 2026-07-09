@@ -39,6 +39,13 @@
     </template>
   </div>
 
+  <FilterBar
+    v-if="tableData?.filters"
+    :schema="tableData.filters.schema"
+    :model-value="filter"
+    @update:model-value="setFilter"
+  />
+
   <!-- Error / loading / empty / table, in that precedence. -->
   <div v-if="error" class="data-page__state">
     <p>{{ errorMessage }}</p>
@@ -62,8 +69,8 @@
       @itemclick="onRowClick"
     />
     <div v-else class="data-page__state data-page__state--muted">
-      <p>{{ search ? t('data.emptySearch') : t('data.empty') }}</p>
-      <VButton v-if="search" outline @click="searchInput = ''">{{ t('data.clearSearch') }}</VButton>
+      <p>{{ hasActiveQuery ? t('data.emptySearch') : t('data.empty') }}</p>
+      <VButton v-if="hasActiveQuery" outline @click="clearQuery">{{ t('data.clearSearch') }}</VButton>
       <VButton v-else-if="tableData.createForm" @click="addItem">{{ t('data.add') }}</VButton>
     </div>
     <div v-if="data.total > pageSize" class="data-page__pagination">
@@ -89,6 +96,7 @@ import { useDialog } from '../components/VDialogProvider.vue';
 import { useToast } from '../components/VToastProvider.vue';
 import AddItemDialog from '../components/dialogs/AddItemDialog.vue';
 import ActionDialog from '../components/dialogs/ActionDialog.vue';
+import FilterBar from '../components/FilterBar.vue';
 import VTable, { type SortState, type TableColumn } from '../components/VTable.vue';
 import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
@@ -108,6 +116,11 @@ const sort = computed<SortState | undefined>(() => {
   return raw.startsWith('-') ? { field: raw.slice(1), dir: 'desc' } : { field: raw, dir: 'asc' }
 })
 const search = computed(() => (currentRoute.query.q as string) ?? '')
+const filter = computed<Record<string, any>>(() => {
+  const raw = currentRoute.query.filter as string | undefined
+  if (!raw) return {}
+  try { return JSON.parse(raw) } catch { return {} }
+})
 
 // Merge a patch into the current query, dropping empty values, and replace the
 // URL (no history entry per keystroke/sort).
@@ -122,6 +135,16 @@ const setPage = (p: number) => setQuery({ page: p > 0 ? String(p + 1) : undefine
 const setSort = (s: SortState | undefined) =>
   setQuery({ sort: s ? (s.dir === 'desc' ? '-' + s.field : s.field) : undefined, page: undefined })
 const setSearch = (q: string) => setQuery({ q: q || undefined, page: undefined })
+const setFilter = (next: Record<string, any>) =>
+  setQuery({ filter: Object.keys(next).length ? JSON.stringify(next) : undefined, page: undefined })
+
+// True when a search term or any filter is narrowing the list — drives the
+// "Nothing found" empty state and its clear action.
+const hasActiveQuery = computed(() => !!search.value || Object.keys(filter.value).length > 0)
+const clearQuery = () => {
+  searchInput.value = ''
+  setQuery({ q: undefined, filter: undefined, page: undefined })
+}
 
 // Debounce the search box into the query; keep the box in sync when the query
 // changes elsewhere (navigation, back button).
@@ -138,6 +161,7 @@ const listParams = computed<ListParams>(() => ({
   skip: page.value * pageSize,
   sort: sort.value,
   search: search.value || undefined,
+  filter: Object.keys(filter.value).length ? filter.value : undefined,
 }))
 
 const { data: tableData } = useRequestWatch(dataApi.getPageData, viewId)

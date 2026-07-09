@@ -112,6 +112,7 @@ const adminPanel = createAdminPanel({ basePath: "/panel", title: "Acme Admin" })
 | `.updateForm(schema, fn)` | Form schema + async handler for record update |
 | `.onDelete(fn)` | Async handler for bulk delete — receives an array of ids |
 | `.action(name, config, fn)` | Declare a row / bulk / toolbar action — see [Actions](#actions) below |
+| `.filters(schema)` | Declare a typed filter bar — see [Filters](#filters) below |
 | `.component(path)` | Absolute path to a `.vue` file rendered as the page body; compiled on-demand and served to the frontend |
 | `.componentData(name, fn)` | Register a named GET endpoint the custom component can fetch; `fn` receives query params |
 | `.componentData(name, schema, fn)` | Same as above with a [`compact-json-schema`](https://github.com/den59k/compact-json-schema) for query param validation |
@@ -124,7 +125,8 @@ Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`,
 Inside a custom component, invoke a `componentAction` with `sendAction(view, name, body)` or the route-bound `useAction(name)` helper (both exported from `dynara-admin/ui`).
 
 `createPage` also accepts a `group` (sidebar section), `icon` (from the built-in
-icon set), and `search` (opt in to the list search box), e.g.
+icon set), `search` (opt in to the list search box), and `access` (per-user
+gating — see [Access control](#access-control)), e.g.
 `createPage({ title: "Users", path: "users", group: "People", icon: "users", search: true })`.
 Pages without a group are listed first.
 
@@ -146,6 +148,39 @@ adminPanel
 
 The box only appears when `search: true` is set — because the panel can't tell
 whether a given `.data()` honors the option.
+
+### Filters
+
+Where `search` is free text, `.filters(schema)` declares typed controls — selects,
+number inputs, date pickers, toggles — rendered as a bar above the table. The
+submitted values are validated server-side and handed to `.data()` as `filter`:
+
+```typescript
+adminPanel
+  .createPage({ title: "Users", path: "users" })
+  .filters({
+    // Rendered as a select (static options, or a `reference` like form fields).
+    role: { type: "string?", options: [{ value: "user", label: "User" }, { value: "moderator", label: "Moderator" }] },
+    active: "boolean?",         // toggle
+    minBalance: "number?",      // number input
+    createdAfter: "date?",      // date picker → the handler receives a Date
+  })
+  .data(async ({ filter, take, skip }) => {
+    const where: any = {}
+    if (filter?.role) where.role = filter.role
+    if (filter?.minBalance != null) where.balance = { gte: filter.minBalance }
+    if (filter?.createdAfter) where.createdAt = { gte: filter.createdAt }   // a JS Date
+    return { items: await db.users.findMany({ where, take, skip }), total: await db.users.count({ where }) }
+  })
+```
+
+- The schema uses the same `compact-json-schema` format as forms; **every field
+  should be optional** (`"…?"`) — a filter only applies when set.
+- Values are validated against the schema (a type mismatch → `400`); `date`
+  fields are decoded to `Date`. Unknown/empty values are dropped, so `filter`
+  contains only what the user actually set (or is `undefined`).
+- The active filters live in the URL (`?filter=…`), so filtered views are
+  deep-linkable and survive refresh; a "Clear filters" button resets them.
 
 ### Actions
 
@@ -206,6 +241,40 @@ adminPanel
 Every handler receives the request `ctx` (`ctx.user`) as its last argument, and
 may throw `HTTPError` to reject. Its return value is sent back to the UI; a
 `{ message }` is surfaced as a toast.
+
+### Access control
+
+Gate a page per-user with `access` — the host owns the rule (no DB required), and
+the panel both **enforces** it (403 on the routes) and **reflects** it in the UI
+(hidden sidebar entries, hidden Add / Edit / Delete / action buttons). `access`
+receives the user your auth `onRequest` resolved.
+
+```typescript
+// A bare predicate gates the whole page: hidden from the sidebar and 403 on every
+// route for anyone it rejects.
+adminPanel.createPage({ title: "Billing", path: "billing", access: (user) => user.role === "admin" })
+
+// The granular form gates each facet independently. Unspecified = allowed, so this
+// is a page everyone can read but only admins can change:
+adminPanel.createPage({
+  title: "Posts", path: "posts",
+  access: {
+    read:   (user) => true,                      // sidebar visibility + list/item data
+    write:  (user) => user.role === "admin",     // create / update / upload / actions
+    delete: (user) => user.role === "admin",     // delete
+  },
+})
+```
+
+| Facet | Gates |
+|---|---|
+| `read` | Sidebar visibility, page metadata, list & item data, `componentData` |
+| `write` | Create, update, file upload, declared actions, `componentAction` |
+| `delete` | Bulk delete |
+
+A denied facet returns **403** and the corresponding UI affordance disappears
+(the page metadata is computed per user, so a read-only user simply gets a table
+with no Add / Edit / Delete). `access` may be async.
 
 Form schemas use [`compact-json-schema`](https://github.com/den59k/compact-json-schema) format.
 

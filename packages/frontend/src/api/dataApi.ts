@@ -31,6 +31,7 @@ export type FullPage = Page & {
   allowDelete?: boolean,
   search?: boolean,
   actions?: ActionMeta[],
+  filters?: { schema: any },
 }
 
 export type ListParams = {
@@ -38,6 +39,8 @@ export type ListParams = {
   skip?: number,
   sort?: { field: string, dir: "asc" | "desc" },
   search?: string,
+  // Filter values keyed by field; JSON-encoded into the `filter` query param.
+  filter?: Record<string, any>,
 }
 
 export type ListResult<T = any> = { items: T[], total: number }
@@ -51,6 +54,7 @@ const buildListQuery = (params: ListParams) => {
     qs.set("sortDir", params.sort.dir)
   }
   if (params.search) qs.set("search", params.search)
+  if (params.filter && Object.keys(params.filter).length) qs.set("filter", JSON.stringify(params.filter))
   const q = qs.toString()
   return q ? `?${q}` : ""
 }

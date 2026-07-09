@@ -6,19 +6,27 @@ import { createAdminPanel, HTTPError } from "../../backend/src/main"
 import { client, db } from "./db"
 
 // The user object `onRequest` resolves and every page handler receives as `ctx.user`.
-type User = { id: number; name: string }
+type User = { id: number; name: string; role: "admin" | "viewer" }
 
 const admin = createAdminPanel<User>({ title: "Dynara Dev App" })
 
-// Trivial single-account auth — enough to exercise the full login → CRUD flow.
+// Two accounts so the access-control demo has something to show: `admin` has full
+// access; `viewer` is read-only and can't see the Users page at all.
+const ACCOUNTS: Record<string, User> = {
+  admin: { id: 1, name: "admin", role: "admin" },
+  viewer: { id: 2, name: "viewer", role: "viewer" },
+}
+const isAdmin = (user: User) => user.role === "admin"
+
 admin.registerAuthMethod({
-  title: "Sign in (admin / admin)",
+  title: "Sign in (admin/admin or viewer/viewer)",
   fields: { login: "string", password: "string" },
   onLogin: async ({ login, password }) => {
-    if (login === "admin" && password === "admin") return { token: "dev-token" }
+    // Demo-only: the token is the username; a real app would sign a JWT.
+    if (ACCOUNTS[login] && password === login) return { token: login }
     return null
   },
-  onRequest: async (token) => (token === "dev-token" ? { id: 1, name: "admin" } : null),
+  onRequest: async (token) => ACCOUNTS[token] ?? null,
 })
 
 // Shared form schema for the Users page (create + update use the same fields).
@@ -35,7 +43,9 @@ const userForm = {
 } as const
 
 admin
-  .createPage({ title: "Users", path: "users", icon: "users", search: true })
+  // `access` as a bare predicate gates the whole page: only admins see Users in
+  // the sidebar; a viewer hitting its routes gets 403.
+  .createPage({ title: "Users", path: "users", icon: "users", search: true, access: isAdmin })
   // Typed filters render above the table; their validated values arrive on the
   // list options as `filter`. Every field is optional (apply-if-set).
   .filters({
@@ -159,7 +169,9 @@ const postForm = {
 } as const
 
 admin
-  .createPage({ title: "Posts", path: "posts", icon: "file", search: true })
+  // Granular access: everyone can read Posts, but only admins may create/update,
+  // delete, or run actions. A viewer sees the table with no Add/Edit/Delete.
+  .createPage({ title: "Posts", path: "posts", icon: "file", search: true, access: { write: isAdmin, delete: isAdmin } })
   .data(async ({ take, skip, sort, search }) => {
     const $where = search ? { title: { $includes: search } } : undefined
     const $order = sort ? { [sort.field]: sort.dir } : { id: "asc" }

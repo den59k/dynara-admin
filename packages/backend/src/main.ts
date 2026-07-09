@@ -3,8 +3,9 @@ import { type Router, HTTPError } from "dynara";
 // import frontendIndex from '../../frontend/index.html'
 import type { BunRequest } from "bun";
 import { join, normalize, sep, isAbsolute } from "node:path"
-import { schema, unfoldSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
+import { schema, unfoldSchema, unfoldTypeBoxSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
 import { FormatRegistry } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 
 // TypeBox rejects a string carrying a format it doesn't know, so the `file`
 // format the panel's upload fields use must be registered (into the same
@@ -50,6 +51,35 @@ export const resolveAssetPath = (dir: string, pathname: string, prefix: string):
   return full
 }
 
+// Parses, validates and decodes the JSON-encoded `filter` query param against a
+// page's TypeBox filter schema — the same validation engine dynara uses for
+// request bodies, so `date` fields decode to `Date`, unknown keys are dropped,
+// and type mismatches are rejected. Returns undefined when there's no filter,
+// no schema, or nothing set; throws HTTPError(400) on malformed JSON or a value
+// that violates the schema.
+const parseFilter = (raw: string | undefined, check: any): Record<string, any> | undefined => {
+  if (!raw || !check) return undefined
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new HTTPError("Invalid filter", 400)
+  }
+  if (parsed == null || typeof parsed !== "object") return undefined
+  let decoded: Record<string, any>
+  try {
+    decoded = Value.Parse(check, parsed) as Record<string, any>
+  } catch {
+    throw new HTTPError("Invalid filter", 400)
+  }
+  // Keep only the fields that are actually set, so `filter` carries just those.
+  const out: Record<string, any> = {}
+  for (const [key, value] of Object.entries(decoded)) {
+    if (value != null && value !== "") out[key] = value
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 // Normalizes a configured UI base path: guarantees a leading slash and drops a
 // trailing one ("admin" → "/admin", "/panel/" → "/panel").
 const normalizeBasePath = (p: string) => {
@@ -84,13 +114,51 @@ type AuthMethodInternal<User> = {
 // the authenticated user (authorization, audit logging, per-user scoping).
 export type RequestContext<User = unknown> = { user: User }
 
-// The list request shape handed to `.data()`. `sort`/`search` are optional and
-// only present when the frontend sends them.
+// A per-user predicate deciding whether a user may access something. Receives the
+// value `onRequest` resolved (`ctx.user`); the host owns the rule — no DB needed.
+export type AccessFn<User = unknown> = (user: User) => boolean | Promise<boolean>
+
+// A page's access policy. A bare function gates the whole page (visibility + every
+// operation). The granular object form gates independently: `read` controls
+// sidebar visibility and list/item data; `write` controls create/update and
+// actions; `delete` controls delete. An unspecified facet defaults to allowed —
+// so `{ write: isAdmin }` yields a read-only page for everyone else. Any facet
+// that returns false makes its routes 403 and hides the matching UI affordance.
+export type PageAccess<User = unknown> = AccessFn<User> | {
+  read?: AccessFn<User>,
+  write?: AccessFn<User>,
+  delete?: AccessFn<User>,
+}
+
+// The normalized, always-present internal form.
+type NormalizedAccess = { read: AccessFn<any>, write: AccessFn<any>, del: AccessFn<any> }
+const allowAll: AccessFn<any> = () => true
+const normalizeAccess = (access?: PageAccess<any>): NormalizedAccess | undefined => {
+  if (!access) return undefined
+  if (typeof access === "function") return { read: access, write: access, del: access }
+  return { read: access.read ?? allowAll, write: access.write ?? allowAll, del: access.delete ?? allowAll }
+}
+// Resolves a single facet for a user (true when unrestricted / no policy).
+const canAccess = async (access: NormalizedAccess | undefined, facet: keyof NormalizedAccess, user: any): Promise<boolean> => {
+  if (!access) return true
+  return !!(await access[facet](user))
+}
+// Throws 403 unless the user is allowed the given facet. `read` gates data GETs,
+// `write` gates create/update/upload/actions, `del` gates delete.
+const requireAccess = async (access: NormalizedAccess | undefined, facet: keyof NormalizedAccess, user: any) => {
+  if (!(await canAccess(access, facet, user))) throw new HTTPError("Forbidden", 403)
+}
+
+// The list request shape handed to `.data()`. `sort`/`search`/`filter` are
+// optional and only present when the frontend sends them. `filter` is the
+// validated, decoded object described by the page's `.filters()` schema (dates
+// arrive as `Date`); absent keys mean "not filtered".
 export type ListOptions = {
   take?: number,
   skip?: number,
   sort?: { field: string, dir: "asc" | "desc" },
-  search?: string
+  search?: string,
+  filter?: Record<string, any>
 }
 
 // The list response shape. `total` is the unpaginated row count so the UI can paginate.
@@ -114,6 +182,33 @@ export type ReferenceQuery = { search?: string, value?: string }
 // carries only a `{ method: refId }` descriptor, so it stays plain JSON.
 export type ReferenceMethod<User = unknown> =
   (query: ReferenceQuery, ctx: RequestContext<User>) => SelectOption[] | Promise<SelectOption[]>
+
+// A foreign-key reference source for a select field, as written in a form/filter
+// schema: an async resolver, or a declarative pointer at another page's list.
+export type SelectReference =
+  | ReferenceMethod<any>
+  | { page: string, label: string, value?: string }
+
+// compact-json-schema exposes `SchemaAnnotations` — the set of keywords allowed
+// on any typed schema object without changing its inferred type — and invites
+// consumers to extend it by declaration merging. We register the keywords the
+// panel's form/filter/action inputs read, so `{ type: "string", label,
+// options }` and friends type-check inline (no `as const` or generic-inference
+// dance needed). Purely a type-level change — `unfoldSchema` already passes
+// these through at runtime.
+declare module "compact-json-schema" {
+  interface SchemaAnnotations {
+    // Human-readable field label shown by the panel inputs (falls back to the key).
+    label?: string
+    // Static select options.
+    options?: SelectOption[]
+    // Async / cross-page select source (see SelectReference).
+    reference?: SelectReference
+    // Renderer hints: `format: "file" | "date" | "datetime"`, multiline text.
+    format?: string
+    multiline?: boolean
+  }
+}
 
 // The serializable form of a declared action, as delivered to the frontend in
 // `PageMeta.actions`. The handler stays server-side; only its descriptor travels.
@@ -146,10 +241,12 @@ export type PageMeta = {
   // does the UI show a search box (the panel can't know if `.data` honors search).
   search?: true,
   actions?: ActionMeta[],
+  // The form schema for the page's filter bar, declared via `.filters()`.
+  filters?: { schema: SchemaItem },
 }
 
 export type AdminPanel<User = unknown> = {
-  createPage<T extends object>(options: CreatePageOptions): PageWithPrimaryKey<T, string, T, User>,
+  createPage<T extends object>(options: CreatePageOptions<User>): PageWithPrimaryKey<T, string, T, User>,
   register<T extends any[]>(func: AdminPanelPlugin<T>, ...options: T): void
   registerAuthMethod<T extends SchemaItem>(method: AuthMethod<T, User>): void
 }
@@ -177,7 +274,12 @@ type PageEntry = {
   group?: string,
   icon?: string,
   search?: boolean,
+  access?: NormalizedAccess,
   actions: ActionEntry[],
+  // The filter form schema (unfolded JSON, serialized to the frontend) and its
+  // TypeBox validator (used to validate/decode the JSON-encoded `filter` param).
+  filters?: any,
+  filtersCheck?: any,
   table?: ColumnId<any, any>[],
   data?: (options: ListOptions, ctx: Ctx) => ListResult<any> | Promise<ListResult<any>>,
   itemData?: (id: any, ctx: Ctx) => Promise<any>,
@@ -284,12 +386,14 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
     }
 
     app.get(`${apiBase}/pages`, async (req) => {
-      return pages.map(p => ({
-        path: p.path,
-        title: p.title,
-        group: p.group,
-        icon: p.icon
-      }))
+      const user = (req as any).user
+      const visible = []
+      for (const p of pages) {
+        // Hide pages the user can't read from the sidebar.
+        if (!(await canAccess(p.access, "read", user))) continue
+        visible.push({ path: p.path, title: p.title, group: p.group, icon: p.icon })
+      }
+      return visible
     })
 
     for (let page of pages) {
@@ -299,17 +403,21 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         sortField: "string?",
         sortDir: "string?",
         search: "string?",
+        // A JSON-encoded object of filter values (validated against page.filtersCheck).
+        filter: "string?",
       })
       const path = toRouteSegment(page.path)
 
       if (page.data) {
         app.get(`${apiBase}/data/${path}/items`, [{}, querySchema], async (req) => {
-          const q = req.query as { take?: number, skip?: number, sortField?: string, sortDir?: string, search?: string }
+          await requireAccess(page.access, "read", (req as any).user)
+          const q = req.query as { take?: number, skip?: number, sortField?: string, sortDir?: string, search?: string, filter?: string }
           const options: ListOptions = {
             take: q.take,
             skip: q.skip,
             sort: q.sortField ? { field: q.sortField, dir: q.sortDir === "asc" ? "asc" : "desc" } : undefined,
             search: q.search,
+            filter: parseFilter(q.filter, page.filtersCheck),
           }
           return await page.data!(options, { user: (req as any).user })
         })
@@ -318,18 +426,21 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       const paramsSchema = schema({ itemId: page.primaryKeyType ?? 'string' })
       if (page.itemData) {
         app.get(`${apiBase}/data/${path}/items/:itemId`, [ paramsSchema ], async (req) => {
+          await requireAccess(page.access, "read", (req as any).user)
           return await page.itemData!(req.params.itemId, { user: (req as any).user })
         })
       }
 
       if (page.createForm && page.onInsert) {
         app.post(`${apiBase}/data/${path}/items`, [{}, page.createForm.schema], async (req) => {
+          await requireAccess(page.access, "write", (req as any).user)
           await page.onInsert!(req.body, { user: (req as any).user })
         })
       }
 
       if (page.updateForm && page.onUpdate) {
         app.post(`${apiBase}/data/${path}/items/:itemId`, [paramsSchema, page.updateForm.schema], async (req) => {
+          await requireAccess(page.access, "write", (req as any).user)
           await page.onUpdate!(req.params.itemId, req.body, { user: (req as any).user })
         })
       }
@@ -338,12 +449,14 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         const deleteSchema = schema({ itemIds: { type: "array", items: page.primaryKeyType ?? 'string' } })
 
         app.delete(`${apiBase}/data/${path}/items`, [{}, deleteSchema], async (req) => {
+          await requireAccess(page.access, "del", (req as any).user)
           await page.onDelete!((req.body as any).itemIds, { user: (req as any).user })
         })
       }
 
       for (let data of page.componentData) {
         app.get(`${apiBase}/data/${path}/component-data/${data.name}`, { query: data.schema }, async (req) => {
+          await requireAccess(page.access, "read", (req as any).user)
           return await data.method(req.query as any, { user: (req as any).user })
         })
       }
@@ -353,6 +466,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         // body untouched and we read the file off req.raw ourselves. The handler
         // stores it however it likes and returns the URL/id saved as the value.
         app.post(`${apiBase}/data/${path}/upload`, async (req) => {
+          await requireAccess(page.access, "write", (req as any).user)
           const form = await (req as any).raw.formData()
           const file = form.get("file")
           if (!(file instanceof File)) throw new HTTPError("No file uploaded", 400)
@@ -370,11 +484,13 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         if (action.schema) {
           // Payload action: validate the body, then hand (data, ctx) to the handler.
           app.post(route, [{}, action.schema], async (req) => {
+            await requireAccess(page.access, "write", (req as any).user)
             return await action.method(req.body, { user: (req as any).user })
           })
         } else {
           // No-payload action: the handler receives just the context.
           app.post(route, async (req) => {
+            await requireAccess(page.access, "write", (req as any).user)
             return await action.method({ user: (req as any).user })
           })
         }
@@ -389,6 +505,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       for (let action of page.actions) {
         const route = `${apiBase}/data/${path}/actions/${action.name}`
         const run = async (req: any) => {
+          await requireAccess(page.access, "write", req.user)
           const ctx = { user: req.user }
           const q = req.query as { itemId?: string, itemIds?: string }
           // `data` is the validated form body, or undefined for a formless action.
@@ -407,18 +524,25 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       }
 
       app.get(`${apiBase}/pages/${path}`, async (req): Promise<PageMeta> => {
+        const user = (req as any).user
+        // Can't read → the page is off-limits entirely.
+        await requireAccess(page.access, "read", user)
+        // Compute the write/delete facets once and omit the affordances the user
+        // lacks, so the UI naturally hides Add / Edit / Delete / actions.
+        const canWrite = await canAccess(page.access, "write", user)
+        const canDelete = await canAccess(page.access, "del", user)
         return {
           title: page.title,
           path: page.path,
           table: page.table,
           component: page.component,
           primaryKey: page.primaryKey,
-          createForm: page.createForm,
-          updateForm: page.updateForm,
+          createForm: canWrite ? page.createForm : undefined,
+          updateForm: canWrite ? page.updateForm : undefined,
           itemAccess: !!page.itemData,
-          allowDelete: page.onDelete ? true: undefined,
+          allowDelete: (page.onDelete && canDelete) ? true : undefined,
           search: page.search ? true : undefined,
-          actions: page.actions.length > 0
+          actions: (canWrite && page.actions.length > 0)
             ? page.actions.map((a): ActionMeta => ({
                 name: a.name,
                 title: a.title,
@@ -429,6 +553,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
                 form: a.schema ? { schema: a.schema } : undefined,
               }))
             : undefined,
+          filters: page.filters ? { schema: page.filters } : undefined,
         }
       })
     }
@@ -550,7 +675,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
     return await res.outputs[0].text()
   }
 
-  plugin.createPage = <T extends object>(options: CreatePageOptions) => {
+  plugin.createPage = <T extends object>(options: CreatePageOptions<User>) => {
 
     // Reject characters that would break the route template, and duplicate paths
     // (two pages on the same path would silently collide on their routes).
@@ -568,6 +693,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       group: options.group,
       icon: options.icon,
       search: options.search,
+      access: normalizeAccess(options.access),
       actions: [],
       componentData: [],
       componentActions: [],
@@ -609,6 +735,20 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       onDelete(onDelete) {
         currentPage.onDelete = onDelete as any
         return this as any
+      },
+      filters(filterSchema: SchemaItem) {
+        // Unfolded JSON schema for rendering the filter bar. Strip any `required`
+        // so every filter is apply-if-set (the UI submits only touched fields).
+        const unfolded = unfoldSchema(filterSchema)
+        if (unfolded && typeof unfolded === "object" && "required" in unfolded) delete (unfolded as any).required
+        registerReferenceMethods(unfolded, `${segment}.filter`)
+        currentPage.filters = unfolded
+        // TypeBox validator for incoming values (also decodes dates); likewise
+        // made all-optional so a partial filter validates.
+        const tb = unfoldTypeBoxSchema(filterSchema)
+        if (tb && Array.isArray(tb.required)) tb.required = []
+        currentPage.filtersCheck = tb
+        return this
       },
       action(name: string, config: any, handler: any) {
         let schema: SchemaItem | undefined
@@ -686,7 +826,7 @@ type CreateAdminPanelOptions = {
   locale?: "en" | "ru"
 }
 
-type CreatePageOptions = {
+type CreatePageOptions<User = unknown> = {
   title?: string
   path?: string
   // Sidebar section this page is listed under. Pages without a group are
@@ -698,6 +838,10 @@ type CreatePageOptions = {
   // `.data` honors the `search` option, so it only renders the input when this
   // is set. The `.data` handler is responsible for actually filtering.
   search?: boolean
+  // Per-user access policy. A predicate gates the whole page; the granular
+  // `{ read, write, delete }` form gates each facet. The panel hides pages /
+  // affordances the user can't reach and rejects the matching routes with 403.
+  access?: PageAccess<User>
 }
 
 // Shared descriptor for a declared action, minus the target-specific handler.
@@ -770,6 +914,13 @@ interface Page<T extends object, User = unknown> {
   // Handle file uploads for `{ format: "file" }` form fields. Store the file and
   // return the URL/id that becomes the field value. `ctx.field` is the field name.
   upload(handler: (file: File, ctx: RequestContext<User> & { field?: string }) => string | Promise<string>): this
+  // Declare the page's filter bar. Uses the same compact-json-schema format as
+  // forms (selects via `options`/`reference`, booleans, dates, …); every field
+  // should be optional, since a filter only applies when set. The submitted,
+  // validated values arrive on the `.data()` list options as `filter`. Inline
+  // `options`/`label`/`reference` type-check thanks to the SchemaAnnotations
+  // augmentation above.
+  filters(schema: SchemaItem): this
   // Toolbar (page-level) action — rendered as a button above the table, receives
   // no target row. With a `form`, the handler also receives the collected `data`
   // as its first argument. Its return value's `message`, if any, is shown as a toast.

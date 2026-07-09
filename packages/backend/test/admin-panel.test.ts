@@ -468,6 +468,172 @@ describe("admin panel — declared actions", () => {
   })
 })
 
+describe("admin panel — filters", () => {
+  const buildFilterApp = () => {
+    let received: ListOptionsShape | null = null
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Users", path: "users" })
+      .filters({
+        role: { type: "string?", options: [{ value: "user", label: "User" }] },
+        minBalance: "number?",
+        createdAfter: "date?",
+      })
+      .data(async (options) => {
+        received = options as ListOptionsShape
+        return { items: [], total: 0 }
+      })
+    const app = new Router()
+    app.register(admin)
+    return { app, getReceived: () => received }
+  }
+  type ListOptionsShape = { filter?: Record<string, any> }
+
+  it("advertises the filter schema in the page metadata (references stripped, no required)", async () => {
+    const { app } = buildFilterApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json()
+
+    expect(meta.filters).toBeDefined()
+    expect(meta.filters.schema.properties.role).toBeDefined()
+    expect(meta.filters.schema.properties.minBalance).toBeDefined()
+    // Filters are apply-if-set — no field is required.
+    expect(meta.filters.schema.required).toBeUndefined()
+  })
+
+  it("parses, validates and decodes the filter query param", async () => {
+    const { app, getReceived } = buildFilterApp()
+    const filter = JSON.stringify({ role: "user", minBalance: 100, createdAfter: "2023-01-15T00:00:00.000Z" })
+    const res = await app.inject(`/api/admin/data/users/items?filter=${encodeURIComponent(filter)}`)
+
+    expect(res.status).toBe(200)
+    const got = getReceived()!.filter!
+    expect(got.role).toBe("user")
+    expect(got.minBalance).toBe(100)
+    // The date field is decoded to a JS Date.
+    expect(got.createdAfter).toBeInstanceOf(Date)
+  })
+
+  it("accepts a partial filter and omits absent keys", async () => {
+    const { app, getReceived } = buildFilterApp()
+    await app.inject(`/api/admin/data/users/items?filter=${encodeURIComponent(JSON.stringify({ role: "user" }))}`)
+
+    const got = getReceived()!.filter!
+    expect(got.role).toBe("user")
+    expect("minBalance" in got).toBe(false)
+  })
+
+  it("leaves filter undefined when the param is absent", async () => {
+    const { app, getReceived } = buildFilterApp()
+    await app.inject("/api/admin/data/users/items")
+
+    expect(getReceived()!.filter).toBeUndefined()
+  })
+
+  it("rejects a filter whose value violates the schema", async () => {
+    const { app } = buildFilterApp()
+    const bad = JSON.stringify({ minBalance: "lots" })
+    const res = await app.inject(`/api/admin/data/users/items?filter=${encodeURIComponent(bad)}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it("rejects a malformed (non-JSON) filter param", async () => {
+    const { app } = buildFilterApp()
+    const res = await app.inject("/api/admin/data/users/items?filter=%7Bnot-json")
+
+    expect(res.status).toBe(400)
+  })
+
+  it("omits filters from metadata when none are declared", async () => {
+    const { app } = buildUsersApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json()
+    expect(meta.filters).toBeUndefined()
+  })
+})
+
+describe("admin panel — access control", () => {
+  type RoleUser = { role: "admin" | "viewer" }
+  const buildAccessApp = () => {
+    const admin = createAdminPanel<RoleUser>()
+    admin.registerAuthMethod({
+      fields: { login: "string", password: "string" },
+      onLogin: async ({ login }) => ({ token: login }),
+      onRequest: async (token) => (token === "admin" || token === "viewer" ? { role: token } : null),
+    })
+    const isAdmin = (u: RoleUser) => u.role === "admin"
+    // Whole-page gate.
+    admin
+      .createPage({ title: "Secrets", path: "secrets", access: isAdmin })
+      .data(async () => ({ items: [{ id: 1 }], total: 1 }))
+      .primaryKey("id", "number")
+    // Granular gate: everyone reads, only admins write/delete.
+    admin
+      .createPage({ title: "Posts", path: "posts", access: { write: isAdmin, delete: isAdmin } })
+      .data(async () => ({ items: [], total: 0 }))
+      .primaryKey("id", "number")
+      .createForm({ title: "string" }, async () => {})
+      .updateForm({ title: "string" }, async () => {})
+      .onDelete(async () => {})
+      .action("publish", { title: "Publish" }, async () => ({ message: "ok" }))
+    const app = new Router()
+    app.register(admin)
+    return { app }
+  }
+  const as = (role: string) => ({ headers: { Authorization: `Bearer ${role}` } })
+
+  it("filters the sidebar by the read facet", async () => {
+    const { app } = buildAccessApp()
+    const adminPages = await (await app.inject({ url: "/api/admin/pages", ...as("admin") })).json()
+    const viewerPages = await (await app.inject({ url: "/api/admin/pages", ...as("viewer") })).json()
+
+    expect(adminPages.map((p: any) => p.path).sort()).toEqual(["posts", "secrets"])
+    // The viewer can't read Secrets, so it's hidden.
+    expect(viewerPages.map((p: any) => p.path)).toEqual(["posts"])
+  })
+
+  it("403s a read-gated page's data and metadata for a denied user", async () => {
+    const { app } = buildAccessApp()
+    expect((await app.inject({ url: "/api/admin/data/secrets/items", ...as("admin") })).status).toBe(200)
+    expect((await app.inject({ url: "/api/admin/data/secrets/items", ...as("viewer") })).status).toBe(403)
+    expect((await app.inject({ url: "/api/admin/pages/secrets", ...as("viewer") })).status).toBe(403)
+  })
+
+  it("lets a read-only user read but omits write/delete affordances from metadata", async () => {
+    const { app } = buildAccessApp()
+    const meta = await (await app.inject({ url: "/api/admin/pages/posts", ...as("viewer") })).json()
+
+    expect((await app.inject({ url: "/api/admin/data/posts/items", ...as("viewer") })).status).toBe(200)
+    expect(meta.createForm).toBeUndefined()
+    expect(meta.updateForm).toBeUndefined()
+    expect(meta.allowDelete).toBeUndefined()
+    expect(meta.actions).toBeUndefined()
+  })
+
+  it("exposes the full affordances to a writer", async () => {
+    const { app } = buildAccessApp()
+    const meta = await (await app.inject({ url: "/api/admin/pages/posts", ...as("admin") })).json()
+
+    expect(meta.createForm).toBeDefined()
+    expect(meta.updateForm).toBeDefined()
+    expect(meta.allowDelete).toBe(true)
+    expect(meta.actions).toHaveLength(1)
+  })
+
+  it("enforces write and delete facets on the mutation routes", async () => {
+    const { app } = buildAccessApp()
+    const create = { method: "POST", url: "/api/admin/data/posts/items", body: { title: "x" } }
+    const del = { method: "DELETE", url: "/api/admin/data/posts/items", body: { itemIds: [1] } }
+    const action = { method: "POST", url: "/api/admin/data/posts/actions/publish" }
+
+    expect((await app.inject({ ...create, ...as("viewer") })).status).toBe(403)
+    expect((await app.inject({ ...create, ...as("admin") })).status).toBe(200)
+    expect((await app.inject({ ...del, ...as("viewer") })).status).toBe(403)
+    expect((await app.inject({ ...del, ...as("admin") })).status).toBe(200)
+    expect((await app.inject({ ...action, ...as("viewer") })).status).toBe(403)
+    expect((await app.inject({ ...action, ...as("admin") })).status).toBe(200)
+  })
+})
+
 describe("static asset path resolution", () => {
   const dir = normalize("/srv/app/frontend")
   const prefix = "/admin/assets/"

@@ -6,7 +6,7 @@
       "name": "dynara-admin",
       "dependencies": {
         "compact-json-schema": "^0.1.7",
-        "dynara": "^0.0.3",
+        "dynara": "^0.0.4",
       },
       "devDependencies": {
         "@eckidevs/bun-plugin-vue": "^0.3.0",
@@ -27,12 +27,12 @@
       "devDependencies": {
         "@sinclair/typebox": "^0.34.37",
         "bunup": "^0.16.31",
-        "dynara": "^0.0.3",
+        "dynara": "^0.0.4",
       },
       "peerDependencies": {
         "@sinclair/typebox": "^0.34.0",
-        "compact-json-schema": "^0.1.6",
-        "dynara": "^0.0.3",
+        "compact-json-schema": "^0.1.7",
+        "dynara": "^0.0.4",
       },
     },
     "packages/dev-app": {
@@ -43,10 +43,10 @@
         "marcidb-embedded": "^0.8.1",
       },
       "devDependencies": {
-        "dynara": "^0.0.3",
+        "dynara": "^0.0.4",
       },
       "peerDependencies": {
-        "compact-json-schema": "^0.1.6",
+        "compact-json-schema": "^0.1.7",
       },
     },
     "packages/dyn-orm": {
@@ -473,7 +473,7 @@
 
     "dyn-orm": ["dyn-orm@workspace:packages/dyn-orm"],
 
-    "dynara": ["dynara@0.0.3", "", { "dependencies": { "@sinclair/typebox": "^0.34.37", "compact-json-schema": "^0.1.6" }, "peerDependencies": { "@types/bun": "*", "typescript": "^5" } }, "sha512-FK8pXA89tDafoe0KgYqD5NBZUDkdY6wj3x82eUaK6DvRrjzLnaSzVtDIX3EAsmrxAa+LTI5SpW8vT54T/cgzgA=="],
+    "dynara": ["dynara@0.0.4", "", { "dependencies": { "@sinclair/typebox": "^0.34.37", "compact-json-schema": "^0.1.7" }, "peerDependencies": { "@types/bun": "*", "typescript": "^5" } }, "sha512-XXaFCb5OmW/bUwjL6225RPTKrDT4iEdnMOLyD8fPAHRX6BHBpFCe6Y6SBE5+78aFPvuo6aC3iQoAA3/BNqAqPg=="],
 
     "dynara-admin": ["dynara-admin@workspace:packages/backend"],
 
@@ -694,8 +694,6 @@
     "zlye": ["zlye@0.4.4", "", { "dependencies": { "picocolors": "^1.1.1" }, "peerDependencies": { "typescript": ">=4.5.0" }, "optionalPeers": ["typescript"] }, "sha512-fwpeC841X3ElOLYRMKXbwX29pitNrsm6nRNvEhDMrRXDl3BhR2i03Bkr0GNrpyYgZJuEzUsBylXAYzgGPXXOCQ=="],
 
     "@vitest/mocker/estree-walker": ["estree-walker@3.0.3", "", { "dependencies": { "@types/estree": "^1.0.0" } }, "sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g=="],
-
-    "dynara/compact-json-schema": ["compact-json-schema@0.1.6", "", {}, "sha512-2FiUHNrNfmlBJYfG0hZy41ye3D6EuosDeoYuAWbVmCp5E8JdkPswrgU7l4VZ7DLIw2X2hWNUSp+Um6d+5W0Cqw=="],
 
     "string-width-cjs/emoji-regex": ["emoji-regex@8.0.0", "", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
 
