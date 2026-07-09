@@ -45,10 +45,10 @@ onMounted(() => {
 .v-input-text
   min-width: 200px
   .v-form-control__outline
-    height: 40px
+    height: var(--control-height, 36px)
     &>svg
       align-self: center
-      color: #CED4DA
+      color: var(--icon-color)
 
   input, textarea
     height: 100%

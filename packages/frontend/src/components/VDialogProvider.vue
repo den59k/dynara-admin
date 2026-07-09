@@ -2,12 +2,12 @@
   <Teleport to="body">
     <Transition>
       <div v-if="dialogStore.isOpen.value" class="v-dialog-backdrop editor-component" @mousedown="onMouseDown" @mouseup="onMouseUp">
-        <component 
-          v-for="(dialog, index) in dialogStore.dialogHistory" 
-          v-show="index === dialogStore.dialogHistory.length-1" 
+        <component
+          v-for="(dialog, index) in dialogStore.dialogHistory"
+          v-show="index === dialogStore.dialogHistory.length-1"
           class="bd-scale scroll"
           role="dialog"
-          :is="dialog.dialog" 
+          :is="dialog.dialog"
           v-bind="dialog.props"
         >
 
@@ -56,15 +56,27 @@ watch(dialogStore.isOpen, (isOpen) => {
 
 <script lang="ts">
 import { computed, type DefineComponent, type ExtractPropTypes, shallowReactive } from "vue";
+import ConfirmDialog from './dialogs/ConfirmDialog.vue';
+import { t } from '../i18n';
 
 type OpenDialog = <T>(_dialog: DefineComponent<T, {}, any>, props?: ExtractPropTypes<T>) => void
 
-export type DialogStore = { open: OpenDialog, close: () => void, back: () => void }
+export type DialogStore = {
+  open: OpenDialog,
+  close: () => void,
+  // Dismiss the top dialog. Runs its guard first unless `force` is set — a
+  // truthy guard result opens a "discard changes?" confirmation instead.
+  back: (force?: boolean) => void,
+  // Attach a guard to the top dialog (called by the dialog's own setup).
+  setGuard: (guard?: () => boolean) => void,
+}
+
+type DialogEntry = { dialog: DefineComponent<any, {}, any>, props: any, guard?: () => boolean }
 
 export const createDialogSystem = (): Plugin => {
-  return { 
+  return {
     install: (app) => {
-      const dialogHistory = shallowReactive<{ dialog: DefineComponent<any, {}, any>, props: any }[]>([])
+      const dialogHistory = shallowReactive<DialogEntry[]>([])
 
       const open: OpenDialog = (dialog, props) => {
         dialogHistory.push({ dialog: dialog as any, props })
@@ -74,9 +86,30 @@ export const createDialogSystem = (): Plugin => {
         dialogHistory.length = 0
       }
 
-      const back = () => {
+      const back = (force = false) => {
         if (dialogHistory.length === 0) return
+        const top = dialogHistory[dialogHistory.length-1]
+        if (!force && top.guard && top.guard()) {
+          // The form has unsaved edits: stack a confirmation on top. Confirming
+          // removes the guarded dialog; the confirmation pops itself afterwards.
+          open(ConfirmDialog as any, {
+            title: t('confirm.discardTitle'),
+            text: t('confirm.discardText'),
+            confirmTitle: t('confirm.discard'),
+            danger: true,
+            onConfirm: () => {
+              const index = dialogHistory.indexOf(top)
+              if (index !== -1) dialogHistory.splice(index, 1)
+            },
+          })
+          return
+        }
         dialogHistory.pop()
+      }
+
+      const setGuard = (guard?: () => boolean) => {
+        if (dialogHistory.length === 0) return
+        dialogHistory[dialogHistory.length-1].guard = guard
       }
 
       const dialog = computed(() => {
@@ -86,12 +119,20 @@ export const createDialogSystem = (): Plugin => {
 
       const isOpen = computed(() => dialogHistory.length > 0)
 
-      app.provide("dialogStore", { open, close, back, dialogHistory, dialog, isOpen })
+      app.provide("dialogStore", { open, close, back, setGuard, dialogHistory, dialog, isOpen })
     }
   }
 }
 
 export const useDialog = () => inject("dialogStore") as DialogStore
+
+// Register a dirty-check for the dialog being set up: while `isDirty` returns
+// true, overlay clicks, Escape, the ✕ button and Cancel all ask for
+// confirmation before discarding. The guard dies with its dialog entry.
+export const useDialogGuard = (isDirty: () => boolean) => {
+  const store = inject("dialogStore") as DialogStore | undefined
+  store?.setGuard(isDirty)
+}
 
 </script>
 
@@ -99,7 +140,7 @@ export const useDialog = () => inject("dialogStore") as DialogStore
 .v-dialog-backdrop
   position: fixed
   inset: 0
-  background-color: rgba(0, 0, 0, 0.75)
+  background-color: rgba(0, 0, 0, 0.65)
   // Scroll the overlay, not the dialog: the whole backdrop is the scroll
   // container, and the dialog is centered with `margin: auto` so it stays
   // reachable (top included) once it grows taller than the viewport.

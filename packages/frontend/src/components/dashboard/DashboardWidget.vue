@@ -142,7 +142,7 @@ watch(() => props.widget, async (widget) => {
     height: 12px
 
   &.dash-widget__delta--up
-    color: #2ecc71
+    color: var(--success-color)
 
   &.dash-widget__delta--down
     color: var(--error-color)

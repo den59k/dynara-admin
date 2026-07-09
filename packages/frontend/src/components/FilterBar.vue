@@ -1,19 +1,21 @@
 <template>
-  <div class="filter-bar">
-    <div v-for="(fieldSchema, key) in fields" :key="key" class="filter-bar__field">
-      <label class="filter-bar__label">{{ fieldSchema.label ?? labelize(key) }}</label>
-      <JsonInput
-        :schema="fieldSchema"
-        :name="key"
-        :nullable="true"
-        :model-value="draft[key] ?? null"
-        @update:model-value="update(key, $event)"
-      />
-    </div>
-    <button v-if="activeCount > 0" class="filter-bar__clear" @click="clearAll">
-      <VIcon icon="close" /> {{ t('filter.clear', { count: activeCount }) }}
-    </button>
+  <!-- Inline filters: each field is a single-height pill with its label inside
+       (`Role · [All ▾]`), so filters share one row with the search box instead
+       of stacking a labeled block underneath it. -->
+  <div v-for="(fieldSchema, key) in fields" :key="key" class="filter-bar__field" @click="focusField">
+    <span class="filter-bar__label">{{ fieldSchema.label ?? labelize(key) }}</span>
+    <JsonInput
+      :schema="fieldSchema"
+      :name="key"
+      :nullable="true"
+      :placeholder="t('filter.all')"
+      :model-value="draft[key] ?? null"
+      @update:model-value="update(key, $event)"
+    />
   </div>
+  <button v-if="activeCount > 0" class="filter-bar__clear" @click="clearAll">
+    <VIcon icon="close" /> {{ t('filter.clear', { count: activeCount }) }}
+  </button>
 </template>
 
 <script lang="ts" setup>
@@ -73,42 +75,84 @@ const clearAll = () => {
 
 const labelize = (key: string | number) =>
   String(key).replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim()
+
+// The label and the pill's padding sit outside the (often narrow) inner input,
+// so make the whole pill activate its control: clicking the label focuses a text
+// field or opens a select dropdown, just like clicking the input itself.
+const focusField = (event: MouseEvent) => {
+  const field = event.currentTarget as HTMLElement
+  const control = field.querySelector<HTMLElement>('.v-select-input__control, input')
+  if (!control || control === event.target || control.contains(event.target as Node)) return
+  control.click()
+  control.focus()
+}
 </script>
 
 <style lang="sass">
-.filter-bar
-  display: flex
-  flex-wrap: wrap
-  align-items: flex-end
-  gap: 12px
-  margin-top: 12px
-
 .filter-bar__field
   display: flex
-  flex-direction: column
-  gap: 4px
+  align-items: center
+  height: 36px
+  box-sizing: border-box
+  border: 1px solid var(--input-border-color)
+  background-color: var(--input-background)
+  border-radius: 8px
+  cursor: pointer
+  transition: border-color 0.12s, box-shadow 0.12s
+  // Inner inputs read this instead of their default 36px, so input + pill
+  // border add up to the pill's 36px height.
+  --control-height: 34px
+
+  &:focus-within
+    border-color: var(--primary-color)
+    box-shadow: 0 0 0 3px var(--shadow-color)
 
   .filter-bar__label
-    font-size: 12px
+    font-size: 13px
     font-weight: 500
     color: var(--text-secondary-color)
+    padding-left: 12px
+    white-space: nowrap
+    user-select: none
+    pointer-events: none
 
-  // Filter inputs are compact and don't need the full form min-width.
+  // The inner input keeps all its behavior but sheds its own frame: the pill
+  // provides the border, background and focus ring.
+  .v-form-control
+    flex: 0 1 auto
+
+  .v-form-control__outline
+    border: none
+    background: none
+
+    &:focus-within
+      border: none
+      box-shadow: none
+
   .v-input-text, .v-select-input, .v-input-number
-    min-width: 160px
+    min-width: 0
+
+  .v-select-input__control
+    padding-left: 8px
+
+  input
+    width: 90px
+    padding-left: 8px
 
 .filter-bar__clear
   display: flex
   align-items: center
   gap: 4px
-  height: 38px
+  height: 36px
   padding: 0 12px
   background: none
   border: none
   border-radius: 8px
   color: var(--text-secondary-color)
   font-size: 13px
+  font-weight: 500
   cursor: pointer
+  white-space: nowrap
 
   svg
     width: 14px

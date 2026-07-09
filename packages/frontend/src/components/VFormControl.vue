@@ -89,20 +89,23 @@ const errorMap = inject("errorMap", {}) as Record<string, string>
 .v-form-control__outline
   display: flex
   border-radius: 8px
-  // transition: border-color 0.12s
   font-size: 13px
   position: relative
   box-sizing: border-box
   border: 1px solid var(--input-border-color)
-  box-sizing: border-box
+  background-color: var(--input-background)
+  transition: border-color 0.12s, box-shadow 0.12s
+
+  &:hover
+    border-color: color-mix(in srgb, var(--input-border-color) 60%, var(--text-secondary-color))
 
   &:focus-within
     border-color: var(--primary-color)
-    box-shadow: 0 0 0 2px var(--shadow-color)
+    box-shadow: 0 0 0 3px var(--shadow-color)
 
 .v-form-control__label
   font-size: 13px
-  margin-bottom: 4px
+  margin-bottom: 6px
   white-space: nowrap
   font-weight: 500
   user-select: none

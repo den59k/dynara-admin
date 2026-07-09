@@ -50,6 +50,15 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
   receiving their server-resolved `data` as a prop). Per-widget `data` resolvers are served
   from `${apiBase}/dashboard/:i/data`; the home route renders it via a `__DYNARA_DASHBOARD__`
   flag when no `path: "/"` page exists.
+- **UI redesign (minimal-CMS pass)** — one-row page header (title + count, primary
+  Add/toolbar actions pinned right), one controls row (search + inline label-in-pill
+  filters) that swaps to a selection bar with bulk actions when rows are checked; row
+  actions collapsed into a per-row "⋯" dropdown (`VMenu`) instead of flat text buttons;
+  restyled inputs/selects (filled controls, focus ring, elevated `--popover-color`
+  dropdowns), dark `color-scheme`, fixed previously-undefined CSS variables, and an
+  **unsaved-changes guard** (from 4.2): dismissing a dirty form dialog — overlay click,
+  Esc, ✕ or Cancel — asks for confirmation (`useDialogGuard` + `useForm().hasChange`,
+  covered by `dialogGuard.vitest.ts`).
 
 ### Upstream package improvements (dynara / compact-json-schema are ours too)
 
@@ -262,8 +271,8 @@ scenario again) wants a dedicated page:
 
 ### 4.2 Form improvements
 
-- **Unsaved-changes guard:** confirm before closing a dirty dialog (data loss is the #1
-  admin-panel complaint).
+- ✅ **Unsaved-changes guard (done):** dismissing a dirty form dialog (overlay click, Esc,
+  ✕ or Cancel) asks for confirmation; a successful submit bypasses the guard.
 - **Layout hints:** `width` is already in the frontend `Schema` type — document and
   support side-by-side fields; add `section` labels for long forms.
 - **Arrays of objects:** repeatable sub-form (add/remove/reorder rows) for

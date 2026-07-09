@@ -196,12 +196,17 @@ const positionDropdown = () => {
   const r = el.getBoundingClientRect()
   const GAP = 4
   const MAX_H = 264
+  const MIN_W = 180
   const spaceBelow = window.innerHeight - r.bottom
   const flipUp = spaceBelow < MAX_H && r.top > spaceBelow
+  // At least MIN_W wide so narrow controls (e.g. inline filter pills) still get
+  // a readable list; never wider than fits the viewport from the left edge.
+  const width = Math.min(Math.max(r.width, MIN_W), window.innerWidth - r.left - 8)
   dropdownStyle.value = {
     position: 'fixed',
     left: `${r.left}px`,
-    width: `${r.width}px`,
+    minWidth: `${width}px`,
+    maxWidth: `calc(100vw - ${r.left + 8}px)`,
     ...(flipUp
       ? { bottom: `${window.innerHeight - r.top + GAP}px` }
       : { top: `${r.bottom + GAP}px` }),
@@ -242,7 +247,7 @@ watch(model, resolveSelectedLabel, { immediate: true })
   min-width: 200px
 
   .v-form-control__outline
-    height: 40px
+    height: var(--control-height, 36px)
 
 .v-select-input__control
   position: relative
@@ -250,7 +255,7 @@ watch(model, resolveSelectedLabel, { immediate: true })
   align-items: center
   flex-grow: 1
   height: 100%
-  padding: 0 12px
+  padding: 0 10px 0 12px
   gap: 8px
   cursor: pointer
   outline: none
@@ -301,10 +306,10 @@ watch(model, resolveSelectedLabel, { immediate: true })
 
 .v-select-input__dropdown
   z-index: 2101
-  background: var(--paper-color, #fff)
-  border: 1px solid var(--border-color)
-  border-radius: 8px
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12)
+  background: var(--popover-color)
+  border: 1px solid var(--input-border-color)
+  border-radius: 10px
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35)
   padding: 4px
   box-sizing: border-box
 
@@ -313,6 +318,7 @@ watch(model, resolveSelectedLabel, { immediate: true })
   overflow-y: auto
   display: flex
   flex-direction: column
+  gap: 1px
 
 .v-select-input__option
   display: flex
@@ -326,12 +332,13 @@ watch(model, resolveSelectedLabel, { immediate: true })
   cursor: pointer
   color: var(--text-color)
   font-size: 13px
+  font-weight: 450
 
   &:hover
     background-color: var(--hover-color)
 
   &.active
-    background-color: var(--background-active-color)
+    background-color: var(--selected-color)
 
 .v-select-input__option-label
   flex-grow: 1

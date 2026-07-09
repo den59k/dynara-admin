@@ -1,84 +1,98 @@
 <template>
-  <h1>{{ tableData?.title }}<br/></h1>
+  <header v-if="tableData" class="data-page__header">
+    <h1>{{ tableData.title }}</h1>
+    <span v-if="data" class="data-page__count">{{ data.total }}</span>
+  </header>
   <component v-if="customComponent" :is="customComponent" />
 
-  <div v-if="tableData" class="data-page__toolbar">
-    <div v-if="tableData.search" class="data-page__search">
-      <VIcon icon="list" class="data-page__search-icon" />
-      <input v-model="searchInput" :placeholder="t('data.search')" />
-      <VIconButton v-if="searchInput" icon="close" @click="searchInput = ''" />
+  <!-- Everything table-related lives in one framed card: a toolbar header
+       (create + page actions + search + filters), the table itself, and a
+       pagination footer — no controls floating on the page background. -->
+  <div v-if="tableData && (tableData.table || !tableData.component)" class="data-card">
+    <div v-if="hasToolbar || selectedItems.length > 0" class="data-card__toolbar">
+      <template v-if="hasToolbar">
+        <VButton v-if="tableData.createForm" @click="addItem">
+          <VIcon icon="add" /> {{ t('data.add') }}
+        </VButton>
+        <VButton
+          v-for="action in toolbarActions"
+          :key="action.name"
+          outline
+          :class="{ danger: action.danger }"
+          @click="invokeAction(action, {})"
+        >
+          <VIcon v-if="action.icon" :icon="action.icon" /> {{ action.title }}
+        </VButton>
+        <div v-if="tableData.search" class="data-card__search">
+          <VIcon icon="search" class="data-card__search-icon" />
+          <input v-model="searchInput" :placeholder="t('data.search')" />
+          <VIconButton v-if="searchInput" icon="close" @click="searchInput = ''" />
+        </div>
+        <FilterBar
+          v-if="tableData.filters"
+          :schema="tableData.filters.schema"
+          :model-value="filter"
+          @update:model-value="setFilter"
+        />
+      </template>
+      <!-- Selection mode overlays the toolbar (same box, higher layer), so
+           checking rows never shifts the layout and the search/filter state
+           underneath survives untouched. -->
+      <div v-if="selectedItems.length > 0" class="data-card__selection">
+        <VIconButton icon="close" :title="t('data.clearSelection')" @click="selectedItems = []" />
+        <span class="data-card__selection-count">{{ t('data.selected', { count: selectedItems.length }) }}</span>
+        <VButton
+          v-for="action in bulkActions"
+          :key="action.name"
+          small
+          outline
+          :class="{ danger: action.danger }"
+          @click="invokeAction(action, { itemIds: selectedIds })"
+        >
+          <VIcon v-if="action.icon" :icon="action.icon" /> {{ action.title }}
+        </VButton>
+        <VButton v-if="tableData.allowDelete" small class="danger" @click="deleteItems">
+          <VIcon icon="delete" /> {{ t('data.delete', { count: selectedItems.length }) }}
+        </VButton>
+      </div>
     </div>
-    <div class="data-page__toolbar-spacer" />
-    <!-- Bulk actions + delete appear once rows are checked; otherwise the
-         create button and any page-level (toolbar) actions. -->
-    <template v-if="selectedItems.length > 0">
-      <VButton
-        v-for="action in bulkActions"
-        :key="action.name"
-        outline
-        :class="{ danger: action.danger }"
-        @click="invokeAction(action, { itemIds: selectedIds })"
-      >
-        <VIcon v-if="action.icon" :icon="action.icon" /> {{ action.title }}
-      </VButton>
-      <VButton v-if="tableData.allowDelete" class="danger" @click="deleteItems">
-        <VIcon icon="delete" /> {{ t('data.delete', { count: selectedItems.length }) }}
-      </VButton>
-    </template>
-    <template v-else>
-      <VButton
-        v-for="action in toolbarActions"
-        :key="action.name"
-        outline
-        :class="{ danger: action.danger }"
-        @click="invokeAction(action, {})"
-      >
-        <VIcon v-if="action.icon" :icon="action.icon" /> {{ action.title }}
-      </VButton>
-      <VButton v-if="tableData.createForm" @click="addItem">{{ t('data.add') }}</VButton>
-    </template>
-  </div>
 
-  <FilterBar
-    v-if="tableData?.filters"
-    :schema="tableData.filters.schema"
-    :model-value="filter"
-    @update:model-value="setFilter"
-  />
-
-  <!-- Error / loading / empty / table, in that precedence. -->
-  <div v-if="error" class="data-page__state">
-    <p>{{ errorMessage }}</p>
-    <VButton outline @click="retry">{{ t('data.retry') }}</VButton>
-  </div>
-  <div v-else-if="pending && !data" class="data-page__state data-page__state--muted">
-    {{ t('data.loading') }}
-  </div>
-  <template v-else-if="data && tableData">
-    <VTable
-      v-if="data.items.length > 0"
-      :item-key="tableData.primaryKey"
-      class="data-page__table"
-      :columns="columns"
-      :data="data.items"
-      :checkable="tableData.allowDelete"
-      v-model:checked="selectedItems"
-      :row-component="tableData.updateForm? 'button': undefined"
-      :sort="sort"
-      @update:sort="setSort"
-      @itemclick="onRowClick"
-    />
-    <div v-else class="data-page__state data-page__state--muted">
-      <p>{{ hasActiveQuery ? t('data.emptySearch') : t('data.empty') }}</p>
-      <VButton v-if="hasActiveQuery" outline @click="clearQuery">{{ t('data.clearSearch') }}</VButton>
-      <VButton v-else-if="tableData.createForm" @click="addItem">{{ t('data.add') }}</VButton>
+    <!-- Error / loading / empty / table, in that precedence. -->
+    <div v-if="error" class="data-card__state">
+      <p>{{ errorMessage }}</p>
+      <VButton outline @click="retry">{{ t('data.retry') }}</VButton>
     </div>
-    <div v-if="data.total > pageSize" class="data-page__pagination">
-      <VButton flat :disabled="page === 0" @click="setPage(page - 1)">{{ t('pager.prev') }}</VButton>
-      <span>{{ t('pager.range', { from: page * pageSize + 1, to: Math.min((page + 1) * pageSize, data.total), total: data.total }) }}</span>
-      <VButton flat :disabled="(page + 1) * pageSize >= data.total" @click="setPage(page + 1)">{{ t('pager.next') }}</VButton>
+    <div v-else-if="pending && !data" class="data-card__state data-card__state--muted">
+      {{ t('data.loading') }}
     </div>
-  </template>
+    <template v-else-if="data">
+      <VTable
+        v-if="data.items.length > 0"
+        :item-key="tableData.primaryKey"
+        :columns="columns"
+        :data="data.items"
+        :checkable="tableData.allowDelete"
+        v-model:checked="selectedItems"
+        :row-component="tableData.updateForm? 'button': undefined"
+        :sort="sort"
+        @update:sort="setSort"
+        @itemclick="onRowClick"
+      />
+      <div v-else class="data-card__state data-card__state--muted">
+        <p>{{ hasActiveQuery ? t('data.emptySearch') : t('data.empty') }}</p>
+        <VButton v-if="hasActiveQuery" outline @click="clearQuery">{{ t('data.clearSearch') }}</VButton>
+        <VButton v-else-if="tableData.createForm" @click="addItem">{{ t('data.add') }}</VButton>
+      </div>
+      <div v-if="data.total > pageSize" class="data-card__footer">
+        <VPagination
+          :page="page"
+          :page-size="pageSize"
+          :total="data.total"
+          @update:page="setPage"
+        />
+      </div>
+    </template>
+  </div>
 </template>
 
 <script lang="ts" setup>
@@ -98,6 +112,7 @@ import AddItemDialog from '../components/dialogs/AddItemDialog.vue';
 import ActionDialog from '../components/dialogs/ActionDialog.vue';
 import FilterBar from '../components/FilterBar.vue';
 import VTable, { type SortState, type TableColumn } from '../components/VTable.vue';
+import VPagination from '../components/VPagination.vue';
 import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
 const currentRoute = useRoute()
@@ -185,17 +200,29 @@ const rowActions = computed(() => (tableData.value?.actions ?? []).filter(a => a
 const toolbarActions = computed(() => (tableData.value?.actions ?? []).filter(a => a.kind === 'toolbar'))
 const bulkActions = computed(() => (tableData.value?.actions ?? []).filter(a => a.kind === 'bulk'))
 
-// The table's own columns plus one trailing action column per row action.
+// Whether the card has a header row at all (create / page actions / search / filters).
+const hasToolbar = computed(() => {
+  const meta = tableData.value
+  if (!meta) return false
+  return !!meta.createForm || !!meta.search || !!meta.filters || toolbarActions.value.length > 0
+})
+
+// The table's own columns plus a single trailing "⋯" menu cell holding every
+// row action — long action titles live in the dropdown, not in the row.
 const columns = computed<TableColumn<any>[]>(() => {
   const base = tableData.value?.table ?? []
-  const actionCols = rowActions.value.map((action): TableColumn<any> => ({
+  if (rowActions.value.length === 0) return base
+  const menuColumn: TableColumn<any> = {
     title: '',
-    width: action.icon && !action.title ? 48 : 120,
-    icon: action.icon,
-    text: action.icon ? undefined : action.title,
-    onClick: (id: any) => invokeAction(action, { itemId: id }),
-  }))
-  return [...base, ...actionCols]
+    width: 56,
+    menu: rowActions.value.map((action) => ({
+      title: action.title || action.name,
+      icon: action.icon,
+      danger: action.danger,
+      onClick: (id: any) => invokeAction(action, { itemId: id }),
+    })),
+  }
+  return [...base, menuColumn]
 })
 
 // Runs an action: opens a form dialog when it has a form, a confirm dialog when
@@ -220,6 +247,7 @@ const invokeAction = (action: ActionMeta, target: { itemId?: any, itemIds?: any[
       title: action.title,
       text: action.confirm,
       confirmTitle: action.title,
+      danger: action.danger,
       onConfirm: run,
     })
   } else {
@@ -271,6 +299,7 @@ const deleteItems = async () => {
     title: t('confirm.deleteTitle', { count: ids.length }),
     text: t('confirm.irreversible'),
     confirmTitle: t('confirm.delete'),
+    danger: true,
     async onConfirm() {
       await dataApi.deleteItems(viewId.value, ids)
       await mutateRequestFull(dataApi.getData)
@@ -281,44 +310,67 @@ const deleteItems = async () => {
 </script>
 
 <style lang="sass">
-.data-page__toolbar
+.data-page__header
   display: flex
   align-items: center
+  gap: 10px
+  margin-bottom: 16px
+  min-height: 32px
+
+  h1
+    margin: 0
+
+.data-page__count
+  font-size: 12px
+  font-weight: 600
+  color: var(--text-secondary-color)
+  background-color: var(--background-active-color)
+  border-radius: 999px
+  padding: 2px 9px
+  line-height: 1.4
+
+// --- The data card: toolbar header / table / pagination footer in one frame ---
+.data-card
+  border: 1px solid var(--border-color)
+  border-radius: 12px
+  background-color: var(--paper-color)
+  overflow: hidden
+
+.data-card__toolbar
+  position: relative
+  display: flex
+  align-items: center
+  flex-wrap: wrap
   gap: 8px
-  margin-top: 12px
+  padding: 10px 12px
+  // Keeps the row 56px tall even when it only hosts the selection overlay
+  // (pages with delete but no search/create).
+  min-height: 36px
+  border-bottom: 1px solid var(--border-color)
 
-  .data-page__toolbar-spacer
-    flex: 1 1 auto
-
-  .v-button.danger
-    background-color: var(--error-color)
-    color: white
-    border-color: transparent
-
-    &:hover
-      background-color: color-mix(in srgb, var(--error-color) 88%, white)
-
-    &.outline
-      background: none
-      color: var(--error-color)
-      border: 1px solid color-mix(in srgb, var(--error-color) 40%, transparent)
-
-      &:hover
-        background-color: color-mix(in srgb, var(--error-color) 12%, transparent)
-
-.data-page__search
+.data-card__search
   display: flex
   align-items: center
-  height: 38px
+  height: 36px
+  box-sizing: border-box
   padding: 0 6px 0 12px
   border: 1px solid var(--input-border-color)
+  background-color: var(--input-background)
   border-radius: 8px
-  gap: 6px
-  min-width: 240px
+  gap: 8px
+  // Grows into the free toolbar space, within reason.
+  flex: 1 1 220px
+  min-width: 180px
+  max-width: 340px
+  transition: border-color 0.12s, box-shadow 0.12s
 
-  .data-page__search-icon
-    width: 15px
-    height: 15px
+  &:focus-within
+    border-color: var(--primary-color)
+    box-shadow: 0 0 0 3px var(--shadow-color)
+
+  .data-card__search-icon
+    width: 16px
+    height: 16px
     color: var(--text-secondary-color)
     flex-shrink: 0
 
@@ -329,42 +381,61 @@ const deleteItems = async () => {
     outline: none
     color: var(--text-color)
     font-size: 13px
+    min-width: 0
 
     &::placeholder
       color: var(--placeholder-color)
 
-.data-page__table
-  margin-top: 12px
-  border-radius: 12px
-  flex: 1 1 auto
-  border: 1px solid var(--border-color)
+  .v-icon-button
+    width: 24px
+    height: 24px
 
-  .v-table__header
-    border-radius: 12px 12px 0 0
+    svg
+      width: 14px
+      height: 14px
 
-.data-page__state
-  margin-top: 12px
-  padding: 48px 24px
+// Selection mode covers the toolbar in place: same box, so the layout never
+// shifts, and the search/filter inputs stay mounted underneath.
+.data-card__selection
+  position: absolute
+  inset: 0
+  z-index: 3
+  display: flex
+  align-items: center
+  flex-wrap: wrap
+  gap: 8px
+  padding: 0 12px
+  background-color: color-mix(in srgb, var(--primary-color) 7%, var(--paper-color))
+
+  .v-icon-button
+    color: var(--text-secondary-color)
+
+    &:hover
+      color: var(--text-color)
+
+.data-card__selection-count
+  font-size: 13px
+  font-weight: 550
+  margin-right: 8px
+
+.data-card__state
+  padding: 56px 24px
   display: flex
   flex-direction: column
   align-items: center
   gap: 14px
-  border: 1px solid var(--border-color)
-  border-radius: 12px
   text-align: center
 
-  &.data-page__state--muted
+  &.data-card__state--muted
     color: var(--text-secondary-color)
 
   p
     margin: 0
 
-.data-page__pagination
+.data-card__footer
   display: flex
   align-items: center
-  gap: 12px
-  margin-top: 12px
-  font-size: 14px
-  color: var(--text-secondary-color)
+  padding: 8px 10px
+  border-top: 1px solid var(--border-color)
 
 </style>

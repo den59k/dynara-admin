@@ -59,7 +59,7 @@ const labelPosition = computed(() => {
 .v-checkbox__icon.active
   color: white
   background-color: var(--primary-color)
-  border-color: var(--primary-color)
+  border-color: var(--primary-color) !important
 
   svg
     opacity: 1
@@ -73,29 +73,31 @@ const labelPosition = computed(() => {
 .v-checkbox__icon
   width: 16px
   height: 16px
-  border: 1px solid #CCCCCC
+  border: 1px solid var(--input-border-color)
   border-radius: 4px
+  background-color: var(--input-background)
   display: flex
   align-items: center
   justify-content: center
-  transition: background-color 0.1s
+  transition: background-color 0.1s, border-color 0.1s
+  box-sizing: border-box
+  flex-shrink: 0
 
   &.light
-    border-color: var(--input-border-color)
     cursor: pointer
 
   &:hover
-    border-color: #999999
+    border-color: var(--text-secondary-color)
 
   &:active
-    border-color: #777777
-  
+    border-color: var(--text-unselected-color)
+
   @media(max-width: 800px)
     margin-top: 0
-  
+
   svg
-    width: 18px
-    height: 18px
+    width: 14px
+    height: 14px
     opacity: 0
 
 </style>

@@ -61,12 +61,16 @@ const onSubmit = async () => {
 
 .auth-page__form
   width: 400px
+  background-color: var(--paper-color)
   border: 1px solid var(--border-color)
-  border-radius: 20px
+  border-radius: 16px
   padding: 40px
-  box-shadow: 0 4px 8px 8px rgba(0, 0, 0, 0.12)
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35)
   max-width: 96vw
   box-sizing: border-box
+
+  h1
+    margin-bottom: 24px
 
   @media(max-width: 400px)
     padding: 20px

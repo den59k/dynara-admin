@@ -77,28 +77,36 @@ const logout = () => {
   display: flex
   flex-direction: column
   padding: 20px 0
+  gap: 1px
 
   &>h3
     margin-top: 0
     margin-bottom: 16px
-    padding: 0 24px
+    padding: 0 22px
+    font-size: 15px
+    font-weight: 650
+    letter-spacing: -0.01em
 
   &>a, &>button
     text-decoration: none
-    height: 40px
-    padding: 0 16px
+    height: 36px
+    padding: 0 12px
     display: flex
     align-items: center
     border-radius: 8px
-    margin: 0 6px
+    margin: 0 10px
     background: none
     border: none
     color: var(--text-unselected-color)
-    gap: 8px
+    font-size: 13.5px
+    font-weight: 500
+    gap: 10px
     cursor: pointer
+    flex-shrink: 0
 
     &:hover
       background-color: var(--hover-color)
+      color: var(--text-color)
       text-decoration: none
 
     &.router-link-active
@@ -106,15 +114,16 @@ const logout = () => {
       color: var(--text-color)
 
     &>svg
-      width: 18px
-      height: 18px
+      width: 17px
+      height: 17px
       flex-shrink: 0
+      opacity: 0.75
 
 .app-sidebar__group
   font-size: 11px
   font-weight: 600
   text-transform: uppercase
-  letter-spacing: 0.04em
+  letter-spacing: 0.05em
   color: var(--text-secondary-color)
   padding: 16px 22px 6px
   user-select: none

@@ -198,7 +198,7 @@ adminPanel
   .primaryKey("id", "number")
   // ...
 
-  // Row action (default) — a per-row button (visible on hover) that receives
+  // Row action (default) — listed in the row's "⋯" menu; the handler receives
   // that row's primary key. A `form` opens a dialog first; the validated body
   // is the handler's second argument. Forms use the same schema as createForm,
   // so every input type works (selects, references, file uploads, …).

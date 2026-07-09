@@ -50,8 +50,11 @@
           <template v-else>{{ formatValue(cellValue(item, col), col) }}</template>
         </div>
         <div v-else-if="isTemplateColumn(col)">{{ getTemplateRenderer(col.template)(item as any) }}</div>
+        <div v-else-if="isMenuColumn(col)" class="v-table__actions">
+          <VMenu :items="rowMenuItems(col, item)" />
+        </div>
         <div v-else-if="isActionColumn(col)" class="v-table__actions">
-          <VButton flat @click.stop="col.onClick(itemKey ? (item as any)[itemKey] : item)">
+          <VButton flat small @click.stop="col.onClick(itemKey ? (item as any)[itemKey] : item)">
             <VIcon v-if="col.icon" :icon="col.icon" />
             <span v-if="col.text">{{ col.text }}</span>
           </VButton>
@@ -66,6 +69,7 @@ import { type CSSProperties, computed, reactive, watch } from 'vue'
 import { compileTemplate } from 'itomori'
 import VIcon from './VIcon.vue'
 import VButton from './VButton.vue'
+import VMenu, { type MenuItem } from './VMenu.vue'
 import { badgeColor, formatValue } from '../utils/formatCell'
 
 const props = defineProps<{
@@ -88,7 +92,17 @@ const emit = defineEmits<{
 
 const isFieldColumn = (col: TableColumn<T>): col is FieldColumn<T> => 'field' in col
 const isTemplateColumn = (col: TableColumn<T>): col is TemplateColumn<T> => 'template' in col
+const isMenuColumn = (col: TableColumn<T>): col is MenuColumn<T> => 'menu' in col
 const isActionColumn = (col: TableColumn<T>): col is ActionColumn<T> => 'onClick' in col
+
+// Bind each row-menu entry's handler to this row's primary key.
+const rowMenuItems = (col: MenuColumn<T>, item: T): MenuItem[] =>
+  col.menu.map((entry) => ({
+    title: entry.title,
+    icon: entry.icon,
+    danger: entry.danger,
+    onClick: () => entry.onClick(props.itemKey ? (item as any)[props.itemKey] : item),
+  }))
 
 const cellValue = (item: T, col: FieldColumn<T>): any => (item as any)[col.field]
 
@@ -203,7 +217,12 @@ export type ActionColumn<T, KeyType = any> = ColumnBase & {
   onClick: (itemId: KeyType) => Promise<void> | void
 }
 
-export type TableColumn<T, KeyType = any> = FieldColumn<T> | TemplateColumn<T> | ActionColumn<T, KeyType>
+// A trailing "⋯" cell opening a dropdown with all the row's actions.
+export type MenuColumn<T, KeyType = any> = ColumnBase & {
+  menu: { title: string, icon?: string, danger?: boolean, onClick: (itemId: KeyType) => void }[]
+}
+
+export type TableColumn<T, KeyType = any> = FieldColumn<T> | TemplateColumn<T> | ActionColumn<T, KeyType> | MenuColumn<T, KeyType>
 </script>
 
 <style lang="sass">
@@ -223,12 +242,11 @@ export type TableColumn<T, KeyType = any> = FieldColumn<T> | TemplateColumn<T> |
     padding-left: 16px
 
 .v-table__header
-  font-size: 13px
-  font-weight: 500
+  font-size: 12px
+  font-weight: 550
   color: var(--text-secondary-color)
   height: 40px
   box-sizing: border-box
-  background-color: var(--paper-color)
   border-bottom: 1px solid var(--border-color)
 
   .v-table__sortable
@@ -245,14 +263,14 @@ export type TableColumn<T, KeyType = any> = FieldColumn<T> | TemplateColumn<T> |
 
 
 .v-table__row
-  height: 50px
+  height: 46px
   text-decoration: none
   color: var(--text-color)
-  font-weight: 500
+  font-weight: 450
   text-align: left
   background: none
   border: none
-  font-size: 14px
+  font-size: 13.5px
   border-bottom: 1px solid var(--border-color)
   padding: 0
   box-sizing: border-box
@@ -285,7 +303,7 @@ a.v-table__row
   height: 16px
 
   &.v-table__bool--true
-    color: #2ecc71
+    color: var(--success-color)
 
   &.v-table__bool--false
     color: var(--text-secondary-color)
@@ -311,8 +329,5 @@ a.v-table__row
   padding-right: 8px
   justify-content: flex-end
   gap: 8px
-  display: none
-
-.v-table__row:hover .v-table__actions
   display: flex
 </style>

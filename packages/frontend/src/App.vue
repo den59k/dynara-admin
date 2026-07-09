@@ -24,11 +24,11 @@ if (!token) {
 </script>
 
 <style lang="sass">
-:root 
+:root
   --sidebar-width: 220px
-  --padding: 40px
+  --padding: 36px
 .app-layout
-  padding: 24px var(--padding)
+  padding: 28px var(--padding) 48px
   padding-left: calc(var(--sidebar-width) + var(--padding))
 
 </style>

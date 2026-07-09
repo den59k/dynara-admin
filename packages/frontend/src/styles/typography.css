@@ -1,22 +1,24 @@
 body, input, button, textarea, label {
-  font-family: "Inter", sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
   color: var(--text-color);
   font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1 {
-  font-size: 24px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   margin-top: 0;
-  margin-bottom: 20px
+  margin-bottom: 20px;
 }
 
 a {
   color: var(--text-active-color);
   text-decoration: none;
-  
 }
 a:hover {
   text-decoration: underline;

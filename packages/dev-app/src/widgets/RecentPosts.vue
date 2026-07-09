@@ -51,8 +51,8 @@ defineProps<{ data?: { posts: { id: number; title: string; published: boolean }[
   background-color: color-mix(in srgb, var(--text-secondary-color) 15%, transparent);
 }
 .recent-posts__badge.is-published {
-  color: #2ecc71;
-  background-color: color-mix(in srgb, #2ecc71 15%, transparent);
+  color: var(--success-color);
+  background-color: color-mix(in srgb, var(--success-color) 15%, transparent);
 }
 .recent-posts__empty {
   color: var(--text-secondary-color);

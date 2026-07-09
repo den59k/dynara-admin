@@ -79,15 +79,16 @@ const onChange = async (e: Event) => {
   justify-content: space-between
   gap: 8px
   flex-grow: 1
-  min-height: 40px
-  padding: 0 8px 0 12px
+  min-height: var(--control-height, 36px)
+  padding: 0 4px 0 12px
   font-size: 13px
 
   .v-button
-    height: 30px
+    height: 28px
+    padding: 0 10px
 
 .v-file-input__link
-  color: var(--primary-color)
+  color: var(--text-active-color)
   overflow: hidden
   text-overflow: ellipsis
   white-space: nowrap

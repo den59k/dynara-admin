@@ -41,6 +41,8 @@ type JsonInputProps = {
   modelValue?: any,
   label?: string,
   name?: string,
+  placeholder?: string,
+  nullable?: boolean,
   style?: CSSProperties,
   "onUpdate:modelValue"?: (value: any) => void
 }

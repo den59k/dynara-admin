@@ -2,7 +2,9 @@
   <component :is="props.component ?? 'div'" class="v-dialog scroll editor-component" role="dialog">
     <div v-if="slots.header" class="v-dialog__header heading">
       <slot name="header"></slot>
-      <VIconButton role="button" class="close-icon" icon="close" @click="dialog.close"/>
+      <!-- back(), not close(): it runs the dialog's dirty-guard and only
+           dismisses this dialog, not the whole stack. -->
+      <VIconButton role="button" class="close-icon" icon="close" @click="dialog.back()"/>
     </div>
     <div class="v-dialog__content" :class="[props['content:class'], slots.actions? '': 'bottom-padding']" >
       <slot></slot>
@@ -17,7 +19,6 @@
 import { useSlots } from 'vue';
 import { useDialog } from './VDialogProvider.vue';
 import VIconButton from './VIconButton.vue';
-import CloseMinIcon from './icons/CloseMinIcon.vue';
 
 const slots = useSlots()
 
@@ -30,7 +31,9 @@ const dialog = useDialog()
 <style lang="sass">
 .v-dialog
   background-color: var(--paper-color)
-  border-radius: 16px
+  border: 1px solid var(--border-color)
+  border-radius: 14px
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4)
   position: relative
   max-width: 94vw
   --padding: 0 24px
@@ -57,12 +60,12 @@ const dialog = useDialog()
       width: 100%
 
 .v-dialog__header
-  font-size: 18px
-  // font-weight: 700
+  font-size: 16px
+  font-weight: 600
   padding: var(--padding)
   display: flex
   align-items: center
-  height: 60px
+  height: 56px
   border-bottom: 1px solid var(--border-color)
   position: relative
   width: 100%
@@ -74,14 +77,18 @@ const dialog = useDialog()
     width: 32px
     height: 32px
     margin-left: auto
-    
+    color: var(--text-secondary-color)
+
+    &:hover
+      color: var(--text-color)
+
 .v-dialog__content
   padding: var(--padding)
-  padding-top: 16px
+  padding-top: 20px
   padding-bottom: 4px
 
   &.bottom-padding
-    padding-bottom: 16px
+    padding-bottom: 20px
 
 .v-dialog__actions
   padding: var(--padding)
@@ -89,7 +96,7 @@ const dialog = useDialog()
   display: flex
   justify-content: flex-end
   align-items: center
-  height: 82px
+  height: 76px
   gap: 8px
 
 </style>

@@ -109,7 +109,7 @@ export const useToast = () => injectToast("toastStore") as ToastStore
     flex-shrink: 0
 
   &.v-toast--success .v-toast__icon
-    color: #2ecc71
+    color: var(--success-color)
 
   &.v-toast--error .v-toast__icon
     color: var(--error-color)

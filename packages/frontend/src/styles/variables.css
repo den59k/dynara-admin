@@ -1,32 +1,41 @@
 :root {
-  --primary-color: #3B40D5;
+  --primary-color: #4B50E6;
   --primary-color-hover: color-mix(in srgb, var(--primary-color) 85%, white);
-  --primary-color-pressed: color-mix(in srgb, var(--primary-color) 90%, black);
+  --primary-color-pressed: color-mix(in srgb, var(--primary-color) 88%, black);
+  --primary-color-active: var(--primary-color-pressed);
 
-  --focus-color: color-mix(in srgb, #3B40D5 40%, transparent);
+  --focus-color: color-mix(in srgb, var(--primary-color) 40%, transparent);
+  /* Soft outer ring painted on :focus-within around inputs. */
+  --shadow-color: color-mix(in srgb, var(--primary-color) 18%, transparent);
 
-  --paper-color: #161618;
-  --background-color: #1B1B1F;
-  --popover-color: #161618;
-  
-  --text-color: #FFFFFF;
+  /* Elevation: page < paper (cards, dialogs, toasts) < popover (dropdowns, menus). */
+  --background-color: #17171A;
+  --paper-color: #1E1E22;
+  --popover-color: #232328;
 
-  --border-color: #252529;
+  --text-color: #F2F2F4;
+  --text-color-alt: #B9B9C1;
+  --text-unselected-color: #A2A2AC;
+  --text-secondary-color: #7C7C87;
+  --placeholder-color: #6E6E79;
+  --text-active-color: #9A9DF2;
+  --icon-color: var(--text-secondary-color);
 
-  --text-unselected-color: #A9A9B1;
-  --text-secondary-color: #777781;
-  --placeholder-color: #777781;
+  --border-color: #26262B;
 
-  --input-border-color: #2E2E32;
+  --input-border-color: #303036;
+  --input-background: rgba(255, 255, 255, 0.02);
+  --blocks-color: var(--paper-color);
 
-  --hover-color: rgba(255, 255, 255, 0.01);
+  --hover-color: rgba(255, 255, 255, 0.05);
 
   --error-color: #DE3D5D;
-  
+  --success-color: #34C77B;
+
   /* Selected */
   --selected-color: color-mix(in srgb, var(--primary-color) 15%, transparent);
   --selected-hover-color: color-mix(in srgb, var(--primary-color) 20%, white);
 
   /* Active background */
-  --background-active-color: rgb(255 255 255 / 0.04);
+  --background-active-color: rgb(255 255 255 / 0.05);
 }

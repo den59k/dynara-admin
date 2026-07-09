@@ -5,8 +5,8 @@
     </template>
     <div class="confirm-dialog__text">{{ props.text }}</div>
     <template #actions>
-      <VButton outline @click="dialog.back">{{ t('dialog.cancel') }}</VButton>
-      <VButton :disabled="pending" @click="apply">{{ props.confirmTitle ?? t('confirm.apply') }}</VButton>
+      <VButton outline @click="dialog.back()">{{ t('dialog.cancel') }}</VButton>
+      <VButton :class="{ danger: props.danger }" :disabled="pending" @click="apply">{{ props.confirmTitle ?? t('confirm.apply') }}</VButton>
     </template>
   </VDialog>
 </template>
@@ -20,6 +20,8 @@ const props = defineProps<{
   title?: string,
   text?: string,
   confirmTitle?: string,
+  // Style the confirm button as destructive (delete, discard changes, …).
+  danger?: boolean,
   onConfirm?: ConfirmCallback
 }>()
 
