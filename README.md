@@ -348,6 +348,62 @@ A field column can carry a `type` hint so the value renders as more than raw tex
 
 ---
 
+## Dashboard
+
+`adminPanel.dashboard(widgets)` replaces the default home page with a grid of
+widgets. There are two kinds: built-in **stat** cards (a big number, the 90% case)
+and **custom Vue** widgets. Each widget's `data` resolver runs server-side and its
+result is delivered to the widget; stat data is rendered by the panel, a component
+widget's data is passed to your `.vue` file as its `data` prop.
+
+```typescript
+adminPanel.dashboard([
+  // Built-in stat card. `data` returns { value, label?, delta? }. `link` makes
+  // the card navigate to a page; `span` sets how many grid columns it occupies.
+  { type: "stat", title: "Users", icon: "users", link: "users",
+    data: async (ctx) => ({ value: await db.users.count() }) },
+
+  { type: "stat", title: "Published", icon: "check",
+    data: async (ctx) => {
+      const [total, live] = [await db.posts.count(), await db.posts.count({ published: true })]
+      return { value: live, label: `of ${total}`, delta: Math.round((live / total) * 100) }  // delta → ▲/▼ %
+    } },
+
+  // Custom Vue widget: a .vue file (compiled & served like a page component). Its
+  // `data` resolver's output arrives as the component's `data` prop.
+  { type: "component", title: "Recent posts", span: 2,
+    component: join(import.meta.dir, "widgets", "RecentPosts.vue"),
+    data: async (ctx) => ({ posts: await db.posts.findMany({ take: 6, orderBy: { id: "desc" } }) }) },
+])
+```
+
+```vue
+<!-- widgets/RecentPosts.vue -->
+<template>
+  <ul>
+    <li v-for="p in data?.posts ?? []" :key="p.id">{{ p.title }}</li>
+  </ul>
+</template>
+<script setup lang="ts">
+defineProps<{ data?: { posts: { id: number; title: string }[] } }>()
+</script>
+```
+
+| Widget field | Applies to | Description |
+|---|---|---|
+| `type` | both | `"stat"` or `"component"` |
+| `title` | both | Card heading |
+| `icon` | both | Icon name from the built-in set |
+| `span` | both | Grid columns to occupy, 1–4 (default 1) |
+| `data` | both | Server-side resolver; receives `ctx` (`ctx.user`). Required for `stat`, optional for `component` |
+| `link` | stat | Page path to navigate to on click |
+| `component` | component | Absolute path to a `.vue` file rendered with the resolved `data` as a prop |
+
+The dashboard is the home page whenever it's configured and no page is registered
+at `path: "/"`.
+
+---
+
 ## dyn-orm
 
 `dyn-orm` is a lightweight, type-safe query builder included in this repository as a local workspace package. It is **not published to npm** — import it through the monorepo workspace (`"dyn-orm": "*"` in your workspace `package.json`).

@@ -245,15 +245,71 @@ export type PageMeta = {
   filters?: { schema: SchemaItem },
 }
 
+// The value a `stat` widget's data resolver returns.
+export type StatValue = { value: string | number, label?: string, delta?: number }
+
+// A dashboard widget's serializable descriptor (sent to the frontend). The data
+// resolver stays server-side; its result is fetched from `${apiBase}/dashboard/:i/data`.
+export type DashboardWidgetMeta = {
+  type: "stat" | "component",
+  title?: string,
+  icon?: string,
+  // Grid columns to span (1–4); default 1.
+  span?: number,
+  // Page path a `stat` widget links to on click.
+  link?: string,
+  // Custom-component key a `component` widget renders (served from /custom/:name).
+  component?: string,
+  // Whether the widget has a server-side data resolver to fetch.
+  hasData: boolean,
+}
+
+// A built-in stat card: a big number with an optional label, trend, icon, and link.
+export type StatWidget<User = unknown> = {
+  type: "stat",
+  title: string,
+  icon?: string,
+  span?: number,
+  link?: string,
+  data: (ctx: RequestContext<User>) => StatValue | Promise<StatValue>,
+}
+
+// A custom Vue widget: a `.vue` file (compiled and served like a page component)
+// that receives the resolved `data` as its `data` prop.
+export type ComponentWidget<User = unknown> = {
+  type: "component",
+  title?: string,
+  span?: number,
+  component: string,
+  data?: (ctx: RequestContext<User>) => any | Promise<any>,
+}
+
+export type DashboardWidget<User = unknown> = StatWidget<User> | ComponentWidget<User>
+
 export type AdminPanel<User = unknown> = {
   createPage<T extends object>(options: CreatePageOptions<User>): PageWithPrimaryKey<T, string, T, User>,
   register<T extends any[]>(func: AdminPanelPlugin<T>, ...options: T): void
   registerAuthMethod<T extends SchemaItem>(method: AuthMethod<T, User>): void
+  // Configure the home dashboard from a list of widgets (built-in stats and/or
+  // custom Vue components). Replaces the default empty home page.
+  dashboard(widgets: DashboardWidget<User>[]): void
 }
 
 export type AdminPanelDynara<User = unknown> = ((app: Router<any>) => Promise<void>) & AdminPanel<User>
 
 type Ctx = RequestContext<any>
+
+// Internal storage for a dashboard widget: its descriptor plus the server-side
+// data resolver. For component widgets, `component` holds the registered key.
+type DashboardWidgetEntry = {
+  type: "stat" | "component",
+  title?: string,
+  icon?: string,
+  span?: number,
+  link?: string,
+  component?: string,
+  data?: (ctx: Ctx) => any,
+}
 
 // Internal storage for a declared action: its serializable descriptor plus the
 // server-side handler and the (already-unfolded) form schema.
@@ -304,6 +360,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
   const componentFiles = new Map<string, string>()
 
   const pages: PageEntry[] = []
+  const dashboardWidgets: DashboardWidgetEntry[] = []
   // Reference methods extracted from form schemas (see registerReferenceMethods),
   // keyed by a page-qualified id and served from `${apiBase}/select/:refId`.
   const referenceMethods = new Map<string, ReferenceMethod<User>>()
@@ -558,6 +615,26 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       })
     }
 
+    // Dashboard: the widget list (descriptors) plus a per-widget data endpoint.
+    if (dashboardWidgets.length > 0) {
+      app.get(`${apiBase}/dashboard`, async () =>
+        dashboardWidgets.map((w): DashboardWidgetMeta => ({
+          type: w.type,
+          title: w.title,
+          icon: w.icon,
+          span: w.span,
+          link: w.link,
+          component: w.component,
+          hasData: !!w.data,
+        }))
+      )
+      app.get(`${apiBase}/dashboard/:index/data`, [schema({ index: "number" })], async (req) => {
+        const widget = dashboardWidgets[req.params.index]
+        if (!widget || !widget.data) throw new HTTPError("Not found", 404)
+        return await widget.data({ user: (req as any).user })
+      })
+    }
+
     // Async options for select fields declared with an inline `reference` method.
     // One route serves every form's reference methods, keyed by page-qualified id.
     if (referenceMethods.size > 0) {
@@ -612,6 +689,10 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
 
       if (pages.find(i => i.path === '/')) {
         code.push(`window.__DYNARA_CUSTOM_HOME_PAGE__ = true`)
+      } else if (dashboardWidgets.length > 0) {
+        // No explicit home page but a dashboard is configured — the "/" route
+        // renders it instead of the empty placeholder home.
+        code.push(`window.__DYNARA_DASHBOARD__ = true`)
       }
 
       indexHtml = indexHtml.replace("</body>", `<script>\n${code.join('\n')}\n</script>\n</body>`)
@@ -811,6 +892,22 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
   plugin.registerAuthMethod = <T extends SchemaItem>(method: AuthMethod<T, User>) => {
     method.fields = unfoldSchema(method.fields) as T
     authMethod = method as unknown as AuthMethodInternal<User>
+  }
+
+  plugin.dashboard = (widgets: DashboardWidget<User>[]) => {
+    for (const w of widgets) {
+      if (w.type === "component") {
+        // Register the .vue file for on-demand compilation + serving, like page
+        // components. Keyed by widget index so identically-named files don't clash.
+        const idx = Math.max(w.component.lastIndexOf("/"), w.component.lastIndexOf("\\"))
+        const name = w.component.slice(idx + 1)
+        const key = `dashboard__${dashboardWidgets.length}__${name}`
+        componentFiles.set(key, w.component)
+        dashboardWidgets.push({ ...w, component: key, data: w.data as any })
+      } else {
+        dashboardWidgets.push({ ...w })
+      }
+    }
   }
 
   return plugin as any

@@ -44,6 +44,12 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
   `{ read, write, delete }`. Enforced server-side (403 on the routes) and reflected in the
   UI with no frontend changes: `/pages` is filtered by `read`, and each page's metadata is
   computed per user so hidden facets drop their Add/Edit/Delete/action affordances.
+- **Dashboard (3.4)** — `adminPanel.dashboard(widgets)` replaces the empty home page with a
+  responsive grid of built-in **stat** cards (value/label/delta, optional link) and
+  **custom Vue widgets** (compiled and served via the existing `.component()` pipeline,
+  receiving their server-resolved `data` as a prop). Per-widget `data` resolvers are served
+  from `${apiBase}/dashboard/:i/data`; the home route renders it via a `__DYNARA_DASHBOARD__`
+  flag when no `path: "/"` page exists.
 
 ### Upstream package improvements (dynara / compact-json-schema are ours too)
 
@@ -72,7 +78,6 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
 
 ### Remaining known gaps
 
-- `HomePage.vue` is an empty stub. *(M3.4)*
 - No skeleton rows during a param-change refetch (only a first-load "Loading…"). *(M2.3
   polish)*
 - No page-size selector or numbered pages yet. *(M2.3 polish)*
@@ -308,7 +313,7 @@ already there for the client side.)
 | ✅ done | 2.1 column formatters, 2.2 URL state, 2.3 table states | Makes tables genuinely usable on real data |
 | ✅ done | 1.4 typed filters | Typed filtering beyond free-text search |
 | ✅ done | 3.3 access control | Per-user RBAC, zero-DB |
-| **P1** | 3.4 dashboard | Replace the empty HomePage stub |
+| ✅ done | 3.4 dashboard | Stat cards + custom Vue widgets on the home page |
 | **P2** | 4.1 item view, 4.2 forms, 4.3 export | Depth features |
 | **P3** | Milestone 5 | Platform maturity |
 

@@ -634,6 +634,58 @@ describe("admin panel — access control", () => {
   })
 })
 
+describe("admin panel — dashboard", () => {
+  const buildDashApp = () => {
+    let statHits = 0
+    const admin = createAdminPanel()
+    admin.dashboard([
+      { type: "stat", title: "Users", icon: "users", link: "users", data: async () => { statHits++; return { value: 42 } } },
+      { type: "component", title: "Chart", span: 2, component: "/abs/path/Chart.vue", data: async () => ({ points: [1, 2, 3] }) },
+      { type: "component", title: "Static", component: "/abs/path/Static.vue" },
+    ])
+    const app = new Router()
+    app.register(admin)
+    return { app, getStatHits: () => statHits }
+  }
+
+  it("lists widget descriptors with hasData and a component key", async () => {
+    const { app } = buildDashApp()
+    const widgets: any = await (await app.inject("/api/admin/dashboard")).json()
+
+    expect(widgets).toHaveLength(3)
+    expect(widgets[0]).toMatchObject({ type: "stat", title: "Users", icon: "users", link: "users", hasData: true })
+    expect(widgets[1]).toMatchObject({ type: "component", title: "Chart", span: 2, hasData: true })
+    // Component .vue files are registered under a dashboard-qualified key.
+    expect(widgets[1].component).toBe("dashboard__1__Chart.vue")
+    expect(widgets[2]).toMatchObject({ type: "component", title: "Static", hasData: false })
+  })
+
+  it("serves a widget's server-resolved data", async () => {
+    const { app, getStatHits } = buildDashApp()
+    const stat = await app.inject("/api/admin/dashboard/0/data")
+    expect(stat.status).toBe(200)
+    expect(await stat.json()).toEqual({ value: 42 })
+    expect(getStatHits()).toBe(1)
+
+    const comp = await app.inject("/api/admin/dashboard/1/data")
+    expect(await comp.json()).toEqual({ points: [1, 2, 3] })
+  })
+
+  it("404s data for a widget with no resolver or an unknown index", async () => {
+    const { app } = buildDashApp()
+    expect((await app.inject("/api/admin/dashboard/2/data")).status).toBe(404)
+    expect((await app.inject("/api/admin/dashboard/99/data")).status).toBe(404)
+  })
+
+  it("omits the dashboard routes when no widgets are configured", async () => {
+    const admin = createAdminPanel()
+    admin.createPage({ title: "X", path: "x" }).data(async () => ({ items: [], total: 0 }))
+    const app = new Router()
+    app.register(admin)
+    expect((await app.inject("/api/admin/dashboard")).status).toBe(404)
+  })
+})
+
 describe("static asset path resolution", () => {
   const dir = normalize("/srv/app/frontend")
   const prefix = "/admin/assets/"
