@@ -1,6 +1,6 @@
 {
   "name": "dynara-admin",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
@@ -19,11 +19,11 @@
   },
   "devDependencies": {
     "bunup": "^0.16.31",
-    "dynara": "^0.0.4",
+    "dynara": "^0.0.5",
     "@sinclair/typebox": "^0.34.37"
   },
   "peerDependencies": {
-    "dynara": "^0.0.4",
+    "dynara": "^0.0.5",
     "compact-json-schema": "^0.1.7",
     "@sinclair/typebox": "^0.34.0"
   },
