@@ -1,6 +1,7 @@
 import vuePlugin from "../plugins/vue-plugin.ts"
 import svgPlugin from "../plugins/svg-plugin.ts"
-import { rm, cp } from "node:fs/promises"
+import { rm, cp, mkdir, readdir } from "node:fs/promises"
+import { join } from "node:path"
 import { rollup } from "rollup"
 import { dts } from "rollup-plugin-dts"
 import { Glob } from "bun"
@@ -120,8 +121,22 @@ const html = (await Bun.file(htmlPath).text()).replace(
 await Bun.write(htmlPath, html)
 
 // 4) Копируем результат в бэкенд.
-await cp(OUT, "../backend/dist/frontend", { recursive: true })
-await cp(OUT, "../backend/src/frontend", { recursive: true })
+//    Чистим приёмник перед копированием: cp только дописывает файлы, а имена
+//    чанков хешированные — иначе там копятся чанки от всех прошлых сборок
+//    (устаревшие иконки/стили уезжают в опубликованный пакет).
+//    Удаляем содержимое, а не сам каталог: на Windows каталог бывает занят
+//    (dev-сервер под `bun --watch` держит его открытым) и rm падает с EBUSY.
+async function replaceDir(dest: string) {
+  // recursive:true всё равно кидает EEXIST на Windows в текущем Bun.
+  await mkdir(dest, { recursive: true }).catch(() => {})
+  for (const entry of await readdir(dest)) {
+    await rm(join(dest, entry), { recursive: true, force: true })
+  }
+  await cp(OUT, dest, { recursive: true })
+}
+
+await replaceDir("../backend/dist/frontend")
+await replaceDir("../backend/src/frontend")
 
 console.info("Build complete →", OUT, "→ ../backend/{dist,src}/frontend")
 

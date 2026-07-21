@@ -43,6 +43,16 @@ const userForm = {
   birthday: "date??",
 } as const
 
+// Maps the list options' `search`/`filter` to a MarciDB `$where`. Shared by the
+// Users page's `.data()` and `.count()` so the two never drift apart.
+const buildUserWhere = ({ search, filter }: { search?: string; filter?: Record<string, any> }): any => {
+  const conditions: any[] = []
+  if (search) conditions.push({ name: { $includes: search } })
+  if (filter?.role) conditions.push({ role: filter.role })
+  if (filter?.minBalance != null) conditions.push({ balance: { $gte: filter.minBalance } })
+  return conditions.length ? { $and: conditions } : undefined
+}
+
 admin
   // `access` as a bare predicate gates the whole page: only admins see Users in
   // the sidebar; a viewer hitting its routes gets 403.
@@ -53,14 +63,12 @@ admin
     role: { type: "string?", options: [{ value: "user", label: "User" }, { value: "moderator", label: "Moderator" }] },
     minBalance: "number?",
   })
-  .data(async ({ take, skip, sort, search, filter }) => {
-    const conditions: any[] = []
-    if (search) conditions.push({ name: { $includes: search } })
-    if (filter?.role) conditions.push({ role: filter.role })
-    if (filter?.minBalance != null) conditions.push({ balance: { $gte: filter.minBalance } })
-    const $where: any = conditions.length ? { $and: conditions } : undefined
+  // Shared filter → MarciDB `$where`, so `.data()` and `.count()` stay in sync
+  // without duplicating the mapping. Reads only `search`/`filter` off the options.
+  .data(async ({ take, skip, sort, ...options }) => {
+    const $where = buildUserWhere(options)
     const $order = sort ? { [sort.field]: sort.dir } : { id: "asc" }
-    const items = await client.user.findMany({
+    return client.user.findMany({
       id: true,
       name: true,
       email: true,
@@ -72,8 +80,12 @@ admin
       $limit: take,
       $skip: skip,
     })
-    const total = await client.user.count($where ? { $where } : undefined)
-    return { items, total }
+  })
+  // Separate from `.data()` so the count query (a full scan under a non-indexed
+  // filter) isn't re-run on every page flip — the UI caches it per filter/search.
+  .count(async (options) => {
+    const $where = buildUserWhere(options)
+    return client.user.count($where ? { $where } : undefined)
   })
   .primaryKey("id", "number")
   // MarciDB returns DateTime as epoch millis; the date input accepts that as-is,
@@ -173,7 +185,11 @@ admin
   // Granular access: everyone can read Posts, but only admins may create/update,
   // delete, or run actions. A viewer sees the table with no Add/Edit/Delete.
   .createPage({ title: "Posts", path: "posts", icon: "file", search: true, access: { write: isAdmin, delete: isAdmin } })
-  .data(async ({ take, skip, sort, search }) => {
+  // No `.count()` here on purpose: Posts demonstrates keyset (next/prev)
+  // pagination. When the UI has no total it sends `cursor` (the previous page's
+  // last id) instead of `skip`, so we page via MarciDB's O(log n) `$cursor`
+  // rather than an O(n) `$skip` — and the engine handles the sort order.
+  .data(async ({ take, skip, cursor, sort, search }) => {
     const $where = search ? { title: { $includes: search } } : undefined
     const $order = sort ? { [sort.field]: sort.dir } : { id: "asc" }
     const items = await client.post.findMany({
@@ -185,10 +201,10 @@ admin
       $order: $order as any,
       $limit: take,
       $skip: skip,
+      $cursor: cursor != null ? { id: cursor } : undefined,
     })
-    const total = await client.post.count($where ? { $where } : undefined)
     // Flatten the related author's name so a plain field column can render it.
-    return { items: items.map((p) => ({ ...p, authorName: p.author?.name ?? "—" })), total }
+    return items.map((p) => ({ ...p, authorName: p.author?.name ?? "—" }))
   })
   .primaryKey("id", "number")
   .item(async (id) => {

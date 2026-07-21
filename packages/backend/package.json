@@ -14,7 +14,8 @@
   },
   "scripts": {
     "dev": "bun --watch src/main.ts",
-    "build": "bunup src/main.ts --define.__PRODUCTION__=true --external @vue/compiler-sfc --external sass --external typescript",
+    "build": "bunup src/main.ts --define.__PRODUCTION__=true --external @vue/compiler-sfc --external sass --external typescript && bun scripts/copy-assets.ts",
+    "build:icons": "bun scripts/build-icons.ts",
     "test": "bun test"
   },
   "devDependencies": {

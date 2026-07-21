@@ -30,6 +30,9 @@ export type FullPage = Page & {
   itemAccess: boolean,
   allowDelete?: boolean,
   search?: boolean,
+  // True when the page declared a `.count()`: numbered pagination with a total.
+  // When false the list paginates by keyset (next/prev via `cursor`).
+  hasCount?: boolean,
   actions?: ActionMeta[],
   filters?: { schema: any },
 }
@@ -37,18 +40,21 @@ export type FullPage = Page & {
 export type ListParams = {
   take?: number,
   skip?: number,
+  // Keyset cursor: the previous page's last primary key (no-count pages only).
+  cursor?: any,
   sort?: { field: string, dir: "asc" | "desc" },
   search?: string,
   // Filter values keyed by field; JSON-encoded into the `filter` query param.
   filter?: Record<string, any>,
 }
 
-export type ListResult<T = any> = { items: T[], total: number }
+export type ListResult<T = any> = { items: T[] }
 
 const buildListQuery = (params: ListParams) => {
   const qs = new URLSearchParams()
   if (params.take != null) qs.set("take", String(params.take))
   if (params.skip != null) qs.set("skip", String(params.skip))
+  if (params.cursor != null) qs.set("cursor", String(params.cursor))
   if (params.sort) {
     qs.set("sortField", params.sort.field)
     qs.set("sortDir", params.sort.dir)
@@ -59,11 +65,21 @@ const buildListQuery = (params: ListParams) => {
   return q ? `?${q}` : ""
 }
 
+// The count endpoint only varies with search/filter, so its cache key omits
+// pagination — the total isn't refetched when you flip pages.
+export type CountParams = Pick<ListParams, "search" | "filter">
+const buildCountQuery = (params: CountParams) =>
+  buildListQuery({ search: params.search, filter: params.filter })
+
 export const dataApi = {
   getPages: () => request<Page[]>(apiUrl("/pages")),
   getPageData: (pageId: string) => request<FullPage>(apiUrl(`/pages/${pageId}`)),
   getData: (pageId: string, params: ListParams = {}) =>
     request<ListResult>(apiUrl(`/data/${pageId}/items${buildListQuery(params)}`)),
+  // The unpaginated total for pages that declared `.count()`. Keyed on
+  // search/filter only, so paging doesn't retrigger it.
+  getCount: (pageId: string, params: CountParams = {}) =>
+    request<{ total: number }>(apiUrl(`/data/${pageId}/count${buildCountQuery(params)}`)),
   getItemData: (pageId: string, itemId: number) => request(apiUrl(`/data/${pageId}/items/${itemId}`)),
 
   // Options for a select field backed by an inline `reference` method. `search`

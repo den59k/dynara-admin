@@ -60,10 +60,9 @@ adminPanel.registerAuthMethod({
 // Define a CRUD page
 adminPanel
   .createPage({ title: "Users", path: "users" })
-  .data(async ({ take, skip }) => ({
-    items: await db.users.findMany({ take, skip }),
-    total: await db.users.count(),
-  }))
+  .data(async ({ take, skip }) => db.users.findMany({ take, skip }))
+  // Optional: enables a total + numbered pagination (omit for keyset next/prev).
+  .count(async () => db.users.count())
   .primaryKey("id", "number")
   .item(async (id) => db.users.findFirst({ where: { id } }))
   .table([
@@ -104,7 +103,8 @@ const adminPanel = createAdminPanel({ basePath: "/panel", title: "Acme Admin" })
 
 | Method | Description |
 |---|---|
-| `.data(fn)` | Fetch the list — receives `{ take, skip, sort?, search? }`, returns `{ items, total }` (the unpaginated `total` drives pagination) |
+| `.data(fn)` | Fetch the list — receives `{ take, skip, cursor?, sort?, search?, filter? }`, returns the rows as an array |
+| `.count(fn)` | *Optional.* Return the unpaginated `total` for the current `{ search?, filter? }`. Present → numbered pagination with a total; absent → keyset next/prev via `cursor`. Fetched separately so paging doesn't recompute it. |
 | `.primaryKey(field, type)` | Declare the identity field (`"number"` or `"string"`) |
 | `.item(fn)` | Fetch a single record by id |
 | `.table(columns)` | Column definitions for the table view — see [Column types](#column-types) below |
@@ -124,11 +124,42 @@ Every page handler (`.data`, `.item`, `.createForm`, `.updateForm`, `.onDelete`,
 
 Inside a custom component, invoke a `componentAction` with `sendAction(view, name, body)` or the route-bound `useAction(name)` helper (both exported from `dynara-admin/ui`).
 
-`createPage` also accepts a `group` (sidebar section), `icon` (from the built-in
-icon set), `search` (opt in to the list search box), and `access` (per-user
-gating — see [Access control](#access-control)), e.g.
+`createPage` also accepts a `group` (sidebar section), `icon` (see
+[Icons](#icons)), `search` (opt in to the list search box), and `access`
+(per-user gating — see [Access control](#access-control)), e.g.
 `createPage({ title: "Users", path: "users", group: "People", icon: "users", search: true })`.
 Pages without a group are listed first.
+
+### Icons
+
+Everywhere the panel takes an `icon` — sidebar pages, actions, action columns
+and dashboard widgets — the value is a [Tabler](https://tabler.io/icons) icon
+name:
+
+```ts
+.createPage({ title: "Users", path: "users", icon: "users" })
+.action("topUp", { title: "Top up", icon: "wallet" }, handler)
+```
+
+The full set (~6,200 icons, MIT) ships inside the package, so there is nothing
+to install and no network access at runtime. Only the icons your config actually
+names are sent to the browser — a panel using twenty icons ships twenty icons,
+not the whole pack.
+
+Browse and search the set at [icon-registry.jt3.ru](https://icon-registry.jt3.ru)
+(pack: `tabler`). A handful of friendlier aliases are also accepted — `delete`,
+`add`, `close`, `more`, `edit`, `image` and similar map onto their Tabler names.
+
+An unknown name is a startup error listing the closest matches, so a typo
+surfaces immediately rather than rendering an invisible icon:
+
+```
+[dynara-admin] unknown icon name(s) — not in the Tabler Icons set:
+  "uzers" — did you mean: users, user?
+```
+
+In production (`NODE_ENV=production`) this is downgraded to a warning, so a typo
+can never stop a deployed server from booting.
 
 ### Search
 
@@ -142,7 +173,11 @@ adminPanel
   .createPage({ title: "Users", path: "users", search: true })
   .data(async ({ take, skip, search }) => {
     const where = search ? { name: { $includes: search } } : undefined
-    return { items: await db.users.findMany({ where, take, skip }), total: await db.users.count({ where }) }
+    return db.users.findMany({ where, take, skip })
+  })
+  .count(async ({ search }) => {
+    const where = search ? { name: { $includes: search } } : undefined
+    return db.users.count({ where })
   })
 ```
 
@@ -166,12 +201,23 @@ adminPanel
     createdAfter: "date?",      // date picker → the handler receives a Date
   })
   .data(async ({ filter, take, skip }) => {
-    const where: any = {}
-    if (filter?.role) where.role = filter.role
-    if (filter?.minBalance != null) where.balance = { gte: filter.minBalance }
-    if (filter?.createdAfter) where.createdAt = { gte: filter.createdAt }   // a JS Date
-    return { items: await db.users.findMany({ where, take, skip }), total: await db.users.count({ where }) }
+    const where = buildWhere(filter)
+    return db.users.findMany({ where, take, skip })
   })
+  // Share the filter → where mapping so `.data()` and `.count()` never drift.
+  .count(async ({ filter }) => db.users.count({ where: buildWhere(filter) }))
+```
+
+where `buildWhere` turns the validated filter into your ORM's query:
+
+```typescript
+function buildWhere(filter?: Record<string, any>) {
+  const where: any = {}
+  if (filter?.role) where.role = filter.role
+  if (filter?.minBalance != null) where.balance = { gte: filter.minBalance }
+  if (filter?.createdAfter) where.createdAt = { gte: filter.createdAfter }   // a JS Date
+  return where
+}
 ```
 
 - The schema uses the same `compact-json-schema` format as forms; **every field
@@ -231,7 +277,7 @@ adminPanel
 | Field | Description |
 |---|---|
 | `title` | Button label (and dialog title when `form` is set) |
-| `icon` | Icon name from the built-in set (optional) |
+| `icon` | [Tabler icon name](#icons) (optional) |
 | `form` | A `compact-json-schema` form; when present, a dialog collects the payload passed to the handler as `data` |
 | `confirm` | Plain-text confirmation shown before running (ignored when `form` is set) |
 | `danger` | Style the button red |
@@ -393,7 +439,7 @@ defineProps<{ data?: { posts: { id: number; title: string }[] } }>()
 |---|---|---|
 | `type` | both | `"stat"` or `"component"` |
 | `title` | both | Card heading |
-| `icon` | both | Icon name from the built-in set |
+| `icon` | both | [Tabler icon name](#icons) |
 | `span` | both | Grid columns to occupy, 1–4 (default 1) |
 | `data` | both | Server-side resolver; receives `ctx` (`ctx.user`). Required for `stat`, optional for `component` |
 | `link` | stat | Page path to navigate to on click |
@@ -442,6 +488,28 @@ cd packages/backend && bun run build
 # Run the backend tests
 cd packages/backend && bun test
 ```
+
+### Updating the icon pack
+
+The embedded Tabler pack (`packages/backend/src/icons/tabler.json`) is generated
+and committed, so builds are reproducible and the published package never talks
+to a registry at build or run time. To re-sync it:
+
+```bash
+# Regenerate the pack from an icon-registry (accepts a local data/v1 checkout,
+# which avoids thousands of HTTP requests)
+cd packages/backend && bun run build:icons
+
+# Re-derive the frontend's bundled built-in icons from that pack, so the icons
+# the UI renders itself stay the same artwork as the server-resolved ones
+cd packages/frontend && bun scripts/sync-builtin-icons.ts
+
+# CI: verify they're in sync without writing
+cd packages/frontend && bun scripts/sync-builtin-icons.ts --check
+```
+
+Built-in icon files keep their existing names; the Tabler icon each maps to is
+the same name, or the alias declared in `packages/backend/src/icons.ts`.
 
 ---
 

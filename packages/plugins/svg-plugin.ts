@@ -1,11 +1,8 @@
 import { Glob, type BunPlugin } from "bun";
 import { join, parse } from 'node:path'
+import { parseSvg } from "./parse-svg.ts";
 
 const filesGlob = new Glob("**/*.svg");
-
-function normalizePath(p: string) {
-  return p.replace(/\\/g, '/');
-}
 
 const svgPlugin: BunPlugin = {
   name: "svg-glob-plugin",
@@ -28,29 +25,14 @@ const svgPlugin: BunPlugin = {
 
         const text = await Bun.file(join(args.path, routeFile)).text()
 
-        const tagInfo = text.match(/^<svg[\s\S]*?>/)?.[0]
-        if (!tagInfo) {
+        const parsed = parseSvg(text)
+        if (!parsed) {
           console.warn(`icon ${routeFile} is not SVG icon`)
           continue
         }
 
-        const attrs: Record<string, string> = {};
-        [...tagInfo.matchAll(/(\w+)=["']([^"']+)["']/g)].forEach(([_, name, value]) => {
-          if (name === "xmlns") return
-          attrs[name] = value;
-        });
-
-        const icon = text
-          .replace(/"#[0-9A-Za-z]+"/g, '"currentColor"')
-          .replace(/"white"/g, '"currentColor"')
-          .replace(/"black"/g, '"currentColor"')
-          .replace(/fill-opacity=".+?"/g, "")
-          .replace(/^<svg[\s\S]*?>/, '')  // убрать начало
-          .replace(/<\/svg>\s*$/, '')    // убрать конец
-          .trim()
-
-        _keys.push(`"${iconName}": \`${icon}\``)
-        _attrs.push(`"${iconName}": ${JSON.stringify(attrs)}`)
+        _keys.push(`"${iconName}": \`${parsed.body}\``)
+        _attrs.push(`"${iconName}": ${JSON.stringify(parsed.attrs)}`)
       }
 
       const contents = `

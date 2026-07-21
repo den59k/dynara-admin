@@ -4,6 +4,7 @@ import { type Router, HTTPError } from "dynara";
 import type { BunRequest } from "bun";
 import { join, normalize, sep, isAbsolute } from "node:path"
 import { schema, unfoldSchema, unfoldTypeBoxSchema, type SchemaItem, type SchemaType } from "compact-json-schema";
+import { resolveIcons } from "./icons.ts";
 import { FormatRegistry } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
@@ -153,16 +154,19 @@ const requireAccess = async (access: NormalizedAccess | undefined, facet: keyof 
 // optional and only present when the frontend sends them. `filter` is the
 // validated, decoded object described by the page's `.filters()` schema (dates
 // arrive as `Date`); absent keys mean "not filtered".
-export type ListOptions = {
+//
+// `cursor` is the primary key of the last row of the previous page. It is only
+// sent for pages *without* a `.count()` — there the UI paginates by keyset
+// (next/prev) instead of by page number, so the handler should return rows
+// strictly after `cursor` in the current sort order (and ignore `skip`).
+export type ListOptions<KeyType = any> = {
   take?: number,
   skip?: number,
+  cursor?: KeyType,
   sort?: { field: string, dir: "asc" | "desc" },
   search?: string,
   filter?: Record<string, any>
 }
-
-// The list response shape. `total` is the unpaginated row count so the UI can paginate.
-export type ListResult<T> = { items: T[], total: number }
 
 // The `${apiBase}/pages/:path` response — the single source of truth for a
 // page's metadata shape. The frontend's `FullPage` mirrors this (the two
@@ -240,6 +244,9 @@ export type PageMeta = {
   // True when the page opted in via `createPage({ search: true })` — only then
   // does the UI show a search box (the panel can't know if `.data` honors search).
   search?: true,
+  // True when the page declared a `.count()` resolver. Drives the pagination
+  // mode: numbered (with a total) when set, keyset next/prev when not.
+  hasCount?: true,
   actions?: ActionMeta[],
   // The form schema for the page's filter bar, declared via `.filters()`.
   filters?: { schema: SchemaItem },
@@ -337,7 +344,11 @@ type PageEntry = {
   filters?: any,
   filtersCheck?: any,
   table?: ColumnId<any, any>[],
-  data?: (options: ListOptions, ctx: Ctx) => ListResult<any> | Promise<ListResult<any>>,
+  data?: (options: ListOptions, ctx: Ctx) => any[] | Promise<any[]>,
+  // Optional unpaginated row count for the current filter/search. When present
+  // the UI shows a total and numbered pagination; when absent it falls back to
+  // keyset (next/prev) pagination via `ListOptions.cursor`.
+  count?: (options: ListOptions, ctx: Ctx) => number | Promise<number>,
   itemData?: (id: any, ctx: Ctx) => Promise<any>,
   onInsert?: (obj: any, ctx: Ctx) => Promise<void>,
   onUpdate?: (key: any, obj: any, ctx: Ctx) => Promise<void>,
@@ -454,9 +465,16 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
     })
 
     for (let page of pages) {
+      // The cursor query param is a primary key, so it's typed to match (numbers
+      // coerce from the query string just like `take`); pages with a non-scalar
+      // key fall back to a raw string.
+      const cursorType = page.primaryKeyType === "number" ? "number?" : "string?"
       const querySchema = schema({
         take: "number?",
         skip: "number?",
+        // Keyset cursor: the primary key of the previous page's last row. Only
+        // sent for pages without a `.count()`.
+        cursor: cursorType,
         sortField: "string?",
         sortDir: "string?",
         search: "string?",
@@ -465,18 +483,33 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       })
       const path = toRouteSegment(page.path)
 
+      // Builds the ListOptions shared by the items and count endpoints. `count`
+      // ignores pagination (take/skip/cursor), but reuses sort/search/filter.
+      const readListOptions = (req: any): ListOptions => {
+        const q = req.query as { take?: number, skip?: number, cursor?: any, sortField?: string, sortDir?: string, search?: string, filter?: string }
+        return {
+          take: q.take,
+          skip: q.skip,
+          cursor: q.cursor,
+          sort: q.sortField ? { field: q.sortField, dir: q.sortDir === "asc" ? "asc" : "desc" } : undefined,
+          search: q.search,
+          filter: parseFilter(q.filter, page.filtersCheck),
+        }
+      }
+
       if (page.data) {
         app.get(`${apiBase}/data/${path}/items`, [{}, querySchema], async (req) => {
           await requireAccess(page.access, "read", (req as any).user)
-          const q = req.query as { take?: number, skip?: number, sortField?: string, sortDir?: string, search?: string, filter?: string }
-          const options: ListOptions = {
-            take: q.take,
-            skip: q.skip,
-            sort: q.sortField ? { field: q.sortField, dir: q.sortDir === "asc" ? "asc" : "desc" } : undefined,
-            search: q.search,
-            filter: parseFilter(q.filter, page.filtersCheck),
-          }
-          return await page.data!(options, { user: (req as any).user })
+          const items = await page.data!(readListOptions(req), { user: (req as any).user })
+          return { items }
+        })
+      }
+
+      if (page.count) {
+        app.get(`${apiBase}/data/${path}/count`, [{}, querySchema], async (req) => {
+          await requireAccess(page.access, "read", (req as any).user)
+          const total = await page.count!(readListOptions(req), { user: (req as any).user })
+          return { total }
         })
       }
 
@@ -599,6 +632,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
           itemAccess: !!page.itemData,
           allowDelete: (page.onDelete && canDelete) ? true : undefined,
           search: page.search ? true : undefined,
+          hasCount: page.count ? true : undefined,
           actions: (canWrite && page.actions.length > 0)
             ? page.actions.map((a): ActionMeta => ({
                 name: a.name,
@@ -686,6 +720,22 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
         `window.__DYNARA_TITLE__=${JSON.stringify(title)}`,
         `window.__DYNARA_LOCALE__=${JSON.stringify(locale)}`,
       ]
+
+      // Icons are named by string in page/action/widget config and resolved here
+      // against the embedded Tabler pack. Only the names this panel actually
+      // references are inlined, so the payload scales with the config, not with
+      // the 6k-icon pack. Unknown names throw during development (see icons.ts).
+      const referencedIcons = [
+        ...pages.flatMap(p => [
+          p.icon,
+          ...p.actions.map(a => a.icon),
+          ...(p.table ?? []).map(c => (c as { icon?: string }).icon),
+        ]),
+        ...dashboardWidgets.map(w => w.icon),
+      ].filter((name): name is string => !!name)
+
+      const icons = await resolveIcons(referencedIcons)
+      if (icons) code.push(`window.__DYNARA_ICONS__=${JSON.stringify(icons)}`)
 
       if (pages.find(i => i.path === '/')) {
         code.push(`window.__DYNARA_CUSTOM_HOME_PAGE__ = true`)
@@ -793,6 +843,10 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       },
       data(query) {
         currentPage.data = query as any
+        return this as any
+      },
+      count(query) {
+        currentPage.count = query as any
         return this as any
       },
       item(query) {
@@ -1002,7 +1056,16 @@ interface Page<T extends object, User = unknown> {
   table(table: Column<T>[]): this,
   createForm<S extends SchemaItem>(schema: S, onInsert: (data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): this,
   primaryKey<KeyType extends SchemaItem = "string">(key: keyof T, type?: KeyType): PageWithPrimaryKey<T, SchemaType<KeyType>, T, User>,
-  data<T2 extends object>(query: (options: ListOptions, ctx: RequestContext<User>) => ListResult<T2> | Promise<ListResult<T2>>): Page<T2, User>,
+  // The list resolver: returns the current page of rows as a plain array. The
+  // unpaginated total is a separate concern — declare `.count()` for it. When no
+  // `.count()` is set, the UI paginates by keyset and `ListOptions.cursor` (the
+  // previous page's last primary key) arrives here instead of `skip`.
+  data<T2 extends object>(query: (options: ListOptions, ctx: RequestContext<User>) => T2[] | Promise<T2[]>): Page<T2, User>,
+  // Optional: the unpaginated row count for the given filter/search (pagination
+  // fields are irrelevant). Declaring it switches the UI to numbered pagination
+  // with a total; without it the UI uses keyset next/prev. Kept separate from
+  // `.data()` so the (often expensive) count isn't recomputed on every page flip.
+  count(query: (options: ListOptions, ctx: RequestContext<User>) => number | Promise<number>): this,
   component(url: any): this
   componentData(name: string, data: (args: Record<string,any>, ctx: RequestContext<User>) => Promise<any> | any): this
   componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this

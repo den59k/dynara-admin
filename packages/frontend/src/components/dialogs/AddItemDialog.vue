@@ -28,6 +28,9 @@ const props = defineProps<{
   item?: any,
   primaryKey?: string,
   itemAccess?: boolean,
+  // Called after a successful create/update, so the opener can revalidate
+  // anything beyond the list itself (e.g. the separately-fetched total).
+  onDone?: () => void,
 }>()
 
 const dialog = useDialog()
@@ -62,6 +65,7 @@ const apply = handleSubmit(async (values) => {
     await dataApi.createItem(props.viewId, values)
   }
   mutateRequestFull(dataApi.getData)
+  props.onDone?.()
   dialog.close()
 })
 

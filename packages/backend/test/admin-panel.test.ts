@@ -29,9 +29,9 @@ const buildUsersApp = () => {
     .createPage({ title: "Users", path: "users" })
     .data(async ({ take, skip }) => {
       const start = skip ?? 0
-      const items = take == null ? users.slice(start) : users.slice(start, start + take)
-      return { items, total: users.length }
+      return take == null ? users.slice(start) : users.slice(start, start + take)
     })
+    .count(async () => users.length)
     .primaryKey("id", "number")
     .item(async (id) => users.find((u) => u.id === id) ?? null)
     .table([
@@ -77,7 +77,7 @@ const buildAuthApp = () => {
   })
   admin
     .createPage({ title: "Settings", path: "settings" })
-    .data(async () => ({ items: [], total: 0 }))
+    .data(async () => [])
     // A componentData literally named "auth" — the old endsWith("/auth") check
     // would have served this without a token.
     .componentData("auth", async () => ({ ok: true }))
@@ -99,8 +99,8 @@ describe("admin panel — page registry", () => {
 
   it("includes sidebar group and icon in the pages list", async () => {
     const admin = createAdminPanel()
-    admin.createPage({ title: "Users", path: "users", group: "People", icon: "users" }).data(async () => ({ items: [], total: 0 }))
-    admin.createPage({ title: "Home", path: "home" }).data(async () => ({ items: [], total: 0 }))
+    admin.createPage({ title: "Users", path: "users", group: "People", icon: "users" }).data(async () => [])
+    admin.createPage({ title: "Home", path: "home" }).data(async () => [])
     const app = new Router()
     app.register(admin)
 
@@ -142,18 +142,15 @@ describe("admin panel — page registry", () => {
 })
 
 describe("admin panel — list & item data", () => {
-  it("returns items and the unpaginated total when no pagination is given", async () => {
+  it("returns items (without a total) when no pagination is given", async () => {
     const { app } = buildUsersApp()
     const res = await app.inject("/api/admin/data/users/items")
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({
-      items: seedUsers(),
-      total: 3,
-    })
+    expect(await res.json()).toEqual({ items: seedUsers() })
   })
 
-  it("applies take/skip query params but keeps the full total", async () => {
+  it("applies take/skip query params to the items", async () => {
     const { app } = buildUsersApp()
     const res = await app.inject("/api/admin/data/users/items?take=2&skip=1")
 
@@ -162,8 +159,15 @@ describe("admin panel — list & item data", () => {
         { id: 2, name: "Bob" },
         { id: 3, name: "Carol" },
       ],
-      total: 3,
     })
+  })
+
+  it("serves the unpaginated total from the separate count endpoint", async () => {
+    const { app } = buildUsersApp()
+    const res = await app.inject("/api/admin/data/users/count")
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ total: 3 })
   })
 
   it("fetches a single item and coerces the numeric primary key", async () => {
@@ -240,7 +244,7 @@ describe("admin panel — component actions", () => {
     const admin = createAdminPanel()
     admin
       .createPage({ title: "Users", path: "users" })
-      .data(async () => ({ items: [], total: 0 }))
+      .data(async () => [])
       .componentAction("promote", { userId: "number" }, async (data) => {
         calls.promoted.push(data)
         return { ok: true }
@@ -298,7 +302,7 @@ describe("admin panel — reference select methods", () => {
     const admin = createAdminPanel()
     admin
       .createPage({ title: "Posts", path: "posts" })
-      .data(async () => ({ items: [], total: 0 }))
+      .data(async () => [])
       .primaryKey("id", "number")
       .createForm(
         {
@@ -359,7 +363,7 @@ describe("admin panel — declared actions", () => {
     const admin = createAdminPanel()
     admin
       .createPage({ title: "Users", path: "users", search: true })
-      .data(async () => ({ items: users, total: users.length }))
+      .data(async () => users)
       .primaryKey("id", "number")
       // Row action with a form — tops up a single user's balance.
       .action("topUp", { title: "Top up", icon: "add", form: { amount: "number" } }, async (id, { amount }) => {
@@ -481,7 +485,7 @@ describe("admin panel — filters", () => {
       })
       .data(async (options) => {
         received = options as ListOptionsShape
-        return { items: [], total: 0 }
+        return []
       })
     const app = new Router()
     app.register(admin)
@@ -564,12 +568,12 @@ describe("admin panel — access control", () => {
     // Whole-page gate.
     admin
       .createPage({ title: "Secrets", path: "secrets", access: isAdmin })
-      .data(async () => ({ items: [{ id: 1 }], total: 1 }))
+      .data(async () => [{ id: 1 }])
       .primaryKey("id", "number")
     // Granular gate: everyone reads, only admins write/delete.
     admin
       .createPage({ title: "Posts", path: "posts", access: { write: isAdmin, delete: isAdmin } })
-      .data(async () => ({ items: [], total: 0 }))
+      .data(async () => [])
       .primaryKey("id", "number")
       .createForm({ title: "string" }, async () => {})
       .updateForm({ title: "string" }, async () => {})
@@ -679,7 +683,7 @@ describe("admin panel — dashboard", () => {
 
   it("omits the dashboard routes when no widgets are configured", async () => {
     const admin = createAdminPanel()
-    admin.createPage({ title: "X", path: "x" }).data(async () => ({ items: [], total: 0 }))
+    admin.createPage({ title: "X", path: "x" }).data(async () => [])
     const app = new Router()
     app.register(admin)
     expect((await app.inject("/api/admin/dashboard")).status).toBe(404)
@@ -725,7 +729,7 @@ describe("admin panel — file uploads", () => {
     const admin = createAdminPanel()
     admin
       .createPage({ title: "Users", path: "users" })
-      .data(async () => ({ items: [], total: 0 }))
+      .data(async () => [])
       .upload(async (file, ctx) => {
         stored.push({ name: file.name, size: file.size, field: ctx.field })
         return `/files/${file.name}`
@@ -762,7 +766,7 @@ describe("admin panel — list options parsing", () => {
     const admin = createAdminPanel()
     admin.createPage({ title: "Users", path: "users" }).data(async (options) => {
       received = options
-      return { items: [], total: 0 }
+      return []
     })
     const app = new Router()
     app.register(admin)
@@ -801,7 +805,7 @@ describe("admin panel — list options parsing", () => {
 describe("admin panel — basePath configuration", () => {
   const buildPanelApp = () => {
     const admin = createAdminPanel({ basePath: "/panel" })
-    admin.createPage({ title: "Users", path: "users" }).data(async () => ({ items: [], total: 0 }))
+    admin.createPage({ title: "Users", path: "users" }).data(async () => [])
     const app = new Router()
     app.register(admin)
     return app
@@ -824,13 +828,13 @@ describe("admin panel — basePath configuration", () => {
 
   it("normalizes a base path without a leading slash", async () => {
     const admin = createAdminPanel({ basePath: "panel/" })
-    admin.createPage({ title: "Users", path: "users" }).data(async () => ({ items: [], total: 0 }))
+    admin.createPage({ title: "Users", path: "users" }).data(async () => [])
     const app = new Router()
     app.register(admin)
 
     const res = await app.inject("/api/panel/data/users/items")
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ items: [], total: 0 })
+    expect(await res.json()).toEqual({ items: [] })
   })
 })
 

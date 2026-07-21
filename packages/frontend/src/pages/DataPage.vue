@@ -1,7 +1,7 @@
 <template>
   <header v-if="tableData" class="data-page__header">
     <h1>{{ tableData.title }}</h1>
-    <span v-if="data" class="data-page__count">{{ data.total }}</span>
+    <span v-if="total != null" class="data-page__count">{{ total }}</span>
   </header>
   <component v-if="customComponent" :is="customComponent" />
 
@@ -83,13 +83,18 @@
         <VButton v-if="hasActiveQuery" outline @click="clearQuery">{{ t('data.clearSearch') }}</VButton>
         <VButton v-else-if="tableData.createForm" @click="addItem">{{ t('data.add') }}</VButton>
       </div>
-      <div v-if="data.total > pageSize" class="data-card__footer">
+      <!-- Numbered pagination when the page has a count; keyset next/prev when
+           it doesn't (total unknown). -->
+      <div v-if="tableData.hasCount && total != null && total > pageSize" class="data-card__footer">
         <VPagination
           :page="page"
           :page-size="pageSize"
-          :total="data.total"
+          :total="total"
           @update:page="setPage"
         />
+      </div>
+      <div v-else-if="!tableData.hasCount && (canPrev || canNext)" class="data-card__footer">
+        <VCursorPagination :has-prev="canPrev" :has-next="canNext" @prev="prevPage" @next="nextPage" />
       </div>
     </template>
   </div>
@@ -113,6 +118,7 @@ import ActionDialog from '../components/dialogs/ActionDialog.vue';
 import FilterBar from '../components/FilterBar.vue';
 import VTable, { type SortState, type TableColumn } from '../components/VTable.vue';
 import VPagination from '../components/VPagination.vue';
+import VCursorPagination from '../components/VCursorPagination.vue';
 import ConfirmDialog from '../components/dialogs/ConfirmDialog.vue';
 
 const currentRoute = useRoute()
@@ -171,28 +177,78 @@ watch(searchInput, (value) => {
 })
 watch(search, (value) => { if (value !== searchInput.value) searchInput.value = value })
 
+const { data: tableData } = useRequestWatch(dataApi.getPageData, viewId)
+
+// Pages without a `.count()` paginate by keyset: no total, just next/prev.
+// `cursorStack` holds the boundary cursor for each page we've stepped past; its
+// last entry is the current page's cursor (empty = first page). The stack resets
+// whenever the query (sort/search/filter) changes, sending us back to page one.
+const cursorMode = computed(() => !!tableData.value && !tableData.value.hasCount)
+const cursorStack = shallowRef<any[]>([])
+const currentCursor = computed(() => cursorStack.value[cursorStack.value.length - 1])
+watch(
+  () => [viewId.value, sort.value, search.value, JSON.stringify(filter.value)],
+  () => { cursorStack.value = [] },
+)
+
 const listParams = computed<ListParams>(() => ({
   take: pageSize,
-  skip: page.value * pageSize,
+  // Numbered mode positions by skip; keyset mode positions by cursor.
+  skip: cursorMode.value ? undefined : page.value * pageSize,
+  cursor: cursorMode.value ? currentCursor.value : undefined,
   sort: sort.value,
   search: search.value || undefined,
   filter: Object.keys(filter.value).length ? filter.value : undefined,
 }))
 
-const { data: tableData } = useRequestWatch(dataApi.getPageData, viewId)
 const { data, pending, error } = useRequestWatch(dataApi.getData, viewId, listParams)
+
+// Keyset next/prev availability. A full page implies there may be more; any
+// stack depth means there's a page to go back to.
+const canNext = computed(() => (data.value?.items.length ?? 0) >= pageSize)
+const canPrev = computed(() => cursorStack.value.length > 0)
+const nextPage = () => {
+  const items = data.value?.items ?? []
+  if (items.length < pageSize) return
+  const lastId = items[items.length - 1][tableData.value!.primaryKey]
+  cursorStack.value = [...cursorStack.value, lastId]
+}
+const prevPage = () => { cursorStack.value = cursorStack.value.slice(0, -1) }
+
+// The unpaginated total, fetched separately for pages that declared `.count()`.
+// It only depends on search/filter — never on the page — so flipping pages does
+// not recompute the (potentially expensive) count.
+const total = shallowRef<number | null>(null)
+const loadCount = async () => {
+  if (!tableData.value?.hasCount) { total.value = null; return }
+  try {
+    const res = await dataApi.getCount(viewId.value, {
+      search: search.value || undefined,
+      filter: Object.keys(filter.value).length ? filter.value : undefined,
+    })
+    total.value = res.total
+  } catch {
+    total.value = null
+  }
+}
+watch(
+  () => [viewId.value, tableData.value?.hasCount, search.value, JSON.stringify(filter.value)],
+  loadCount,
+  { immediate: true },
+)
 
 const errorMessage = computed(() => {
   const e = error.value
   if (e instanceof HTTPError && typeof e.body === 'string' && e.body) return e.body
   return t('data.error')
 })
-const retry = () => mutateRequestFull(dataApi.getData)
+// Revalidate the list and, since a mutation can change the row count, the total.
+const retry = () => { mutateRequestFull(dataApi.getData); loadCount() }
 
 const dialog = useDialog()
 const toast = useToast()
 
-const refresh = () => mutateRequestFull(dataApi.getData)
+const refresh = () => { mutateRequestFull(dataApi.getData); loadCount() }
 
 // Actions split by kind. Row actions become trailing table columns; toolbar and
 // bulk actions render as buttons in the toolbar.
@@ -261,6 +317,7 @@ const addItem = () => {
     schema: tableData.value!.createForm.schema,
     primaryKey: tableData.value!.primaryKey,
     itemAccess: tableData.value!.itemAccess,
+    onDone: refresh,
   })
 }
 
@@ -272,6 +329,7 @@ const onRowClick = (item: any) => {
     primaryKey: tableData.value!.primaryKey,
     itemAccess: tableData.value!.itemAccess,
     item,
+    onDone: refresh,
   })
 }
 
@@ -303,6 +361,7 @@ const deleteItems = async () => {
     async onConfirm() {
       await dataApi.deleteItems(viewId.value, ids)
       await mutateRequestFull(dataApi.getData)
+      loadCount()
     }
   })
 }

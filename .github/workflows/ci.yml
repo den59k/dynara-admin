@@ -30,6 +30,12 @@ jobs:
         run: bunx vue-tsc --noEmit -p tsconfig.json
         working-directory: packages/frontend
 
+      # The bundled built-in icons must be the same artwork as the icons the
+      # backend resolves from the embedded pack, or the panel mixes styles.
+      - name: Check built-in icons are in sync with the icon pack
+        run: bun scripts/sync-builtin-icons.ts --check
+        working-directory: packages/frontend
+
       - name: Build frontend
         run: bun run build.ts
         working-directory: packages/frontend

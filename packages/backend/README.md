@@ -132,7 +132,8 @@ The page builder is a fluent chain returned by `admin.createPage(...)`.
 | Method | Description |
 | --- | --- |
 | `createPage({ title, path })` | Starts a page. `title` is shown in the UI; `path` is the route segment. |
-| `.data(async ({ take, skip }) => rows)` | Returns the rows for the list view. `take` / `skip` are provided for pagination. |
+| `.data(async ({ take, skip, cursor, sort, search, filter }) => rows)` | Returns the rows for the current list page as an array. `take`/`skip` position numbered pages; `cursor` (the previous page's last primary key) is sent instead when the page has no `.count()`. |
+| `.count(async ({ search, filter }) => total)` | *Optional.* Returns the unpaginated row count for the current filter/search. Declaring it enables numbered pagination with a total; omit it to fall back to keyset next/prev via `cursor`. Kept separate from `.data()` so the count isn't recomputed on every page flip. |
 | `.primaryKey(name, type)` | Declares the primary key field and its type (e.g. `"id"`, `"number"`). Used to identify items. |
 | `.item(async (id) => row)` | Fetches a single record by its primary key for the item page. |
 | `.table(columns)` | Configures the list columns (see column options below). |
