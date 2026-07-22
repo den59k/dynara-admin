@@ -1,4 +1,7 @@
 export const getDefaultValue = (schema: any): any => {
+  // Display-only custom-component fields hold no form value of their own; on an
+  // edit form the dialog merges whatever the item provides under the key.
+  if (schema.type === "component") return undefined
   if (schema.default) return schema.default
   if (schema.nullable) return null
   // Select / enum / reference / file / date fields start empty rather than at a

@@ -342,6 +342,52 @@ A form field renders as a select when it carries `options` or `reference`:
 A `reference` field fetches options from the referenced page's `.data` (using the
 `search`/`take` params), so that page should honor `search` for the select to filter.
 
+### Custom form components
+
+Any form field (create/update forms and action forms) can be rendered by your own
+`.vue` file instead of a built-in input. Point the field's `component` at the file —
+it is compiled and served through the same pipeline as page components; the
+serialized schema only ever carries an opaque key, never the server path.
+
+Two flavors:
+
+```typescript
+.updateForm({
+  name: "string",
+  // 1. Display-only block (`type: "component"`): carries no submitted value and
+  //    is excluded from request validation. Its `modelValue` is whatever the
+  //    page's `.item()` returned under the key — e.g. a read-only related list.
+  posts: {
+    type: "component",
+    label: "Posts by this user",
+    component: join(import.meta.dir, "components", "UserPosts.vue"),
+  },
+  // 2. Custom input: a real type plus `component`. The value validates and
+  //    submits as that type; the component edits it via v-model.
+  tags: { type: "array", items: "string", component: join(import.meta.dir, "components", "TagsInput.vue") },
+}, async (id, data) => { /* data.tags is a validated string[]; data.posts never arrives */ })
+```
+
+The component receives:
+
+| Prop | Description |
+|------|-------------|
+| `modelValue` | The field's current value (for a display-only field: what `.item()` returned under the key) |
+| `values` | The whole form's current values — e.g. the record's primary key or sibling fields |
+| `name` | The field key |
+
+Emit `update:modelValue` to change the value (custom inputs). A minimal
+display-only component:
+
+```vue
+<template>
+  <ul><li v-for="p in modelValue ?? []" :key="p.id">{{ p.title }}</li></ul>
+</template>
+<script setup lang="ts">
+defineProps<{ modelValue?: { id: number; title: string }[] }>()
+</script>
+```
+
 ### File uploads
 
 A `{ format: "file" }` field renders a file picker with an upload progress bar.

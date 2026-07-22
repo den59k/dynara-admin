@@ -211,6 +211,17 @@ declare module "compact-json-schema" {
     // Renderer hints: `format: "file" | "date" | "datetime"`, multiline text.
     format?: string
     multiline?: boolean
+    // Path to a .vue file rendering this field instead of the built-in input
+    // (compiled and served like page components). Paired with a real type it is
+    // a custom input (the value validates and submits as that type); with
+    // `type: "component"` it is display-only — see registerFormComponents.
+    component?: string
+  }
+  // Registers `"component"` as a valid schema type: a display-only form block
+  // rendered by a custom Vue component. It is stripped from request validation
+  // (no value is submitted), hence the `unknown` mapping.
+  interface SchemaTypesMap {
+    component: unknown
   }
 }
 
@@ -328,6 +339,9 @@ type ActionEntry = {
   danger?: boolean,
   kind: "row" | "toolbar" | "bulk",
   schema?: SchemaItem,
+  // The schema the route validates the body against: `schema` minus any
+  // display-only component fields (identical when there are none).
+  bodySchema?: SchemaItem,
   handler: (...args: any[]) => any,
 }
 
@@ -355,6 +369,10 @@ type PageEntry = {
   onDelete?: (keys: any[], ctx: Ctx) => Promise<void>,
   createForm?: { schema: SchemaItem },
   updateForm?: { schema: SchemaItem },
+  // What the create/update routes validate against: the form schema minus any
+  // display-only component fields (same reference when there are none).
+  createBodySchema?: SchemaItem,
+  updateBodySchema?: SchemaItem,
   primaryKey?: PropertyKey,
   primaryKeyType?: SchemaItem,
   component?: string,
@@ -413,6 +431,57 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       }
     }
     if (node.items) registerReferenceMethods(node.items, `${idPath}.items`)
+  }
+
+  // Walks an unfolded form schema and registers custom field components
+  // (`component: "<path to .vue>"`) into the same compile-and-serve pipeline as
+  // page components and dashboard widgets. The file path is replaced with the
+  // served key, so the schema handed to the frontend stays plain JSON and never
+  // leaks a server path. Recurses into object properties and array items.
+  const registerFormComponents = (node: any, idPath: string) => {
+    if (!node || typeof node !== "object") return
+    if (typeof node.component === "string") {
+      const key = sanitizeRefId(idPath)
+      componentFiles.set(key, node.component)
+      node.component = key
+    }
+    if (node.properties) {
+      for (const [key, child] of Object.entries(node.properties)) {
+        registerFormComponents(child, `${idPath}.${key}`)
+      }
+    }
+    if (node.items) registerFormComponents(node.items, `${idPath}.items`)
+  }
+
+  // Returns a validation-safe copy of an unfolded form schema. Display-only
+  // component fields (`type: "component"`) carry no submitted value, so they are
+  // removed from `properties`/`required` before the schema reaches dynara —
+  // whose TypeBox conversion has no factory for that type. Custom-input fields
+  // (a real type plus a `component` annotation) are kept and validate as their
+  // type. Returns the input unchanged when there is nothing to strip, so the
+  // common no-component case shares the serialized UI schema.
+  const stripComponentFields = (node: any): any => {
+    if (!node || typeof node !== "object") return node
+    let changed = false
+    const out: any = { ...node }
+    if (node.properties) {
+      const properties: Record<string, any> = {}
+      for (const [key, child] of Object.entries<any>(node.properties)) {
+        if (child?.type === "component") { changed = true; continue }
+        const stripped = stripComponentFields(child)
+        if (stripped !== child) changed = true
+        properties[key] = stripped
+      }
+      out.properties = properties
+      if (Array.isArray(node.required)) {
+        out.required = node.required.filter((key: string) => key in properties)
+      }
+    }
+    if (node.items) {
+      const items = stripComponentFields(node.items)
+      if (items !== node.items) { changed = true; out.items = items }
+    }
+    return changed ? out : node
   }
 
   // Resolves the authenticated user from a request, or throws the HTTPError the
@@ -522,14 +591,14 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       }
 
       if (page.createForm && page.onInsert) {
-        app.post(`${apiBase}/data/${path}/items`, [{}, page.createForm.schema], async (req) => {
+        app.post(`${apiBase}/data/${path}/items`, [{}, page.createBodySchema!], async (req) => {
           await requireAccess(page.access, "write", (req as any).user)
           await page.onInsert!(req.body, { user: (req as any).user })
         })
       }
 
       if (page.updateForm && page.onUpdate) {
-        app.post(`${apiBase}/data/${path}/items/:itemId`, [paramsSchema, page.updateForm.schema], async (req) => {
+        app.post(`${apiBase}/data/${path}/items/:itemId`, [paramsSchema, page.updateBodySchema!], async (req) => {
           await requireAccess(page.access, "write", (req as any).user)
           await page.onUpdate!(req.params.itemId, req.body, { user: (req as any).user })
         })
@@ -610,7 +679,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
           const id = q.itemId != null ? coerceKey(q.itemId) : undefined
           return await action.handler(id, data, ctx)
         }
-        app.post(route, action.schema ? { query: actionQuerySchema, body: action.schema } : { query: actionQuerySchema }, run)
+        app.post(route, action.schema ? { query: actionQuerySchema, body: action.bodySchema! } : { query: actionQuerySchema }, run)
       }
 
       app.get(`${apiBase}/pages/${path}`, async (req): Promise<PageMeta> => {
@@ -856,14 +925,18 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       createForm(schema, onInsert) {
         const unfolded = unfoldSchema(schema)
         registerReferenceMethods(unfolded, `${segment}.create`)
+        registerFormComponents(unfolded, `${segment}.create`)
         currentPage.createForm = { schema: unfolded }
+        currentPage.createBodySchema = stripComponentFields(unfolded)
         currentPage.onInsert = onInsert as any
         return this
       },
       updateForm(schema, onUpdate) {
         const unfolded = unfoldSchema(schema)
         registerReferenceMethods(unfolded, `${segment}.update`)
+        registerFormComponents(unfolded, `${segment}.update`)
         currentPage.updateForm = { schema: unfolded }
+        currentPage.updateBodySchema = stripComponentFields(unfolded)
         currentPage.onUpdate = onUpdate as any
         return this as any
       },
@@ -887,11 +960,15 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
       },
       action(name: string, config: any, handler: any) {
         let schema: SchemaItem | undefined
+        let bodySchema: SchemaItem | undefined
         if (config.form) {
           schema = unfoldSchema(config.form)
-          // Action forms can carry inline `reference` selects too — extract them
-          // so the schema handed to the frontend stays plain JSON.
+          // Action forms can carry inline `reference` selects and custom field
+          // components too — extract both so the schema handed to the frontend
+          // stays plain JSON.
           registerReferenceMethods(schema, `${segment}.action.${name}`)
+          registerFormComponents(schema, `${segment}.action.${name}`)
+          bodySchema = stripComponentFields(schema)
         }
         currentPage.actions.push({
           name,
@@ -901,6 +978,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
           danger: config.danger,
           kind: config.bulk ? "bulk" : (config.placement === "toolbar" ? "toolbar" : "row"),
           schema,
+          bodySchema,
           handler,
         })
         return this as any

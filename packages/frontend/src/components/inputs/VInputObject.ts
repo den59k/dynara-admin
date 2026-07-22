@@ -60,11 +60,19 @@ const InputObject = {
       children.push(group)
     }
 
+    // Custom-component fields additionally receive the whole form's values, so
+    // a display-only component can use sibling fields (e.g. the record id).
+    const renderItem = (i: any) => JsonInput({
+      ...i,
+      modelValue: props.modelValue?.[i.key],
+      ...(i.schema.component ? { values: props.modelValue } : {}),
+    })
+
     return () => h("div", { class: "v-input-object" }, children.map(i => {
       if (Array.isArray(i)) {
-        return h('div', { class: "v-input-object__row" }, i.map(i => JsonInput({ ...i, modelValue: props.modelValue?.[i.key] })))
+        return h('div', { class: "v-input-object__row" }, i.map(renderItem))
       }
-      return JsonInput({ ...i, modelValue: props.modelValue?.[i.key] })
+      return renderItem(i)
     }))
   }
 }

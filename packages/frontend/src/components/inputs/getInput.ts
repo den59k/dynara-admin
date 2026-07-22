@@ -7,6 +7,7 @@ import VInputTextArea from "./VInputTextArea.vue"
 import VSelectInput from "./VSelectInput.vue"
 import VFileInput from "./VFileInput.vue"
 import VDateInput from "./VDateInput.vue"
+import VCustomInput from "./VCustomInput"
 
 // A static option for a select field.
 export type SelectOption = { value: any, label: string }
@@ -33,7 +34,11 @@ export type Schema = {
   nullable?: boolean,
   enum?: (string | number)[],
   options?: SelectOption[],
-  reference?: SelectReference
+  reference?: SelectReference,
+  // Key of a server-compiled custom Vue component (served from /custom/:key)
+  // rendering this field instead of the built-in input. With `type:
+  // "component"` the field is display-only and never submits a value.
+  component?: string
 }
 
 type JsonInputProps = {
@@ -44,11 +49,18 @@ type JsonInputProps = {
   placeholder?: string,
   nullable?: boolean,
   style?: CSSProperties,
+  // The whole form's current values — only passed to custom-component fields,
+  // which may need sibling fields (e.g. the record id) for display.
+  values?: Record<string, any>,
   "onUpdate:modelValue"?: (value: any) => void
 }
 
 export const JsonInput = (props: JsonInputProps) => {
   const { schema, ...restProps } = props
+  // A custom component takes over rendering entirely, whatever the type.
+  if (schema.component) {
+    return h(VCustomInput, { ...restProps, component: schema.component })
+  }
   if (schema.type === "object") {
     return h(VInputObject, { schema, ...restProps })
   }

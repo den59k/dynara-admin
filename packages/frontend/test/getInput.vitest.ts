@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest"
-import { mount } from "@vue/test-utils"
+import { describe, it, expect, vi } from "vitest"
+import { mount, flushPromises } from "@vue/test-utils"
 import { JsonInput } from "../src/components/inputs/getInput"
 import VInputText from "../src/components/inputs/VInputText.vue"
 import VInputTextArea from "../src/components/inputs/VInputTextArea.vue"
@@ -9,6 +9,19 @@ import VCheckbox from "../src/components/inputs/VCheckbox.vue"
 import VSelectInput from "../src/components/inputs/VSelectInput.vue"
 import VFileInput from "../src/components/inputs/VFileInput.vue"
 import VInputObject from "../src/components/inputs/VInputObject"
+import VCustomInput from "../src/components/inputs/VCustomInput"
+
+// VCustomInput dynamically imports the server-compiled module; stub the loader
+// with a fake component that echoes the props it receives.
+vi.mock("../src/utils/loadCustomComponent", async () => {
+  const { defineComponent, h } = await import("vue")
+  const FakeCustom = defineComponent({
+    props: ["modelValue", "values", "name"],
+    setup: (props: any) => () =>
+      h("div", { class: "fake-custom" }, `${props.name}/${props.values?.id}/${(props.modelValue ?? []).length}`),
+  })
+  return { loadCustomComponent: async () => FakeCustom }
+})
 
 // JsonInput maps a schema to the right input component. We assert the vnode's
 // component type rather than mounting, since some inputs fetch on mount.
@@ -71,10 +84,49 @@ describe("JsonInput dispatch", () => {
     expect((JsonInput({ schema: { type: "date", format: "datetime" } }) as any).props.datetime).toBe(true)
   })
 
+  it("renders the custom-component wrapper for a display-only component field", () => {
+    expect(typeOf({ type: "component", component: "users.update.posts" })).toBe(VCustomInput)
+  })
+
+  it("lets a component annotation override the built-in input for a real type", () => {
+    expect(typeOf({ type: "string", component: "users.update.color" })).toBe(VCustomInput)
+    expect(typeOf({ type: "array", items: { type: "string" }, component: "users.update.tags" })).toBe(VCustomInput)
+  })
+
+  it("passes the served component key through to the wrapper", () => {
+    const vnode = JsonInput({ schema: { type: "component", component: "users.update.posts" } }) as any
+    expect(vnode.props.component).toBe("users.update.posts")
+  })
+
   it("forwards enum values and nullable to the select", () => {
     const vnode = JsonInput({ schema: { type: "string", enum: ["a", "b"], nullable: true } }) as any
     expect(vnode.props.enum).toEqual(["a", "b"])
     expect(vnode.props.nullable).toBe(true)
+  })
+})
+
+describe("custom form components", () => {
+  it("threads the field value and the whole form's values into the loaded component", async () => {
+    const schema = {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        posts: { type: "component", component: "users.update.posts" },
+      },
+      required: ["name"],
+    }
+    const wrapper = mount(VInputObject as any, {
+      props: {
+        schema,
+        // The edit dialog merges the whole item into the form values, so keys
+        // outside the schema (like the primary key) are present too.
+        modelValue: { id: 7, name: "Alice", posts: [{ id: 1 }, { id: 2 }] },
+      },
+    })
+    await flushPromises()
+
+    // name (field key) / values.id (sibling from the form) / modelValue.length
+    expect(wrapper.find(".fake-custom").text()).toBe("posts/7/2")
   })
 })
 

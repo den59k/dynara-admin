@@ -42,6 +42,21 @@ describe("getDefaultValue", () => {
     expect(getDefaultValue({ type: "string", format: "datetime" })).toBeNull()
   })
 
+  it("leaves display-only component fields undefined (even when marked required)", () => {
+    expect(getDefaultValue({ type: "component", component: "users.update.posts" })).toBeUndefined()
+    // Inside an object the field must not seed a bogus "" — its value (if any)
+    // comes from the item the edit dialog merges in.
+    const schema = {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        posts: { type: "component", component: "users.update.posts" },
+      },
+      required: ["name", "posts"],
+    }
+    expect(getDefaultValue(schema)).toEqual({ name: "", posts: undefined })
+  })
+
   it("builds an object, defaulting required fields and leaving optionals undefined", () => {
     const schema = {
       type: "object",

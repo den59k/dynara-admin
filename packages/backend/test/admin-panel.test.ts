@@ -356,6 +356,84 @@ describe("admin panel — reference select methods", () => {
   })
 })
 
+describe("admin panel — custom form field components", () => {
+  const buildComponentFormApp = () => {
+    const calls = { updated: [] as Array<[number, unknown]>, granted: [] as unknown[] }
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Users", path: "users" })
+      .data(async () => [])
+      .primaryKey("id", "number")
+      .updateForm(
+        {
+          name: "string",
+          // Display-only block: rendered by a custom component, never submitted.
+          posts: { type: "component", label: "Posts", component: "/abs/path/UserPosts.vue" },
+          // Custom input: a real type rendered by a custom component — the
+          // value still validates and submits as that type.
+          tags: { type: "array", items: "string", component: "/abs/path/TagsInput.vue" },
+        },
+        async (id, data) => { calls.updated.push([id, data]) }
+      )
+      // Action forms support component fields through the same pipeline.
+      .action("grant", {
+        title: "Grant",
+        form: { amount: "number", preview: { type: "component", component: "/abs/path/Preview.vue" } },
+      }, async (_id: number, data: unknown) => { calls.granted.push(data); return { message: "ok" } })
+    const app = new Router()
+    app.register(admin)
+    return { app, calls }
+  }
+
+  it("serializes component fields with a served key instead of the file path", async () => {
+    const { app } = buildComponentFormApp()
+    const meta: any = await (await app.inject("/api/admin/pages/users")).json()
+
+    const props = meta.updateForm.schema.properties
+    expect(props.posts).toMatchObject({ type: "component", label: "Posts", component: "users.update.posts" })
+    expect(props.tags.component).toBe("users.update.tags")
+    expect(meta.actions[0].form.schema.properties.preview.component).toBe("users.action.grant.preview")
+    // Server file paths must never leak into the serialized metadata.
+    expect(JSON.stringify(meta)).not.toContain("/abs/path")
+  })
+
+  it("accepts an update body without the display-only field", async () => {
+    const { app, calls } = buildComponentFormApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/items/1",
+      body: { name: "Alice", tags: ["a", "b"] },
+    })
+
+    expect(res.status).toBe(200)
+    expect(calls.updated).toEqual([[1, { name: "Alice", tags: ["a", "b"] }]])
+  })
+
+  it("still validates a custom-input field by its declared type", async () => {
+    const { app, calls } = buildComponentFormApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/items/1",
+      body: { name: "Alice", tags: "not-an-array" },
+    })
+
+    expect(res.status).toBe(400)
+    expect(calls.updated).toEqual([])
+  })
+
+  it("runs an action whose form carries a display-only component field", async () => {
+    const { app, calls } = buildComponentFormApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/actions/grant?itemId=1",
+      body: { amount: 5 },
+    })
+
+    expect(res.status).toBe(200)
+    expect(calls.granted).toEqual([{ amount: 5 }])
+  })
+})
+
 describe("admin panel — declared actions", () => {
   const buildActionsApp = () => {
     const users = seedUsers().map((u) => ({ ...u, balance: 0 }))

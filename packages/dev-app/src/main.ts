@@ -43,6 +43,20 @@ const userForm = {
   birthday: "date??",
 } as const
 
+// The update form adds a display-only custom component: a read-only list of the
+// user's posts, rendered by a host-owned .vue file (compiled and served through
+// the same pipeline as page components). `type: "component"` fields carry no
+// submitted value — the component receives whatever `.item()` returned under
+// the key as its `modelValue`, and is stripped from request validation.
+const userUpdateForm = {
+  ...userForm,
+  posts: {
+    type: "component",
+    label: "Posts by this user",
+    component: join(import.meta.dir, "components", "UserPosts.vue"),
+  },
+} as const
+
 // Maps the list options' `search`/`filter` to a MarciDB `$where`. Shared by the
 // Users page's `.data()` and `.count()` so the two never drift apart.
 const buildUserWhere = ({ search, filter }: { search?: string; filter?: Record<string, any> }): any => {
@@ -89,10 +103,21 @@ admin
   })
   .primaryKey("id", "number")
   // MarciDB returns DateTime as epoch millis; the date input accepts that as-is,
-  // so the row is returned unchanged.
-  .item(async (id) =>
-    client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, balance: true, birthday: true, $where: { id } })
-  )
+  // so the row is returned unchanged. `posts` feeds the update form's
+  // display-only component field.
+  .item(async (id) => {
+    const user = await client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, balance: true, birthday: true, $where: { id } })
+    if (!user) return null
+    const posts = await client.post.findMany({
+      id: true,
+      title: true,
+      published: true,
+      $where: { author: { id } },
+      $order: { id: "desc" },
+      $limit: 8,
+    })
+    return { ...user, posts }
+  })
   .table([
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Name", field: "name", sortable: true },
@@ -108,7 +133,9 @@ admin
   .createForm(userForm, async (data) => {
     await client.user.insert(data)
   })
-  .updateForm(userForm, async (id, data) => {
+  // `posts` is display-only: the panel never submits it, but destructure it off
+  // anyway so the DB update only ever sees real columns.
+  .updateForm(userUpdateForm, async (id, { posts: _posts, ...data }) => {
     await client.user.update({ id }, data)
   })
   .onDelete(async (ids) => {

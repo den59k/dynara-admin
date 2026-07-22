@@ -103,7 +103,8 @@
 <script lang="ts" setup>
 import { mutateRequestFull, useRequestWatch } from 'vuesix';
 import { dataApi, type ActionMeta, type ListParams } from '../api/dataApi';
-import { UI_BASE, HTTPError } from '../api/request';
+import { HTTPError } from '../api/request';
+import { loadCustomComponent } from '../utils/loadCustomComponent';
 import { HOME_VIEW_ID } from '../constants';
 import { t } from '../i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -342,10 +343,7 @@ watch(data, () => {
 const customComponent = shallowRef<any>(null)
 watch(tableData, async (tableData) => {
   if (tableData && tableData.component) {
-    const jwt = window.localStorage.getItem("dynara-admin__token")
-    const suffix = jwt ? `?token=${encodeURIComponent(jwt)}` : ''
-    const { default: component } = await import(/* @vite-ignore */ `${UI_BASE}/custom/${tableData.component}${suffix}`)
-    customComponent.value = component
+    customComponent.value = await loadCustomComponent(tableData.component)
   } else {
     customComponent.value = null
   }

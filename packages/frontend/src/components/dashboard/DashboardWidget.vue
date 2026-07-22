@@ -44,7 +44,7 @@ import { computed, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRequestWatch } from 'vuesix'
 import { dashboardApi, type DashboardWidget, type StatValue } from '../../api/dashboardApi'
-import { UI_BASE } from '../../api/request'
+import { loadCustomComponent } from '../../utils/loadCustomComponent'
 import { t } from '../../i18n'
 import VIcon from '../VIcon.vue'
 
@@ -66,14 +66,11 @@ const { data, pending } = props.widget.hasData
 const statData = computed<StatValue | null>(() => (props.widget.type === 'stat' ? data.value : null))
 
 // For a component widget, dynamically import its compiled module (same pipeline
-// as custom page components), passing the auth token so the import is authorized.
+// as custom page components).
 const custom = shallowRef<any>(null)
 watch(() => props.widget, async (widget) => {
   if (widget.type !== 'component' || !widget.component) { custom.value = null; return }
-  const jwt = window.localStorage.getItem('dynara-admin__token')
-  const suffix = jwt ? `?token=${encodeURIComponent(jwt)}` : ''
-  const mod = await import(/* @vite-ignore */ `${UI_BASE}/custom/${widget.component}${suffix}`)
-  custom.value = mod.default
+  custom.value = await loadCustomComponent(widget.component)
 }, { immediate: true })
 </script>
 

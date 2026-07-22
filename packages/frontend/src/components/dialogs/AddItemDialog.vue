@@ -58,11 +58,20 @@ onMounted(() => {
   el?.vnode.el?.querySelector("input,textarea")?.focus()
 })
 
+// Display-only component fields never submit a value: the edit dialog merges
+// the whole item into the form values, so such a key may hold server-provided
+// context (e.g. a related list) that the create/update endpoints must not receive.
+const componentKeys = Object.entries<any>(props.schema?.properties ?? {})
+  .filter(([, s]) => s.type === "component")
+  .map(([key]) => key)
+
 const apply = handleSubmit(async (values) => {
+  const payload = { ...values }
+  for (const key of componentKeys) delete payload[key]
   if (isEdit.value) {
-    await dataApi.updateItem(props.viewId, itemId.value, values)
+    await dataApi.updateItem(props.viewId, itemId.value, payload)
   } else {
-    await dataApi.createItem(props.viewId, values)
+    await dataApi.createItem(props.viewId, payload)
   }
   mutateRequestFull(dataApi.getData)
   props.onDone?.()

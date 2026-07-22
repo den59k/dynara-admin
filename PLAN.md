@@ -50,6 +50,16 @@ columns, pagination, sidebar groups/icons, custom Vue page components with
   receiving their server-resolved `data` as a prop). Per-widget `data` resolvers are served
   from `${apiBase}/dashboard/:i/data`; the home route renders it via a `__DYNARA_DASHBOARD__`
   flag when no `path: "/"` page exists.
+- **Custom form components (4.2, partial)** — any form field (create/update/action
+  forms) can be rendered by a host-owned `.vue` file via a `component: <path>`
+  schema key, compiled/served through the existing `.component()` pipeline (the
+  serialized schema carries an opaque key, never the server path). Two flavors:
+  `type: "component"` is display-only (e.g. a read-only related list — its
+  `modelValue` is whatever `.item()` returned under the key; stripped from
+  request validation and never submitted) and a real type + `component` is a
+  custom input (validates/submits as that type via v-model). The component also
+  receives `values` (the whole form's current values, incl. the primary key).
+  Demoed in the dev-app: "Posts by this user" in the Users edit dialog.
 - **UI redesign (minimal-CMS pass)** — one-row page header (title + count, primary
   Add/toolbar actions pinned right), one controls row (search + inline label-in-pill
   filters) that swaps to a selection bar with bulk actions when rows are checked; row
