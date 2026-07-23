@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest"
 import { mount, flushPromises } from "@vue/test-utils"
+import { ref } from "vue"
 import { JsonInput } from "../src/components/inputs/getInput"
+import { FORM_ITEM_KEY } from "../src/utils/formItem"
 import VInputText from "../src/components/inputs/VInputText.vue"
 import VInputTextArea from "../src/components/inputs/VInputTextArea.vue"
 import VInputNumber from "../src/components/inputs/VInputNumber.vue"
@@ -16,9 +18,10 @@ import VCustomInput from "../src/components/inputs/VCustomInput"
 vi.mock("../src/utils/loadCustomComponent", async () => {
   const { defineComponent, h } = await import("vue")
   const FakeCustom = defineComponent({
-    props: ["modelValue", "values", "name"],
+    props: ["modelValue", "values", "name", "item"],
     setup: (props: any) => () =>
-      h("div", { class: "fake-custom" }, `${props.name}/${props.values?.id}/${(props.modelValue ?? []).length}`),
+      h("div", { class: "fake-custom" },
+        `${props.name}/${props.values?.name}/${props.item ? props.item.id : "null"}/${(props.modelValue ?? []).length}`),
   })
   return { loadCustomComponent: async () => FakeCustom }
 })
@@ -106,27 +109,38 @@ describe("JsonInput dispatch", () => {
 })
 
 describe("custom form components", () => {
-  it("threads the field value and the whole form's values into the loaded component", async () => {
-    const schema = {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        posts: { type: "component", component: "users.update.posts" },
-      },
-      required: ["name"],
-    }
+  const schema = {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      posts: { type: "component", component: "users.update.posts" },
+    },
+    required: ["name"],
+  }
+
+  it("threads the field value, sibling values and the provided record into the loaded component", async () => {
     const wrapper = mount(VInputObject as any, {
       props: {
         schema,
-        // The edit dialog merges the whole item into the form values, so keys
-        // outside the schema (like the primary key) are present too.
-        modelValue: { id: 7, name: "Alice", posts: [{ id: 1 }, { id: 2 }] },
+        // Form values hold schema-declared fields only — never the primary key.
+        modelValue: { name: "Alice", posts: [{ id: 1 }, { id: 2 }] },
       },
+      // The dialogs provide the persisted record; identity travels here.
+      global: { provide: { [FORM_ITEM_KEY as symbol]: ref({ id: 7, name: "Alice" }) } },
     })
     await flushPromises()
 
-    // name (field key) / values.id (sibling from the form) / modelValue.length
-    expect(wrapper.find(".fake-custom").text()).toBe("posts/7/2")
+    // name (field key) / values.name (sibling) / item.id / modelValue.length
+    expect(wrapper.find(".fake-custom").text()).toBe("posts/Alice/7/2")
+  })
+
+  it("passes item: null when nothing provides a record (create mode)", async () => {
+    const wrapper = mount(VInputObject as any, {
+      props: { schema, modelValue: { name: "Bob", posts: [] } },
+    })
+    await flushPromises()
+
+    expect(wrapper.find(".fake-custom").text()).toBe("posts/Bob/null/0")
   })
 })
 

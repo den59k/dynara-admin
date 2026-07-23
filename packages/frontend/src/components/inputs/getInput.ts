@@ -49,8 +49,9 @@ type JsonInputProps = {
   placeholder?: string,
   nullable?: boolean,
   style?: CSSProperties,
-  // The whole form's current values — only passed to custom-component fields,
-  // which may need sibling fields (e.g. the record id) for display.
+  // The enclosing form object's current values — only passed to
+  // custom-component fields, which may need sibling fields for display. (The
+  // record's identity is not in here; it arrives via the injected form item.)
   values?: Record<string, any>,
   "onUpdate:modelValue"?: (value: any) => void
 }

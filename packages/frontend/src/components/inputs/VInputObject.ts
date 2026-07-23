@@ -60,8 +60,9 @@ const InputObject = {
       children.push(group)
     }
 
-    // Custom-component fields additionally receive the whole form's values, so
-    // a display-only component can use sibling fields (e.g. the record id).
+    // Custom-component fields additionally receive this object's values, so a
+    // display-only component can use sibling fields. (The record itself reaches
+    // VCustomInput via injection — form values never hold the primary key.)
     const renderItem = (i: any) => JsonInput({
       ...i,
       modelValue: props.modelValue?.[i.key],

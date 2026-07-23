@@ -286,7 +286,13 @@ const columns = computed<TableColumn<any>[]>(() => {
 // it declares `confirm`, or fires immediately. Shows the returned message as a toast.
 const invokeAction = (action: ActionMeta, target: { itemId?: any, itemIds?: any[] }) => {
   if (action.form) {
-    dialog.open(ActionDialog, { viewId: viewId.value, action: action as any, ...target, onDone: refresh })
+    // For a row action, hand the targeted row to the dialog so custom
+    // form-field components know which record they act on. Dialog-only: the
+    // action endpoint still receives just `target`.
+    const item = target.itemId != null
+      ? (data.value?.items ?? []).find((row: any) => row[tableData.value!.primaryKey] === target.itemId) ?? null
+      : null
+    dialog.open(ActionDialog, { viewId: viewId.value, action: action as any, ...target, item, onDone: refresh })
     return
   }
   const run = async () => {

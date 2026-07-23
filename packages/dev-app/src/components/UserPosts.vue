@@ -6,17 +6,23 @@
         {{ p.published ? 'Published' : 'Draft' }}
       </span>
     </li>
-    <li v-if="!(modelValue?.length)" class="user-posts__empty">No posts yet</li>
+    <li v-if="!(modelValue?.length)" class="user-posts__empty">
+      {{ item ? `${item.name} has no posts yet` : 'No posts yet' }}
+    </li>
   </ul>
 </template>
 
 <script setup lang="ts">
 // A custom form-field component (display-only, declared with `type:
 // "component"` in the update form schema). `modelValue` is whatever the page's
-// `.item()` returned under the field's key — here the user's recent posts. The
-// whole form's current values (including the record id) are also available as
-// a `values` prop for components that need sibling fields.
-defineProps<{ modelValue?: { id: number; title: string; published: boolean }[] }>()
+// `.item()` returned under the field's key — here the user's recent posts.
+// `item` is the persisted record (null when creating) — the channel for the
+// record's identity and server fields; `values` holds the form's editable
+// fields (without the primary key) for components that need sibling values.
+defineProps<{
+  modelValue?: { id: number; title: string; published: boolean }[],
+  item?: { id: number; name: string } | null,
+}>()
 </script>
 
 <style>

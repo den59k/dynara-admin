@@ -12,7 +12,7 @@
 </template>
 
 <script lang="ts" setup>
-import { getCurrentInstance, onMounted } from 'vue'
+import { getCurrentInstance, onMounted, provide, ref } from 'vue'
 import { JsonInput } from '../inputs/getInput'
 import VButton from '../VButton.vue'
 import VDialog from '../VDialog.vue'
@@ -21,20 +21,27 @@ import { useToast } from '../VToastProvider.vue'
 import { useForm } from 'vuesix'
 import { dataApi, type ActionMeta } from '../../api/dataApi'
 import { getDefaultValue } from '../../utils/getDefaultValue'
+import { FORM_ITEM_KEY } from '../../utils/formItem'
 import { t } from '../../i18n'
 
 const props = defineProps<{
   viewId: string,
   action: ActionMeta & { form: { schema: any } },
-  // Row action → itemId; bulk action → itemIds; toolbar action → neither.
+  // Row action → itemId + item (the targeted row); bulk action → itemIds;
+  // toolbar action → neither.
   itemId?: any,
   itemIds?: any[],
+  item?: any,
   // Called after a successful run so the caller can refresh the list.
   onDone?: () => void,
 }>()
 
 const dialog = useDialog()
 const toast = useToast()
+
+// The targeted row, for custom form-field components. Not part of the form
+// values and never sent to the action endpoint — the handler gets `itemId`.
+provide(FORM_ITEM_KEY, ref(props.item ?? null))
 
 const { values, handleSubmit, pending, hasChange } = useForm(getDefaultValue(props.action.form.schema))
 // Ask before discarding a partially filled action form on overlay/Esc/✕/Cancel.

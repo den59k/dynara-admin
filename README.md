@@ -373,7 +373,8 @@ The component receives:
 | Prop | Description |
 |------|-------------|
 | `modelValue` | The field's current value (for a display-only field: what `.item()` returned under the key) |
-| `values` | The whole form's current values — e.g. the record's primary key or sibling fields |
+| `values` | The form's current values — the editable fields, unsaved edits included. Does **not** contain the primary key |
+| `item` | The persisted record — the table row, refreshed from `.item()` when the page declares it; `null` when creating. In an action form: the row a row action targets (`null` for toolbar/bulk actions). Use this for identity (`item.id`) and server fields the form doesn't declare |
 | `name` | The field key |
 
 Emit `update:modelValue` to change the value (custom inputs). A minimal
@@ -384,7 +385,7 @@ display-only component:
   <ul><li v-for="p in modelValue ?? []" :key="p.id">{{ p.title }}</li></ul>
 </template>
 <script setup lang="ts">
-defineProps<{ modelValue?: { id: number; title: string }[] }>()
+defineProps<{ modelValue?: { id: number; title: string }[], item?: { id: number } | null }>()
 </script>
 ```
 
