@@ -318,6 +318,11 @@ watch(model, resolveSelectedLabel, { immediate: true })
 
 .v-select-input__search
   flex-grow: 1
+  // Zero base width (like VInputText's input) so the field grows from nothing
+  // instead of the browser's intrinsic ~170px — otherwise, in a narrow container
+  // (a table cell), the open search box inflates the control and shoves the
+  // arrow past the right edge.
+  width: 0
   min-width: 0
   height: 100%
   border: none

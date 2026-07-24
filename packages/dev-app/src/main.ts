@@ -66,11 +66,14 @@ const userForm = {
     label: "Schedule",
     sortable: true,
     items: {
+      // `width` sets the column's relative weight (fr): Day takes twice the
+      // width of each time column.
       day: {
         type: "string",
         enum: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
         enumLabels: { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" },
         label: "Day",
+        width: 2,
       },
       from: { type: "string", label: "From" },
       to: { type: "string??", label: "To" },
@@ -91,6 +94,13 @@ const userUpdateForm = {
     component: join(import.meta.dir, "components", "UserPosts.vue"),
   },
 } as const
+
+// A schedule row's `to` is nullable. The form's optional marker also widens its
+// static type with `undefined`, which the `schedule` Json column rejects — even
+// though the submitted value is only ever a string or null. Coerce it so each
+// row is valid JSON before it reaches the DB.
+const normalizeSchedule = (rows: { day: string; from: string; to?: string | null }[]) =>
+  rows.map((r) => ({ ...r, to: r.to ?? null }))
 
 // Maps the list options' `search`/`filter` to a MarciDB `$where`. Shared by the
 // Users page's `.data()` and `.count()` so the two never drift apart.
@@ -166,13 +176,13 @@ admin
   ])
   // `birthday` arrives as a JS Date (or null) — dynara decoded the native `date`
   // field — so it goes straight to the DB with no conversion.
-  .createForm(userForm, async (data) => {
-    await client.user.insert(data)
+  .createForm(userForm, async ({ schedule, ...data }) => {
+    await client.user.insert({ ...data, schedule: normalizeSchedule(schedule) })
   })
   // `posts` is display-only: the panel never submits it, but destructure it off
   // anyway so the DB update only ever sees real columns.
-  .updateForm(userUpdateForm, async (id, { posts: _posts, ...data }) => {
-    await client.user.update({ id }, data)
+  .updateForm(userUpdateForm, async (id, { posts: _posts, schedule, ...data }) => {
+    await client.user.update({ id }, { ...data, schedule: normalizeSchedule(schedule) })
   })
   .onDelete(async (ids) => {
     await client.$transaction(ids.map((id) => client.user.delete({ id })))

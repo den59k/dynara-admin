@@ -175,6 +175,13 @@ const { itemsRef, dragIndex, dragOffset, onHandleDown } = useRowDrag(items, (arr
   .v-input-text, .v-select-input, .v-select-chips-input, .v-select-list-input
     min-width: 0
 
+  // A nullable cell's own clear cross would sit right next to the row's remove
+  // button — a confusing double cross. The row remove is the clear affordance
+  // here (a nullable select still clears from inside its dropdown), so the
+  // inline cross is dropped as part of the stripped cell chrome.
+  .v-input-clear
+    display: none
+
 .v-input-table__handle
   display: flex
   align-items: center
