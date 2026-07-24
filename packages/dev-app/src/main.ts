@@ -30,15 +30,29 @@ admin.registerAuthMethod({
   onRequest: async (token) => ACCOUNTS[token] ?? null,
 })
 
+// Role display metadata, keyed by value and shared across the whole page — the
+// form select, the filter select and the table badge all read these, so the
+// labels and colors can never drift apart (mirrors Posts' LABEL_COLORS).
+const ROLE_LABELS = { user: "User", moderator: "Moderator" }
+const ROLE_COLORS = { user: "gray", moderator: "purple" }
+
 // Shared form schema for the Users page (create + update use the same fields).
 // `email`/`birthday` are nullable (`??`) so the form shows a clear cross that
-// resets them to null; `role` renders as a select from the enum; `birthday`
-// uses dynara's native `date` type — the handler receives a JS Date directly.
+// resets them to null; `role` renders as a select over the enum, showing a
+// colored dot per value from `enumColors`; `birthday` uses dynara's native
+// `date` type — the handler receives a JS Date directly.
 const userForm = {
   name: "string",
   email: "string??",
   age: "number",
-  role: ["user", "moderator"],
+  // `enumLabels`/`enumColors` add display metadata over the enum, keyed by
+  // value — the enum itself stays the single source of truth for validation.
+  role: {
+    type: "string",
+    enum: ["user", "moderator"],
+    enumLabels: ROLE_LABELS,
+    enumColors: ROLE_COLORS,
+  },
   balance: "number",
   birthday: "date??",
 } as const
@@ -74,7 +88,7 @@ admin
   // Typed filters render above the table; their validated values arrive on the
   // list options as `filter`. Every field is optional (apply-if-set).
   .filters({
-    role: { type: "string?", options: [{ value: "user", label: "User" }, { value: "moderator", label: "Moderator" }] },
+    role: { type: "string?", enum: ["user", "moderator"], enumLabels: ROLE_LABELS, enumColors: ROLE_COLORS },
     minBalance: "number?",
   })
   // Shared filter → MarciDB `$where`, so `.data()` and `.count()` stay in sync
@@ -122,8 +136,9 @@ admin
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Name", field: "name", sortable: true },
     { title: "Email", field: "email" },
-    // A colored pill keyed on the role value.
-    { title: "Role", field: "role", width: 120, type: "badge", colors: { moderator: "purple", user: "gray" } },
+    // A colored pill keyed on the role value — same ROLE_COLORS the form and
+    // filter selects use, so the badge and the dots always match.
+    { title: "Role", field: "role", width: 120, type: "badge", colors: ROLE_COLORS },
     // Currency-formatted number.
     { title: "Balance", field: "balance", width: 110, sortable: true, type: "money", currency: "USD" },
     { title: "Age", field: "age", width: 80, sortable: true },
