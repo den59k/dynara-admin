@@ -1,19 +1,16 @@
 <template>
   <VFormControl class="v-select-list-input" :label="label" :error="error">
-    <div v-if="items.length > 0" class="v-select-list-input__items" @drop.prevent>
+    <div v-if="items.length > 0" ref="itemsRef" class="v-select-list-input__items">
       <div
         v-for="(value, index) in items"
         :key="String(value)"
         class="v-select-list-input__item"
         :class="{ dragging: dragIndex === index }"
-        :draggable="armed === index || undefined"
-        @dragstart="onDragStart(index, $event)"
-        @dragover="onDragOver(index, $event)"
-        @dragend="onDragEnd"
+        :style="dragIndex === index ? { transform: `translateY(${dragOffset}px)` } : undefined"
       >
-        <!-- The handle arms the row for dragging, so text selection and clicks
-             elsewhere on the row never start a drag. -->
-        <span v-if="sortable" class="v-select-list-input__handle" @pointerdown="armed = index">
+        <!-- The handle starts a pointer-driven drag; the rest of the row stays
+             static so text selection and clicks never begin a reorder. -->
+        <span v-if="sortable" class="v-select-list-input__handle" @pointerdown="onHandleDown(index, $event)">
           <VIcon icon="menu" />
         </span>
         <span class="v-select-list-input__label">{{ labelFor(value) }}</span>
@@ -31,7 +28,7 @@
       :enum="props.enum"
       :reference="reference"
       :exclude-values="items"
-      :model-value="null"
+      v-model="addValue"
       @select="add"
     />
   </VFormControl>
@@ -151,7 +148,13 @@ watch(items, (values) => {
 }, { immediate: true })
 
 // --- Mutations ---
+// The embedded select is a one-shot picker: reset it after every pick so the
+// chosen value doesn't linger as its displayed value. Resetting `value` -> null
+// is a real prop change, so the select clears (a static `:model-value="null"`
+// wouldn't — its local model would hold onto the last selection).
+const addValue = ref<any>(null)
 const add = (option: SelectOption | null) => {
+  addValue.value = null
   if (option == null || option.value == null) return
   if (items.value.includes(option.value)) return
   resolvedLabels.value.set(option.value, option.label)
@@ -162,34 +165,69 @@ const removeAt = (index: number) => {
   model.value = items.value.filter((_, i) => i !== index)
 }
 
-// --- Manual sorting (HTML5 drag & drop, live reorder on dragover). A row is
-// only draggable while the pointer went down on its handle (`armed`), so the
-// rest of the row behaves like static content. ---
-const armed = ref<number | null>(null)
+// --- Manual sorting. Pressing a row's handle starts a pointer-driven drag: the
+// picked row follows the pointer along the Y axis (clamped to the list bounds),
+// and the model reorders live as the row crosses its neighbours. ---
+const itemsRef = ref<HTMLElement>()
 const dragIndex = ref<number | null>(null)
+// Pixel offset applied to the dragged row so it stays under the pointer.
+const dragOffset = ref(0)
 
-const onDragStart = (index: number, e: DragEvent) => {
+// Captured at the start of a drag and constant for its duration.
+let startIndex = 0
+let startPointerY = 0
+let rowStep = 0 // distance between consecutive row tops (height + gap)
+let rowCount = 0
+
+const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
+
+const onHandleDown = (index: number, e: PointerEvent) => {
+  const container = itemsRef.value
+  if (!container) return
+  const rows = Array.from(container.children) as HTMLElement[]
+  // Measure the step from the DOM so it tracks whatever height/gap the CSS uses.
+  rowStep = rows.length > 1 ? rows[1].offsetTop - rows[0].offsetTop : 0
+  if (rowStep === 0) return // a single row has nowhere to go
+
+  e.preventDefault() // suppress native text/image selection while dragging
+  startIndex = index
+  rowCount = items.value.length
+  startPointerY = e.clientY
   dragIndex.value = index
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', '') // Firefox requires data to start a drag
-  }
+  dragOffset.value = 0
+
+  // Listen on the window rather than the handle: reordering the rows moves the
+  // handle's DOM node, which would drop pointer capture (and fire pointercancel)
+  // and stall the drag. Window listeners fire wherever the pointer goes.
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
+  window.addEventListener('pointercancel', onPointerUp)
 }
 
-const onDragOver = (index: number, e: DragEvent) => {
+const onPointerMove = (e: PointerEvent) => {
   if (dragIndex.value == null) return
-  e.preventDefault()
-  if (index === dragIndex.value) return
-  const arr = [...items.value]
-  const [moved] = arr.splice(dragIndex.value, 1)
-  arr.splice(index, 0, moved)
-  dragIndex.value = index
-  model.value = arr
+  const maxTop = (rowCount - 1) * rowStep
+  // Where the row sits visually — derived from the original slot plus the total
+  // pointer travel, so it's independent of the reorders done so far and can't drift.
+  const visualTop = clamp(startIndex * rowStep + (e.clientY - startPointerY), 0, maxTop)
+  const target = clamp(Math.round(visualTop / rowStep), 0, rowCount - 1)
+  if (target !== dragIndex.value) {
+    const arr = [...items.value]
+    const [moved] = arr.splice(dragIndex.value, 1)
+    arr.splice(target, 0, moved)
+    dragIndex.value = target
+    model.value = arr
+  }
+  // Offset relative to the row's (possibly new) home slot keeps it under the pointer.
+  dragOffset.value = visualTop - dragIndex.value * rowStep
 }
 
-const onDragEnd = () => {
+const onPointerUp = () => {
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
   dragIndex.value = null
-  armed.value = null
+  dragOffset.value = 0
 }
 </script>
 
@@ -216,18 +254,31 @@ const onDragEnd = () => {
   background: none
   box-sizing: border-box
 
+  // The dragged row floats above the rest and tracks the pointer directly, so
+  // its transform must not be animated.
   &.dragging
-    opacity: 0.5
-    background-color: var(--hover-color)
+    position: relative
+    z-index: 1
+    background-color: var(--popover-color)
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28)
+    cursor: grabbing
 
 .v-select-list-input__handle
   display: flex
   align-items: center
+  // Grab area spans the full row height and reaches the row's left edge (the
+  // negative margin eats the row's 10px left padding; the matching padding keeps
+  // the icon in place), so there's a large area to grab.
+  align-self: stretch
+  margin-left: -10px
+  padding-left: 10px
   color: var(--text-secondary-color)
   cursor: grab
   flex-shrink: 0
-  // The handle is the drag affordance — don't let the pointerdown select text.
+  // The handle is the drag affordance — don't let the pointerdown select text
+  // or scroll the page (touch) when a drag begins.
   user-select: none
+  touch-action: none
 
   svg
     width: 15px

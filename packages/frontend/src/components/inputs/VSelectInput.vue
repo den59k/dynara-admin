@@ -24,7 +24,7 @@
         <span v-else class="v-select-input__placeholder">{{ placeholder ?? t('select.empty') }}</span>
       </template>
       <VInputClear v-if="nullable && model != null && !open" @clear="select(null)" />
-      <VIcon class="v-select-input__arrow" icon="arrow-down" />
+      <VIcon class="v-select-input__arrow" icon="chevron-down" />
     </div>
 
     <Teleport to="body">
