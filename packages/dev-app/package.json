@@ -10,8 +10,8 @@
     "generate": "marcidb generate schema.marci src/db"
   },
   "dependencies": {
-    "marcidb-client": "^0.8.1",
-    "marcidb-embedded": "^0.8.1"
+    "marcidb-client": "^0.10.0",
+    "marcidb-embedded": "^0.10.0"
   },
   "devDependencies": {
     "dynara": "^0.0.4"

@@ -88,6 +88,11 @@ declare module "compact-json-schema" {
     // Renderer hints: `format: "file" | "date" | "datetime"`, multiline text.
     format?: string
     multiline?: boolean
+    // On an array field whose values come from `options`/`reference` (a
+    // relation list): let the user reorder the list by dragging. Off by
+    // default — the list keeps insertion order. Either way the submitted
+    // array carries the visible order; persisting it is the host's concern.
+    sortable?: boolean
     // Path to a .vue file rendering this field instead of the built-in input
     // (compiled and served like page components). Paired with a real type it is
     // a custom input (the value validates and submits as that type); with

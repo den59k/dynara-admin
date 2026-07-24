@@ -49,7 +49,7 @@
             type="button"
             class="v-select-input__option"
             :class="{ active: opt.value === model }"
-            @click="select(opt.value)"
+            @click="select(opt.value, opt)"
           >
             <span class="v-select-input__option-label">{{ opt.label }}</span>
             <VIcon v-if="opt.value === model" class="v-select-input__check" icon="check" />
@@ -82,7 +82,15 @@ const props = defineProps<{
   enum?: (string | number)[]
   reference?: SelectReference
   nullable?: boolean
+  // Values hidden from the dropdown. Used by VSelectListInput, which embeds
+  // this control as its "add" box and excludes the already-picked values.
+  excludeValues?: any[]
 }>()
+
+// `select` carries the full chosen option (or null on clear) alongside the
+// plain-value v-model update, so an embedding control can reuse the label
+// without resolving it again.
+const emit = defineEmits<{ select: [option: SelectOption | null] }>()
 
 const model = defineModel<any>()
 
@@ -153,7 +161,12 @@ const filteredStatic = computed(() => {
   if (!q) return staticOptions.value
   return staticOptions.value.filter(o => o.label.toLowerCase().includes(q))
 })
-const resolvedOptions = computed(() => props.reference ? loadedOptions.value : filteredStatic.value)
+const resolvedOptions = computed(() => {
+  const base = props.reference ? loadedOptions.value : filteredStatic.value
+  const excluded = props.excludeValues
+  if (!excluded || excluded.length === 0) return base
+  return base.filter(o => !excluded.includes(o.value))
+})
 
 // --- Selected-value label (may need resolving in edit mode) ---
 const resolvedLabel = shallowRef<string | null>(null)
@@ -226,8 +239,9 @@ const close = () => {
   search.value = ''
 }
 
-const select = (value: any) => {
+const select = (value: any, option: SelectOption | null = null) => {
   model.value = value
+  emit('select', option)
   close()
 }
 

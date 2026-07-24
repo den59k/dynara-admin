@@ -4,6 +4,12 @@ export const getDefaultValue = (schema: any): any => {
   if (schema.type === "component") return undefined
   if (schema.default) return schema.default
   if (schema.nullable) return null
+  // Arrays start empty — including relation-list fields, which carry
+  // `reference`/`options` on the array node and must not fall into the
+  // select-null branch below (a required array of ids submits as []).
+  if (schema.type === "array") {
+    return schema.format === "richText" ? [{ text: "" }] : []
+  }
   // Select / enum / reference / file / date fields start empty rather than at a
   // bogus 0 / "" value.
   if (schema.options || schema.enum || schema.reference || schema.format === "file") return null
@@ -21,10 +27,6 @@ export const getDefaultValue = (schema: any): any => {
       return [ key, getDefaultValue(value)]
     }))
   }
-  if (schema.type === "array" && schema.format === "richText") {
-    return [{ text: "" }]
-  }
-  if (schema.type === 'array') return []
   if (schema.type === 'boolean') return false
   return ""
 }

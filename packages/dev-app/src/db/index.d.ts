@@ -34,45 +34,119 @@ type RefUpdateStruct<I,U> = {
   "$set"?: I
 }
 
+/** Relation to independent rows — link operations only, the rows themselves are never created
+ * or deleted. `$set` replaces link membership with exactly the given set (missing links are
+ * disconnected, new ones connected); `$connect` links (idempotent); `$remove` unlinks. */
 type RefListUpdate<I> = {
+  "$set"?: I[],
   "$connect"?: I | I[],
   "$remove"?: I | I[],
 }
 
-type RefListUpdateStruct<I,U> = {
-  "$push"?: I | I[],
+/** `@list` relation: an ordered inline id array — a sequence, so the same id may appear several
+ * times. `$set` replaces the whole array (also the reorder operation); `$connect` appends at the
+ * end (an already-present id gains another occurrence); `$connectUnique` appends only ids not
+ * already present; `$remove` removes every occurrence. */
+type RefListUpdateOrdered<I> = {
+  "$set"?: I[],
+  "$connect"?: I | I[],
+  "$connectUnique"?: I | I[],
   "$remove"?: I | I[],
+}
+
+/** Owned (struct) list: the children live and die with the parent. `$push` creates children,
+ * `$update` edits single children in place (each item is the child's id fields — the shape
+ * query results return — plus the changes under `data`), `$remove` deletes children by id,
+ * `$set` replaces all children (deletes the current ones, creates the new). */
+type RefListUpdateStruct<I,U,Id> = {
+  "$push"?: I | I[],
+  "$update"?: (Id & { data: U }) | (Id & { data: U })[],
+  "$remove"?: Id | Id[],
   "$set"?: I[]
 }
 
-type WhereValue<T> = T | { "$and": T[] } | { "$or": T[] } | { "$not": T }
+/** Variable-length primitive array — a sequence, so the same value may appear several times.
+ * `$push` appends at the end (duplicates kept); `$pushUnique` appends only values not already
+ * present; `$remove` removes every occurrence; `$set` replaces the whole array (also the
+ * positional-edit path — send the full new array). One operator per update. */
+type PrimitiveListUpdate<T> = {
+  "$set"?: T[],
+  "$push"?: T | T[],
+  "$pushUnique"?: T | T[],
+  "$remove"?: T | T[],
+}
 
-type CompareValue<T> = T | { "$eq": T } | { "$not": T } | { "$in": T[] } | { "$notIn": T[] }
-type CompareNumValue<T> = { "$gt": T } | { "$gte": T } | { "$lt": T } | { "$lte": T }
-type CompareStrValue = { "$includes": string,  } | { "$startsWith": string }
+// Marks a set of keys as forbidden. Needed because TypeScript's excess-property check against a *union*
+// permits any key present in some member: a plain union of single-key objects accepts `{ $gte, $lt }`,
+// and a plain `T | { $and: T[] }` accepts a field sitting next to `$and`. Both are runtime errors or
+// silently-wrong queries, so every branch below spells out the keys it excludes.
+type Never<T> = { [K in keyof T]?: never }
+
+// Every field-level operator, so a field's condition can exclude the ones its type doesn't support.
+type FieldOps = {
+  "$eq": unknown, "$ne": unknown, "$not": unknown, "$in": unknown, "$notIn": unknown,
+  "$gt": unknown, "$gte": unknown, "$lt": unknown, "$lte": unknown,
+  "$startsWith": unknown, "$includes": unknown,
+  "$every": unknown, "$some": unknown, "$none": unknown,
+  "$near": unknown, "$search": unknown
+}
+type Only<K extends keyof FieldOps, V> = { [P in K]: V } & Never<Omit<FieldOps, K>>
+
+// A `$where` is either a set of field conditions or exactly one boolean combinator wrapping more of the
+// same. Conditions belong *inside* the array: the engine returns on the first combinator it finds, so a
+// sibling key next to `$and`/`$or` would be silently ignored — here it is a type error instead.
+type WhereValue<T> =
+  | (T & Never<{ "$and": unknown, "$or": unknown, "$not": unknown }>)
+  | ({ "$and": WhereValue<T>[] } & Never<T> & Never<{ "$or": unknown, "$not": unknown }>)
+  | ({ "$or":  WhereValue<T>[] } & Never<T> & Never<{ "$and": unknown, "$not": unknown }>)
+  | ({ "$not": WhereValue<T> }   & Never<T> & Never<{ "$and": unknown, "$or": unknown }>)
+
+// Operators on one field are ANDed, so they combine freely: `{ $gte: 18, $lt: 65 }` is a half-open
+// range and `{ $gte: 18, $ne: 30 }` punches a hole in one. Each group below is all-optional; a field's
+// condition type intersects the groups its type supports and marks every remaining operator forbidden,
+// so a string operator on a number is still a type error.
+type ValueOps<T> = { "$eq"?: T, "$ne"?: T, "$not"?: T, "$in"?: T[], "$notIn"?: T[] }
+type NumOps<T>   = { "$gt"?: T, "$gte"?: T, "$lt"?: T, "$lte"?: T }
+type StrOps      = { "$includes"?: string, "$startsWith"?: string }
+
+// The numeric and string variants re-admit the type-agnostic operators, so a mixed condition such as
+// `{ $gte: 18, $ne: 30 }` still matches a single member of the union the field's type resolves to.
+type CompareValue<T>    = T | (ValueOps<T> & Never<Omit<FieldOps, keyof ValueOps<T>>>)
+type CompareNumValue<T> = ValueOps<T> & NumOps<T> & Never<Omit<FieldOps, keyof ValueOps<T> | keyof NumOps<T>>>
+type CompareStrValue<T> = ValueOps<T> & StrOps    & Never<Omit<FieldOps, keyof ValueOps<T> | keyof StrOps>>
+
+// A numeric field can also be updated in place: `{ balance: { $increment: -800 } }` reads, adds and writes
+// inside the update's own transaction, so it is atomic against concurrent writers. The delta is signed, so
+// decrementing requires a signed field (`Int`) — a negative delta on an unsigned field is rejected.
+// Incrementing a field that is currently null is a no-op.
+type UpdateNumValue = { "$increment": number }
 
 // Filtering into a Json field by dot-path. Keys are JSON paths (e.g. "address.city", "items.0"); a numeric
 // segment indexes an array. A bare value is shorthand for `$eq` (a plain object matches the whole subtree).
 // Path keys must not start with `$`. A missing leaf or a type mismatch simply doesn't match.
 type JsonType = "string" | "number" | "boolean" | "object" | "array" | "null"
+// As on scalar fields, operators on one path are ANDed and may be combined.
 type JsonCondition =
   | JsonValue
-  | { "$eq": JsonValue } | { "$ne": JsonValue } | { "$not": JsonValue }
-  | { "$gt": number | string } | { "$gte": number | string } | { "$lt": number | string } | { "$lte": number | string }
-  | { "$in": JsonValue[] } | { "$notIn": JsonValue[] }
-  | { "$startsWith": string } | { "$includes": string }
-  | { "$contains": JsonValue }
-  | { "$exists": boolean }
-  | { "$type": JsonType }
+  | {
+      "$eq"?: JsonValue, "$ne"?: JsonValue, "$not"?: JsonValue,
+      "$gt"?: number | string, "$gte"?: number | string,
+      "$lt"?: number | string, "$lte"?: number | string,
+      "$in"?: JsonValue[], "$notIn"?: JsonValue[],
+      "$startsWith"?: string, "$includes"?: string,
+      "$contains"?: JsonValue,
+      "$exists"?: boolean,
+      "$type"?: JsonType
+    }
 type JsonPathWhere = { [path: string]: JsonCondition }
-type CompareRefValue<T> = T | { "$not": T }
-type CompareRefListValue<T> = { "$every": T } | { "$some": T } | { "$none": T }
+type CompareRefValue<T> = T | Only<"$not", T>
+type CompareRefListValue<T> = Only<"$every", T> | Only<"$some", T> | Only<"$none", T>
 
 // Module-index search (@custom): $near/$search hand a raw payload to the field's index provider.
 type VectorSearch = { vector: number[], k?: number, threshold?: number }      // @custom(vector, …)
 type FullTextSearch = string | { query: string, limit?: number }             // @custom(fulltext, …)
 type CustomSearch = Record<string, any>                                       // other providers
-type CustomSearchValue<P> = { "$near": P } | { "$search": P }
+type CustomSearchValue<P> = Only<"$near", P> | Only<"$search", P>
 
 // Aggregate result: only the requested keys; an empty set yields null (except count)
 type AggregateResult<TModel, T> =
@@ -125,14 +199,13 @@ type UserModelInsert = {
   posts?: PostModelId[]
 }
 type UserModelUpdate = {
-  id?: number
   name?: string
   email?: string | null
-  age?: number
+  age?: number | UpdateNumValue
   role?: string
-  balance?: number
-  birthday?: Date | number | null
-  posts?: RefListUpdate<PostModelId>[]
+  balance?: number | UpdateNumValue
+  birthday?: Date | number | UpdateNumValue | null
+  posts?: RefListUpdate<PostModelId>
 }
 type UserModelSelect = {
   id?: boolean
@@ -144,16 +217,17 @@ type UserModelSelect = {
   birthday?: boolean
   posts?: PostModelQuery | PostModelAggregateQuery | boolean
 }
-type UserModel$Where = {
+type UserModel$WhereFields = {
   id?: CompareValue<number> | CompareNumValue<number>
-  name?: CompareValue<string> | CompareStrValue
-  email?: CompareValue<string | null> | CompareStrValue
+  name?: CompareValue<string> | CompareStrValue<string>
+  email?: CompareValue<string | null> | CompareStrValue<string>
   age?: CompareValue<number> | CompareNumValue<number>
-  role?: CompareValue<string> | CompareStrValue
+  role?: CompareValue<string> | CompareStrValue<string>
   balance?: CompareValue<number> | CompareNumValue<number>
   birthday?: CompareValue<Date | number | null> | CompareNumValue<Date | number>
   posts?: CompareRefListValue<PostModel$Where>
 }
+type UserModel$Where = WhereValue<UserModel$WhereFields>
 type UserModel$Order = {
   id?: "asc" | "desc"
   name?: "asc" | "desc"
@@ -188,6 +262,7 @@ type PostModel = PostModelId & {
   body: string | null
   published: boolean
   author: UserModel | null
+  tags: TagModel[]
 }
 type PostModelInsert = {
   id?: number
@@ -195,13 +270,14 @@ type PostModelInsert = {
   body?: string | null
   published: boolean
   author?: UserModelId | null
+  tags?: TagModelId[]
 }
 type PostModelUpdate = {
-  id?: number
   title?: string
   body?: string | null
   published?: boolean
   author?: RefUpdate<UserModelId> | null
+  tags?: RefListUpdateOrdered<TagModelId>
 }
 type PostModelSelect = {
   id?: boolean
@@ -209,14 +285,17 @@ type PostModelSelect = {
   body?: boolean
   published?: boolean
   author?: UserModelSelect | boolean
+  tags?: TagModelQuery | TagModelAggregateQuery | boolean
 }
-type PostModel$Where = {
+type PostModel$WhereFields = {
   id?: CompareValue<number> | CompareNumValue<number>
-  title?: CompareValue<string> | CompareStrValue
-  body?: CompareValue<string | null> | CompareStrValue
+  title?: CompareValue<string> | CompareStrValue<string>
+  body?: CompareValue<string | null> | CompareStrValue<string>
   published?: CompareValue<boolean>
   author?: CompareRefValue<UserModel$Where | null>
+  tags?: CompareRefListValue<TagModel$Where>
 }
+type PostModel$Where = WhereValue<PostModel$WhereFields>
 type PostModel$Order = {
   id?: "asc" | "desc"
   title?: "asc" | "desc"
@@ -239,12 +318,61 @@ type PostModelAggregateQuery = {
   $max?: "id" | "title" | "body" | "published"
 }
 
+// Tag
+type TagModelId = {
+  id: number
+}
+type TagModel = TagModelId & {
+  title: string
+  posts: PostModel[]
+}
+type TagModelInsert = {
+  id?: number
+  title: string
+  posts?: never
+}
+type TagModelUpdate = {
+  title?: string
+  posts?: never
+}
+type TagModelSelect = {
+  id?: boolean
+  title?: boolean
+  posts?: PostModelQuery | PostModelAggregateQuery | boolean
+}
+type TagModel$WhereFields = {
+  id?: CompareValue<number> | CompareNumValue<number>
+  title?: CompareValue<string> | CompareStrValue<string>
+  posts?: CompareRefListValue<PostModel$Where>
+}
+type TagModel$Where = WhereValue<TagModel$WhereFields>
+type TagModel$Order = {
+  id?: "asc" | "desc"
+  title?: "asc" | "desc"
+}
+type TagModelQuery = TagModelSelect & {
+  $where?: TagModel$Where
+  $order?: TagModel$Order
+  $limit?: number
+  $skip?: number
+  $cursor?: TagModelId
+}
+type TagModelAggregateQuery = {
+  $where?: TagModel$Where
+  $count?: true
+  $sum?: "id"
+  $avg?: "id"
+  $min?: "id" | "title"
+  $max?: "id" | "title"
+}
+
 export interface MarciDB {
   user: {
     findMany<T extends UserModelQuery>(select: T): Op<GetResult<UserModel, T>[]>
     findFirst<T extends UserModelQuery>(select: T): Op<GetResult<UserModel, T> | null>
     insert(data: UserModelInsert): Op<UserModelId>
     update(id: UserModelId, data: UserModelUpdate): Op<void>
+    updateMany(query: { $where?: UserModel$Where }, data: UserModelUpdate): Op<number>
     delete(id: UserModelId): Op<void>
     count(query?: { $where?: UserModel$Where }): Op<number>
     aggregate<T extends UserModelAggregateQuery>(query: T): Op<AggregateResult<UserModel, T>>
@@ -254,9 +382,20 @@ export interface MarciDB {
     findFirst<T extends PostModelQuery>(select: T): Op<GetResult<PostModel, T> | null>
     insert(data: PostModelInsert): Op<PostModelId>
     update(id: PostModelId, data: PostModelUpdate): Op<void>
+    updateMany(query: { $where?: PostModel$Where }, data: PostModelUpdate): Op<number>
     delete(id: PostModelId): Op<void>
     count(query?: { $where?: PostModel$Where }): Op<number>
     aggregate<T extends PostModelAggregateQuery>(query: T): Op<AggregateResult<PostModel, T>>
+  }
+  tag: {
+    findMany<T extends TagModelQuery>(select: T): Op<GetResult<TagModel, T>[]>
+    findFirst<T extends TagModelQuery>(select: T): Op<GetResult<TagModel, T> | null>
+    insert(data: TagModelInsert): Op<TagModelId>
+    update(id: TagModelId, data: TagModelUpdate): Op<void>
+    updateMany(query: { $where?: TagModel$Where }, data: TagModelUpdate): Op<number>
+    delete(id: TagModelId): Op<void>
+    count(query?: { $where?: TagModel$Where }): Op<number>
+    aggregate<T extends TagModelAggregateQuery>(query: T): Op<AggregateResult<TagModel, T>>
   }
   $transaction<P extends readonly Op<any>[]>(ops: [...P]): Promise<{ [K in keyof P]: P[K] extends Op<infer T> ? T : never }>
 }

@@ -1,0 +1,5 @@
+add field Post.tags Tag[] @nullable @slot(20) @id_list(Tag.posts->Post) @rev(posts)
+create entity Tag
+add field Tag.id UInt @id @default(autoincrement())
+add field Tag.title String @slot(4)
+add field Tag.posts Post[] @nullable @virtual @index_tree(Tag.posts->Post) @rev(tags)

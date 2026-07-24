@@ -39,16 +39,27 @@ async function seed() {
     userIds.push(id)
   }
 
+  // A handful of tags for the Posts form's relation list (`@list` many-link).
+  const tagIds: number[] = []
+  for (const title of ["news", "release", "guide", "engineering", "design"]) {
+    const { id } = await client.tag.insert({ title })
+    tagIds.push(id)
+  }
+
   const titles = [
     "Getting started", "Release notes", "A deep dive", "Weekly update",
     "Design decisions", "Roadmap", "Postmortem", "How it works",
   ]
   for (let i = 0; i < 40; i++) {
+    // 0–3 tags per post, offset per row so the combinations (and their order)
+    // vary — the list keeps exactly the order given here.
+    const postTags = Array.from({ length: i % 4 }, (_, k) => ({ id: tagIds[(i + k) % tagIds.length]! }))
     await client.post.insert({
       title: `${titles[i % titles.length]} #${i + 1}`,
       body: i % 3 === 0 ? null : "Lorem ipsum dolor sit amet.",
       published: i % 2 === 0,
       author: { id: userIds[i % userIds.length]! },
+      tags: postTags,
     })
   }
 }

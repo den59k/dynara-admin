@@ -1,5 +1,7 @@
-// Demo schema for the dev-app. Two related models so the panel can show off a
-// list/CRUD page plus a foreign-key `reference` field (Post.author -> User).
+// Demo schema for the dev-app. Related models so the panel can show off a
+// list/CRUD page, a foreign-key `reference` field (Post.author -> User), and an
+// ordered many-link (`Post.tags` — `@list` stores the relation as an array of
+// ids and preserves its order).
 
 model User {
   name     String
@@ -16,4 +18,10 @@ model Post {
   body      String?
   published Boolean
   author    User?
+  tags      Tag[] @list
+}
+
+model Tag {
+  title String
+  posts Post[] @bind(Post.tags)
 }

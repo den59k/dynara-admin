@@ -178,7 +178,36 @@ admin
     return { message: `Granted a bonus to ${users.length} user(s)` }
   })
 
-// Posts — showcases a foreign-key `reference` field pointing at the Users page.
+// Tags — a minimal CRUD page; its rows feed the Posts form's relation list.
+admin
+  .createPage({ title: "Tags", path: "tags", icon: "tag", search: true, access: { write: isAdmin, delete: isAdmin } })
+  .data(async ({ take, skip, sort, search }) => {
+    const $where = search ? { title: { $includes: search } } : undefined
+    const $order = sort ? { [sort.field]: sort.dir } : { id: "asc" }
+    return client.tag.findMany({ id: true, title: true, $where, $order: $order as any, $limit: take, $skip: skip })
+  })
+  .count(async ({ search }) => {
+    return client.tag.count(search ? { $where: { title: { $includes: search } } } : undefined)
+  })
+  .primaryKey("id", "number")
+  .item(async (id) => client.tag.findFirst({ id: true, title: true, $where: { id } }))
+  .table([
+    { title: "ID", field: "id", width: 60, sortable: true },
+    { title: "Title", field: "title", sortable: true },
+  ])
+  .createForm({ title: "string" }, async (data) => {
+    await client.tag.insert(data)
+  })
+  .updateForm({ title: "string" }, async (id, data) => {
+    await client.tag.update({ id }, data)
+  })
+  .onDelete(async (ids) => {
+    await client.$transaction(ids.map((id) => client.tag.delete({ id })))
+  })
+
+// Posts — showcases a foreign-key `reference` field pointing at the Users page,
+// and a relation *list* (`tagIds`): the same searchable select, but every pick
+// is appended to a list. The whole id array is submitted in its visible order.
 const postForm = {
   title: "string",
   // `??` (nullable), not `?` (optional): the DB column is nullable and `item()`
@@ -206,6 +235,30 @@ const postForm = {
       return users.map((u) => ({ value: u.id, label: u.name }))
     },
   },
+  // The relation list. `sortable` enables drag-reordering in the form; the
+  // array's order is what the handlers receive — MarciDB's `@list` many-link
+  // stores it as an ordered array of ids, so no separate position field exists.
+  // The same reference contract as above: `search` filters, `value` resolves
+  // one already-selected id's label when the edit form opens.
+  tagIds: {
+    type: "array",
+    items: "number",
+    label: "Tags",
+    sortable: true,
+    reference: async ({ search, value }: { search?: string; value?: string }) => {
+      const $where =
+        value != null ? { id: Number(value) } :
+        search ? { title: { $includes: search } } : undefined
+      const tags = await client.tag.findMany({
+        id: true,
+        title: true,
+        $where,
+        $order: { title: "asc" },
+        $limit: 20,
+      })
+      return tags.map((t) => ({ value: t.id, label: t.title }))
+    },
+  },
 } as const
 
 admin
@@ -224,14 +277,20 @@ admin
       title: true,
       published: true,
       author: { name: true },
+      tags: { title: true },
       $where,
       $order: $order as any,
       $limit: take,
       $skip: skip,
       $cursor: cursor != null ? { id: cursor } : undefined,
     })
-    // Flatten the related author's name so a plain field column can render it.
-    return items.map((p) => ({ ...p, authorName: p.author?.name ?? "—" }))
+    // Flatten the related author's name (and the ordered tag titles) so plain
+    // field columns can render them.
+    return items.map((p) => ({
+      ...p,
+      authorName: p.author?.name ?? "—",
+      tagNames: p.tags.map((t) => t.title).join(", "),
+    }))
   })
   .primaryKey("id", "number")
   .item(async (id) => {
@@ -241,24 +300,38 @@ admin
       body: true,
       published: true,
       author: { id: true },
+      tags: { id: true },
       $where: { id },
     })
     if (!post) return null
-    // The update form's field is `authorId`; expose it from the related record.
-    return { ...post, authorId: post.author?.id ?? null }
+    // The update form's fields are `authorId`/`tagIds`; expose them from the
+    // related records. `tags` comes back in stored (list) order.
+    return { ...post, authorId: post.author?.id ?? null, tagIds: post.tags.map((t) => t.id) }
   })
   .table([
     { title: "ID", field: "id", width: 60, sortable: true },
     { title: "Title", field: "title", sortable: true },
     { title: "Author", field: "authorName", width: "1fr" },
+    { title: "Tags", field: "tagNames", width: "1fr" },
     // Renders a ✓ / ✗ instead of the raw "true"/"false".
     { title: "Published", field: "published", width: 100, sortable: true, type: "boolean" },
   ])
-  .createForm(postForm, async ({ authorId, ...rest }) => {
-    await client.post.insert({ ...rest, author: authorId ? { id: authorId } : null })
+  // The `@list` many-link takes the ordered id array directly on insert…
+  .createForm(postForm, async ({ authorId, tagIds, ...rest }) => {
+    await client.post.insert({
+      ...rest,
+      author: authorId ? { id: authorId } : null,
+      tags: tagIds.map((id) => ({ id })),
+    })
   })
-  .updateForm(postForm, async (id, { authorId, ...rest }) => {
-    await client.post.update({ id }, { ...rest, author: authorId ? { $connect: { id: authorId } } : null })
+  // …and `$set` replaces the whole list (order included) on update — the form
+  // always submits the complete array, so no diffing is needed.
+  .updateForm(postForm, async (id, { authorId, tagIds, ...rest }) => {
+    await client.post.update({ id }, {
+      ...rest,
+      author: authorId ? { $connect: { id: authorId } } : null,
+      tags: { $set: tagIds.map((id) => ({ id })) },
+    })
   })
   .onDelete(async (ids) => {
     await client.$transaction(ids.map((id) => client.post.delete({ id })))

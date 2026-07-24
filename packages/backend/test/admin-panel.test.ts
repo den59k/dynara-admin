@@ -356,6 +356,109 @@ describe("admin panel — reference select methods", () => {
   })
 })
 
+describe("admin panel — relation list fields (array + reference)", () => {
+  // A form with a relation-list field: an array of ids whose options come from
+  // an inline reference method on the array node, with manual sorting enabled.
+  const buildListApp = () => {
+    const users = seedUsers()
+    const inserted: unknown[] = []
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Posts", path: "posts" })
+      .data(async () => [])
+      .primaryKey("id", "number")
+      .createForm(
+        {
+          title: "string",
+          memberIds: {
+            type: "array",
+            items: "number",
+            label: "Members",
+            sortable: true,
+            reference: async ({ search }: { search?: string; value?: string }) => {
+              const list = search ? users.filter((u) => u.name.toLowerCase().includes(search.toLowerCase())) : users
+              return list.map((u) => ({ value: u.id, label: u.name }))
+            },
+          },
+        },
+        async (data) => { inserted.push(data) }
+      )
+    const app = new Router()
+    app.register(admin)
+    return { app, inserted }
+  }
+
+  it("serializes the array field with { method } and keeps the sortable hint", async () => {
+    const { app } = buildListApp()
+    const res = await app.inject("/api/admin/pages/posts")
+    const meta = await res.json() as any
+    const field = meta.createForm.schema.properties.memberIds
+    expect(field.type).toBe("array")
+    expect(field.items).toEqual({ type: "number" })
+    expect(field.sortable).toBe(true)
+    expect(field.reference).toEqual({ method: "posts.create.memberIds" })
+  })
+
+  it("serves the list field's reference options", async () => {
+    const { app } = buildListApp()
+    const res = await app.inject("/api/admin/select/posts.create.memberIds?search=al")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [{ value: 1, label: "Alice" }] })
+  })
+
+  it("accepts the whole id array on create, preserving its order", async () => {
+    const { app, inserted } = buildListApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/posts/items",
+      body: { title: "Hello", memberIds: [3, 1, 2] },
+    })
+    expect(res.status).toBe(200)
+    expect(inserted).toEqual([{ title: "Hello", memberIds: [3, 1, 2] }])
+  })
+
+  it("rejects a non-array value for the list field", async () => {
+    const { app, inserted } = buildListApp()
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/posts/items",
+      body: { title: "Hello", memberIds: "1,2" },
+    })
+    expect(res.status).toBe(400)
+    expect(inserted).toEqual([])
+  })
+
+  it("extracts a reference declared on the items node too", async () => {
+    const users = seedUsers()
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Teams", path: "teams" })
+      .data(async () => [])
+      .primaryKey("id", "number")
+      .createForm(
+        {
+          memberIds: {
+            type: "array",
+            items: {
+              type: "number",
+              reference: async () => users.map((u) => ({ value: u.id, label: u.name })),
+            },
+          },
+        },
+        async () => {}
+      )
+    const app = new Router()
+    app.register(admin)
+
+    const meta = await (await app.inject("/api/admin/pages/teams")).json() as any
+    expect(meta.createForm.schema.properties.memberIds.items.reference).toEqual({ method: "teams.create.memberIds.items" })
+
+    const res = await app.inject("/api/admin/select/teams.create.memberIds.items")
+    expect(res.status).toBe(200)
+    expect((await res.json() as any).items).toHaveLength(3)
+  })
+})
+
 describe("admin panel — custom form field components", () => {
   const buildComponentFormApp = () => {
     const calls = { updated: [] as Array<[number, unknown]>, granted: [] as unknown[] }

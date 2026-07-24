@@ -9,6 +9,7 @@ import VInputNumber from "../src/components/inputs/VInputNumber.vue"
 import VDateInput from "../src/components/inputs/VDateInput.vue"
 import VCheckbox from "../src/components/inputs/VCheckbox.vue"
 import VSelectInput from "../src/components/inputs/VSelectInput.vue"
+import VSelectListInput from "../src/components/inputs/VSelectListInput.vue"
 import VFileInput from "../src/components/inputs/VFileInput.vue"
 import VInputObject from "../src/components/inputs/VInputObject"
 import VCustomInput from "../src/components/inputs/VCustomInput"
@@ -105,6 +106,89 @@ describe("JsonInput dispatch", () => {
     const vnode = JsonInput({ schema: { type: "string", enum: ["a", "b"], nullable: true } }) as any
     expect(vnode.props.enum).toEqual(["a", "b"])
     expect(vnode.props.nullable).toBe(true)
+  })
+
+  it("renders the select list for an array with a reference on the array node", () => {
+    expect(typeOf({ type: "array", items: { type: "number" }, reference: { method: "posts.create.tagIds" } }))
+      .toBe(VSelectListInput)
+  })
+
+  it("renders the select list for an array with the source on items", () => {
+    expect(typeOf({ type: "array", items: { type: "number", reference: { method: "x" } } })).toBe(VSelectListInput)
+    expect(typeOf({ type: "array", items: { type: "string", options: [{ value: "a", label: "A" }] } })).toBe(VSelectListInput)
+  })
+
+  it("forwards the items' source and the sortable hint to the select list", () => {
+    const vnode = JsonInput({ schema: {
+      type: "array",
+      sortable: true,
+      items: { type: "number", reference: { method: "posts.create.tagIds" } },
+    } }) as any
+    expect(vnode.type).toBe(VSelectListInput)
+    expect(vnode.props.reference).toEqual({ method: "posts.create.tagIds" })
+    expect(vnode.props.sortable).toBe(true)
+  })
+
+  it("leaves a plain array (no select source) on the fallback input", () => {
+    expect(typeOf({ type: "array", items: { type: "string" } })).toBe(VInputText)
+  })
+})
+
+describe("VSelectListInput", () => {
+  const options = [
+    { value: 1, label: "News" },
+    { value: 2, label: "Guide" },
+    { value: 3, label: "Release" },
+  ]
+
+  it("renders a row per selected value, labeled from the options", () => {
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [2, 1], options } })
+    const labels = wrapper.findAll(".v-select-list-input__label").map((n) => n.text())
+    expect(labels).toEqual(["Guide", "News"])
+  })
+
+  it("falls back to the raw value for an unknown label", () => {
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [9], options } })
+    expect(wrapper.find(".v-select-list-input__label").text()).toBe("9")
+  })
+
+  it("appends the picked option when the embedded select reports a selection", async () => {
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [1], options } })
+    wrapper.findComponent(VSelectInput).vm.$emit("select", { value: 3, label: "Release" })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[1, 3]])
+  })
+
+  it("hides already-picked values from the embedded select", () => {
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [1, 3], options } })
+    expect(wrapper.findComponent(VSelectInput).props("excludeValues")).toEqual([1, 3])
+  })
+
+  it("removes a value via its row button", async () => {
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [1, 2, 3], options } })
+    await wrapper.findAll(".v-select-list-input__remove")[1]!.trigger("click")
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[1, 3]])
+  })
+
+  it("shows drag handles only when sortable", () => {
+    const plain = mount(VSelectListInput, { props: { modelValue: [1, 2], options } })
+    expect(plain.find(".v-select-list-input__handle").exists()).toBe(false)
+
+    const sortable = mount(VSelectListInput, { props: { modelValue: [1, 2], options, sortable: true } })
+    expect(sortable.findAll(".v-select-list-input__handle")).toHaveLength(2)
+  })
+
+  it("reorders on drag-over and emits the array in the new order", async () => {
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [1, 2, 3], options, sortable: true } })
+    const rows = () => wrapper.findAll(".v-select-list-input__item")
+
+    // Arm row 0 via its handle, start the drag, then drag over row 2.
+    await rows()[0]!.find(".v-select-list-input__handle").trigger("pointerdown")
+    await rows()[0]!.trigger("dragstart")
+    await rows()[2]!.trigger("dragover")
+    await rows()[2]!.trigger("dragend")
+
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[2, 3, 1]])
   })
 })
 

@@ -5,6 +5,7 @@ import VInputNumber from "./VInputNumber.vue"
 import VCheckbox from './VCheckbox.vue'
 import VInputTextArea from "./VInputTextArea.vue"
 import VSelectInput from "./VSelectInput.vue"
+import VSelectListInput from "./VSelectListInput.vue"
 import VFileInput from "./VFileInput.vue"
 import VDateInput from "./VDateInput.vue"
 import VCustomInput from "./VCustomInput"
@@ -35,6 +36,10 @@ export type Schema = {
   enum?: (string | number)[],
   options?: SelectOption[],
   reference?: SelectReference,
+  // On an array field whose values come from options/reference: allow manual
+  // reordering of the selected list (drag handles). Off by default — the list
+  // then simply keeps insertion order.
+  sortable?: boolean,
   // Key of a server-compiled custom Vue component (served from /custom/:key)
   // rendering this field instead of the built-in input. With `type:
   // "component"` the field is display-only and never submits a value.
@@ -70,6 +75,21 @@ export const JsonInput = (props: JsonInputProps) => {
   const otherProps = { nullable: schema.nullable, ...restProps }
   if (schema.format === "file") {
     return h(VFileInput, otherProps)
+  }
+  // A relation/select list: an array whose values come from options, an enum or
+  // a reference. The select source may sit on the array node (flat form) or on
+  // `items` (each value is a reference) — both spellings are accepted.
+  if (schema.type === "array") {
+    const source = (schema.options || schema.reference || schema.enum) ? schema : schema.items
+    if (source && (source.options || source.reference || source.enum)) {
+      return h(VSelectListInput, {
+        options: source.options,
+        reference: source.reference,
+        enum: source.enum,
+        sortable: schema.sortable,
+        ...otherProps,
+      })
+    }
   }
   if (schema.options || schema.reference || schema.enum) {
     return h(VSelectInput, { options: schema.options, reference: schema.reference, enum: schema.enum, ...otherProps })

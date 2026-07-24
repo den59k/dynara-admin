@@ -7,13 +7,14 @@ export const ref = (path) => ({ $ref: path })
 // Generated from the schema; static. See marcidb-client/runtime `createDecoderRegistry`.
 const MODELS = {
   "User": [ { n: "id", k: "key", t: "u64" }, { n: "name", k: "body", t: "str" }, { n: "email", k: "body", t: "str" }, { n: "age", k: "body", t: "i64" }, { n: "role", k: "body", t: "str" }, { n: "balance", k: "body", t: "i64" }, { n: "birthday", k: "body", t: "i64" }, { n: "posts", k: "many", m: "Post" } ],
-  "Post": [ { n: "id", k: "key", t: "u64" }, { n: "title", k: "body", t: "str" }, { n: "body", k: "body", t: "str" }, { n: "published", k: "body", t: "bool" }, { n: "author", k: "one", m: "User" } ]
+  "Post": [ { n: "id", k: "key", t: "u64" }, { n: "title", k: "body", t: "str" }, { n: "body", k: "body", t: "str" }, { n: "published", k: "body", t: "bool" }, { n: "author", k: "one", m: "User" }, { n: "tags", k: "many", m: "Tag" } ],
+  "Tag": [ { n: "id", k: "key", t: "u64" }, { n: "title", k: "body", t: "str" }, { n: "posts", k: "many", m: "Post" } ]
 }
 
 // Fingerprint of the schema this client was generated from. Sent on binary HTTP reads (`X-Marci-Schema`); the
 // server returns binary only when it matches the target DB's current schema, else JSON — the wire-format
 // handshake that keeps a stale client correct (never wrong bytes). See `schema_fingerprint` (Rust).
-const SCHEMA_HASH = "9b5a5f37c78af765"
+const SCHEMA_HASH = "19506af3bc2c0cc0"
 
 // HTTP transport: maps a transport-neutral op descriptor `{ model, action, query/data/id }` onto the
 // server's REST routes. This is the default when `marcidb()` is given a URL string. Behavior is identical
@@ -27,6 +28,8 @@ function httpTransport(url) {
         case "findFirst": return request("POST", `${url}/${op.model}/findFirst`, op.query);
         case "insert":    return request("POST", `${url}/${op.model}/insert`, op.data);
         case "update":    return request("POST", `${url}/${op.model}/update/${encodeId(op.id)}`, op.data);
+        // No id in the path — the filter and the payload travel together in the body
+        case "updateMany": return request("POST", `${url}/${op.model}/updateMany`, { ...(op.query ?? {}), data: op.data });
         case "delete":    return request("POST", `${url}/${op.model}/delete/${encodeId(op.id)}`);
         case "count":     return request("POST", `${url}/${op.model}/count`, op.query ?? {});
         case "aggregate": return request("POST", `${url}/${op.model}/aggregate`, op.query);
@@ -96,6 +99,7 @@ export function marcidb(transport) {
       findFirst: (select) => op({ model: "User", action: "findFirst", query: select }),
       insert: (data) => op({ model: "User", action: "insert", data }),
       update: (id, data) => op({ model: "User", action: "update", id, data }),
+      updateMany: (query, data) => op({ model: "User", action: "updateMany", query: query ?? {}, data }),
       delete: (id) => op({ model: "User", action: "delete", id }),
       count: (query) => op({ model: "User", action: "count", query: query ?? {} }),
       aggregate: (query) => op({ model: "User", action: "aggregate", query })
@@ -105,9 +109,20 @@ export function marcidb(transport) {
       findFirst: (select) => op({ model: "Post", action: "findFirst", query: select }),
       insert: (data) => op({ model: "Post", action: "insert", data }),
       update: (id, data) => op({ model: "Post", action: "update", id, data }),
+      updateMany: (query, data) => op({ model: "Post", action: "updateMany", query: query ?? {}, data }),
       delete: (id) => op({ model: "Post", action: "delete", id }),
       count: (query) => op({ model: "Post", action: "count", query: query ?? {} }),
       aggregate: (query) => op({ model: "Post", action: "aggregate", query })
+    },
+    tag: {
+      findMany: (select) => op({ model: "Tag", action: "findMany", query: select }),
+      findFirst: (select) => op({ model: "Tag", action: "findFirst", query: select }),
+      insert: (data) => op({ model: "Tag", action: "insert", data }),
+      update: (id, data) => op({ model: "Tag", action: "update", id, data }),
+      updateMany: (query, data) => op({ model: "Tag", action: "updateMany", query: query ?? {}, data }),
+      delete: (id) => op({ model: "Tag", action: "delete", id }),
+      count: (query) => op({ model: "Tag", action: "count", query: query ?? {} }),
+      aggregate: (query) => op({ model: "Tag", action: "aggregate", query })
     },
   };
 }
