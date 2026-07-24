@@ -17,11 +17,15 @@ export const BADGE_COLORS: Record<string, string> = {
   orange: '#FB923C', purple: '#8B5CF6', gray: '#6B7280', grey: '#6B7280',
 }
 
+// A palette name resolved to its hex — or the input verbatim, so any raw CSS
+// color passes through. Shared by badges and the select inputs' chips/dots.
+export const resolveColor = (name: string): string => BADGE_COLORS[name] ?? name
+
 // The color a badge value resolves to (or the neutral default).
 export const badgeColor = (value: any, col: FormatColumn): string => {
   const name = col.colors?.[String(value)]
   if (!name) return 'var(--text-secondary-color)'
-  return BADGE_COLORS[name] ?? name
+  return resolveColor(name)
 }
 
 // True when a value should render as the muted "—" placeholder.

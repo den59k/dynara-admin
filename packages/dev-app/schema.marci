@@ -19,6 +19,7 @@ model Post {
   published Boolean
   author    User?
   tags      Tag[] @list
+  labels    String[]
 }
 
 model Tag {

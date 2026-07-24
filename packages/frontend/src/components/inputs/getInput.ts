@@ -6,12 +6,14 @@ import VCheckbox from './VCheckbox.vue'
 import VInputTextArea from "./VInputTextArea.vue"
 import VSelectInput from "./VSelectInput.vue"
 import VSelectListInput from "./VSelectListInput.vue"
+import VSelectChipsInput from "./VSelectChipsInput.vue"
 import VFileInput from "./VFileInput.vue"
 import VDateInput from "./VDateInput.vue"
 import VCustomInput from "./VCustomInput"
 
-// A static option for a select field.
-export type SelectOption = { value: any, label: string }
+// A static option for a select field. `color` tints the value's chip/badge —
+// a palette name or raw CSS color (see BADGE_COLORS in utils/formatCell).
+export type SelectOption = { value: any, label: string, color?: string }
 
 // Loads select options for a foreign-key reference. Either from another page's
 // list (`page` — `label` is the field shown, `value` defaults to that page's
@@ -34,12 +36,22 @@ export type Schema = {
   // so inputs show a clear cross that resets the value to null.
   nullable?: boolean,
   enum?: (string | number)[],
+  // Display metadata over `enum`, keyed by value (safe against reorder;
+  // partial coverage falls back to the raw value / neutral color). Sugar over
+  // `options` for schemas where the enum stays the single source of truth.
+  enumLabels?: Record<string | number, string>,
+  enumColors?: Record<string | number, string>,
   options?: SelectOption[],
   reference?: SelectReference,
   // On an array field whose values come from options/reference: allow manual
   // reordering of the selected list (drag handles). Off by default — the list
   // then simply keeps insertion order.
   sortable?: boolean,
+  // On an array field with a select source: which multi-value input renders it —
+  // compact removable chips or one row per value. Defaults: a static source
+  // (options/enum — the tags case) gets "chips", a reference gets "list".
+  // `sortable: true` always renders the list — chips have no drag affordance.
+  view?: "chips" | "list",
   // Key of a server-compiled custom Vue component (served from /custom/:key)
   // rendering this field instead of the built-in input. With `type:
   // "component"` the field is display-only and never submits a value.
@@ -82,17 +94,31 @@ export const JsonInput = (props: JsonInputProps) => {
   if (schema.type === "array") {
     const source = (schema.options || schema.reference || schema.enum) ? schema : schema.items
     if (source && (source.options || source.reference || source.enum)) {
-      return h(VSelectListInput, {
+      const sourceProps = {
         options: source.options,
         reference: source.reference,
         enum: source.enum,
-        sortable: schema.sortable,
-        ...otherProps,
-      })
+        enumLabels: source.enumLabels,
+        enumColors: source.enumColors,
+      }
+      // `view` picks the input explicitly; otherwise static sources get compact
+      // chips and references the row list. A sortable array is always the list.
+      const view = schema.sortable ? "list" : schema.view ?? (source.reference ? "list" : "chips")
+      if (view === "chips") {
+        return h(VSelectChipsInput, { ...sourceProps, ...otherProps })
+      }
+      return h(VSelectListInput, { ...sourceProps, sortable: schema.sortable, ...otherProps })
     }
   }
   if (schema.options || schema.reference || schema.enum) {
-    return h(VSelectInput, { options: schema.options, reference: schema.reference, enum: schema.enum, ...otherProps })
+    return h(VSelectInput, {
+      options: schema.options,
+      reference: schema.reference,
+      enum: schema.enum,
+      enumLabels: schema.enumLabels,
+      enumColors: schema.enumColors,
+      ...otherProps,
+    })
   }
   // dynara's native `date` type (serialized as `{ type: "date" }`). A
   // `format: "datetime"` hint selects the datetime-local variant; a plain

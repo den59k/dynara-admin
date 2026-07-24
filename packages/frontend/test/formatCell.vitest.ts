@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest"
-import { formatValue, badgeColor, isEmptyValue } from "../src/utils/formatCell"
+import { mount } from "@vue/test-utils"
+import { formatValue, badgeColor, resolveColor, isEmptyValue } from "../src/utils/formatCell"
+import VTable from "../src/components/VTable.vue"
 
 describe("formatValue", () => {
   it("stringifies plain values", () => {
@@ -52,6 +54,36 @@ describe("badgeColor", () => {
 
   it("falls back to the neutral color when the value has no mapping", () => {
     expect(badgeColor("other", { colors: { admin: "red" } })).toBe("var(--text-secondary-color)")
+  })
+})
+
+describe("resolveColor", () => {
+  it("maps palette names to their hex and passes raw CSS colors through", () => {
+    expect(resolveColor("purple")).toBe("#8B5CF6")
+    expect(resolveColor("#FF0000")).toBe("#FF0000")
+  })
+})
+
+// The badge column accepts array values (e.g. an enum-chips field): one pill
+// per element, colored through the same `colors` record a form field's
+// `enumColors` uses.
+describe("badge column array rendering", () => {
+  const columns = [{ title: "Labels", field: "labels", type: "badge" as const, colors: { featured: "red" } }]
+
+  it("renders one pill per array element", () => {
+    const wrapper = mount(VTable as any, { props: { data: [{ labels: ["featured", "pinned"] }], columns } })
+    expect(wrapper.findAll(".v-table__badge").map((p) => p.text())).toEqual(["featured", "pinned"])
+  })
+
+  it("still renders a scalar value as a single pill", () => {
+    const wrapper = mount(VTable as any, { props: { data: [{ labels: "featured" }], columns } })
+    expect(wrapper.findAll(".v-table__badge")).toHaveLength(1)
+  })
+
+  it("renders the empty placeholder for an empty array", () => {
+    const wrapper = mount(VTable as any, { props: { data: [{ labels: [] }], columns } })
+    expect(wrapper.findAll(".v-table__badge")).toHaveLength(0)
+    expect(wrapper.find(".v-table__empty").exists()).toBe(true)
   })
 })
 

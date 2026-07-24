@@ -48,8 +48,10 @@ export type ListOptions<KeyType = any> = {
   filter?: Record<string, any>
 }
 
-// A single select option returned by a reference method.
-export type SelectOption = { value: any, label: string }
+// A single select option returned by a reference method. `color` tints the
+// value's chip/badge in the UI — a palette name ("red", "green", "blue",
+// "yellow", "orange", "purple", "gray") or any raw CSS color.
+export type SelectOption = { value: any, label: string, color?: string }
 
 // The query a reference method receives. Exactly one of the fields is set:
 //   `search` — the user's current search text (filter the option list);
@@ -100,6 +102,21 @@ declare module "compact-json-schema" {
     // default — the list keeps insertion order. Either way the submitted
     // array carries the visible order; persisting it is the host's concern.
     sortable?: boolean
+    // On an array field with a select source: which multi-value input renders
+    // it. "chips" — a compact box of removable chips (the default for a static
+    // options/enum source — the tags case); "list" — one row per value (the
+    // default when the source is a reference). `sortable: true` always renders
+    // the list, since chips can't be reordered.
+    view?: "chips" | "list"
+    // Display metadata over an `enum`, keyed by the enum value so entries can't
+    // drift when the enum is reordered (and partial coverage is fine — missing
+    // values fall back to the raw value / neutral color). `enumLabels` maps
+    // value → shown name; `enumColors` maps value → chip/badge color (palette
+    // name or raw CSS color) and is shaped exactly like a badge table column's
+    // `colors`, so one shared constant serves both. Sugar over `options`, for
+    // when the enum should stay the single source of truth.
+    enumLabels?: Record<string | number, string>
+    enumColors?: Record<string | number, string>
     // Path to a .vue file rendering this field instead of the built-in input
     // (compiled and served like page components). Paired with a real type it is
     // a custom input (the value validates and submits as that type); with

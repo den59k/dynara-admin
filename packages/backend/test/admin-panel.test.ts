@@ -471,6 +471,77 @@ describe("admin panel — relation list fields (array + reference)", () => {
     expect(res.status).toBe(200)
     expect((await res.json() as any).items).toHaveLength(3)
   })
+
+  it("serializes a primitive enum array (chips) and keeps the view hint", async () => {
+    const submitted: unknown[] = []
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Posts", path: "posts" })
+      .data(async () => [])
+      .primaryKey("id", "number")
+      .createForm(
+        {
+          // The enum-shorthand items and the `view` annotation must survive
+          // into the served schema — the frontend picks the chips/list input
+          // off them.
+          labels: { type: "array", items: ["featured", "pinned"], view: "list", label: "Labels" },
+        },
+        async (data) => { submitted.push(data) }
+      )
+    const app = new Router()
+    app.register(admin)
+
+    const meta = await (await app.inject("/api/admin/pages/posts")).json() as any
+    const field = meta.createForm.schema.properties.labels
+    expect(field.type).toBe("array")
+    expect(field.items).toEqual({ type: "string", enum: ["featured", "pinned"] })
+    expect(field.view).toBe("list")
+
+    // The enum is a real assertion on each element, not only a UI hint.
+    const ok = await app.inject({ method: "POST", url: "/api/admin/data/posts/items", body: { labels: ["pinned"] } })
+    expect(ok.status).toBe(200)
+    expect(submitted).toEqual([{ labels: ["pinned"] }])
+
+    const bad = await app.inject({ method: "POST", url: "/api/admin/data/posts/items", body: { labels: ["nope"] } })
+    expect(bad.status).toBe(400)
+    expect(submitted).toHaveLength(1)
+  })
+
+  it("keeps the keyed enum display metadata (enumLabels/enumColors) in the served schema", async () => {
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Posts", path: "posts" })
+      .data(async () => [])
+      .primaryKey("id", "number")
+      .createForm(
+        {
+          labels: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["featured", "pinned"],
+              // Keyed by value (reorder-safe, partial coverage allowed); the
+              // frontend renders labels/colors from these, the enum still
+              // validates. A raw CSS color passes through like a palette name.
+              enumLabels: { featured: "Featured", pinned: "Pinned" },
+              enumColors: { featured: "red", pinned: "#8B5CF6" },
+            },
+            label: "Labels",
+          },
+        },
+        async () => {}
+      )
+    const app = new Router()
+    app.register(admin)
+
+    const meta = await (await app.inject("/api/admin/pages/posts")).json() as any
+    expect(meta.createForm.schema.properties.labels.items).toEqual({
+      type: "string",
+      enum: ["featured", "pinned"],
+      enumLabels: { featured: "Featured", pinned: "Pinned" },
+      enumColors: { featured: "red", pinned: "#8B5CF6" },
+    })
+  })
 })
 
 describe("admin panel — custom form field components", () => {

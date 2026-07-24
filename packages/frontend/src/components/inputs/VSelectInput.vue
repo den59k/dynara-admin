@@ -20,6 +20,11 @@
         @click.stop
       />
       <template v-else>
+        <span
+          v-if="displayLabel && displayColor"
+          class="v-select-input__dot"
+          :style="{ backgroundColor: resolveColor(displayColor) }"
+        ></span>
         <span v-if="displayLabel" class="v-select-input__value">{{ displayLabel }}</span>
         <span v-else class="v-select-input__placeholder">{{ placeholder ?? t('select.empty') }}</span>
       </template>
@@ -51,6 +56,11 @@
             :class="{ active: opt.value === model }"
             @click="select(opt.value, opt)"
           >
+            <span
+              v-if="opt.color"
+              class="v-select-input__dot"
+              :style="{ backgroundColor: resolveColor(opt.color) }"
+            ></span>
             <span class="v-select-input__option-label">{{ opt.label }}</span>
             <VIcon v-if="opt.value === model" class="v-select-input__check" icon="check" />
           </button>
@@ -69,6 +79,8 @@ import VFormControl from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import VInputClear from './VInputClear.vue'
 import { dataApi } from '../../api/dataApi'
+import { staticOptionsOf } from './useSelectListLabels'
+import { resolveColor } from '../../utils/formatCell'
 import type { SelectOption, SelectReference } from './getInput'
 import { t } from '../../i18n'
 
@@ -78,8 +90,11 @@ const props = defineProps<{
   error?: string
   placeholder?: string
   options?: SelectOption[]
-  // Plain enum values from the schema — rendered as options with the value as label.
+  // Plain enum values from the schema — rendered as options with the value as
+  // label, unless the keyed `enumLabels`/`enumColors` metadata overrides it.
   enum?: (string | number)[]
+  enumLabels?: Record<string | number, string>
+  enumColors?: Record<string | number, string>
   reference?: SelectReference
   nullable?: boolean
   // Values hidden from the dropdown. Used by VSelectListInput, which embeds
@@ -103,9 +118,7 @@ const searchRef = ref<HTMLInputElement>()
 // a reference method resolved server-side. A `reference` is one of two variants:
 //   { page, label, value? } — load & filter another page's list
 //   { method }              — call an async method that returns SelectOptions
-const staticOptions = computed(() =>
-  props.options ?? props.enum?.map((v) => ({ value: v, label: String(v) })) ?? []
-)
+const staticOptions = computed(() => staticOptionsOf(props))
 const loadedOptions = shallowRef<SelectOption[]>([])
 const pending = shallowRef(false)
 
@@ -130,7 +143,7 @@ const toOption = (row: any, labelField: string): SelectOption => ({
   label: String(row[labelField] ?? ''),
 })
 
-const normalizeOption = (o: any): SelectOption => ({ value: o.value, label: String(o.label ?? '') })
+const normalizeOption = (o: any): SelectOption => ({ value: o.value, label: String(o.label ?? ''), color: o.color })
 
 let reqId = 0
 const loadOptions = async () => {
@@ -176,6 +189,15 @@ const displayLabel = computed(() => {
     ?? staticOptions.value.find(o => o.value === model.value)
   if (found) return found.label
   return resolvedLabel.value ?? String(model.value)
+})
+
+// The selected value's declared color (enumColors, an options entry, or a
+// loaded reference option) — shown as a dot next to the closed control's label.
+const displayColor = computed(() => {
+  if (model.value == null) return undefined
+  const found = resolvedOptions.value.find(o => o.value === model.value)
+    ?? staticOptions.value.find(o => o.value === model.value)
+  return found?.color
 })
 
 const resolveSelectedLabel = async () => {
@@ -238,6 +260,10 @@ const close = () => {
   open.value = false
   search.value = ''
 }
+
+// Lets an embedding control open the dropdown from its own chrome — the chips
+// input opens the picker when the empty area of its box is clicked.
+defineExpose({ openDropdown: onControlClick })
 
 const select = (value: any, option: SelectOption | null = null) => {
   model.value = value
@@ -310,6 +336,13 @@ watch(model, resolveSelectedLabel, { immediate: true })
   height: 16px
   color: var(--text-secondary-color)
   transition: transform 0.12s
+  flex-shrink: 0
+
+// A value's declared color, as a small dot next to its label (control + options).
+.v-select-input__dot
+  width: 8px
+  height: 8px
+  border-radius: 50%
   flex-shrink: 0
 
 // --- Teleported dropdown + scrim ---

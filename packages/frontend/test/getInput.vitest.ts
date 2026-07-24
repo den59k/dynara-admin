@@ -10,6 +10,7 @@ import VDateInput from "../src/components/inputs/VDateInput.vue"
 import VCheckbox from "../src/components/inputs/VCheckbox.vue"
 import VSelectInput from "../src/components/inputs/VSelectInput.vue"
 import VSelectListInput from "../src/components/inputs/VSelectListInput.vue"
+import VSelectChipsInput from "../src/components/inputs/VSelectChipsInput.vue"
 import VFileInput from "../src/components/inputs/VFileInput.vue"
 import VInputObject from "../src/components/inputs/VInputObject"
 import VCustomInput from "../src/components/inputs/VCustomInput"
@@ -120,14 +121,50 @@ describe("JsonInput dispatch", () => {
     expect(vnode.props.nullable).toBe(true)
   })
 
+  it("forwards the keyed enum metadata to the chips input and the single select", () => {
+    const meta = { enumLabels: { a: "A!" }, enumColors: { a: "red" } }
+    const arr = JsonInput({ schema: { type: "array", items: { type: "string", enum: ["a"], ...meta } } }) as any
+    expect(arr.type).toBe(VSelectChipsInput)
+    expect(arr.props.enumLabels).toEqual(meta.enumLabels)
+    expect(arr.props.enumColors).toEqual(meta.enumColors)
+
+    const single = JsonInput({ schema: { type: "string", enum: ["a"], ...meta } }) as any
+    expect(single.type).toBe(VSelectInput)
+    expect(single.props.enumLabels).toEqual(meta.enumLabels)
+    expect(single.props.enumColors).toEqual(meta.enumColors)
+  })
+
   it("renders the select list for an array with a reference on the array node", () => {
     expect(typeOf({ type: "array", items: { type: "number" }, reference: { method: "posts.create.tagIds" } }))
       .toBe(VSelectListInput)
   })
 
-  it("renders the select list for an array with the source on items", () => {
+  it("renders the select list for an array with a reference on items", () => {
     expect(typeOf({ type: "array", items: { type: "number", reference: { method: "x" } } })).toBe(VSelectListInput)
-    expect(typeOf({ type: "array", items: { type: "string", options: [{ value: "a", label: "A" }] } })).toBe(VSelectListInput)
+  })
+
+  it("renders chips for an array over a static source (options or enum)", () => {
+    expect(typeOf({ type: "array", items: { type: "string", options: [{ value: "a", label: "A" }] } })).toBe(VSelectChipsInput)
+    expect(typeOf({ type: "array", items: { type: "string", enum: ["a", "b"] } })).toBe(VSelectChipsInput)
+    expect(typeOf({ type: "array", items: { type: "string" }, enum: ["a", "b"] })).toBe(VSelectChipsInput)
+  })
+
+  it("lets view pick the input against the source default", () => {
+    // A reference array opts into chips (the small-tags-table case)…
+    expect(typeOf({ type: "array", view: "chips", items: { type: "number", reference: { method: "x" } } }))
+      .toBe(VSelectChipsInput)
+    // …and a static array opts back into the row list.
+    expect(typeOf({ type: "array", view: "list", items: { type: "string", enum: ["a", "b"] } }))
+      .toBe(VSelectListInput)
+  })
+
+  it("always renders the (draggable) list for a sortable array, even over chips", () => {
+    const vnode = JsonInput({ schema: {
+      type: "array", sortable: true, view: "chips",
+      items: { type: "string", enum: ["a", "b"] },
+    } }) as any
+    expect(vnode.type).toBe(VSelectListInput)
+    expect(vnode.props.sortable).toBe(true)
   })
 
   it("forwards the items' source and the sortable hint to the select list", () => {
@@ -190,15 +227,19 @@ describe("VSelectListInput", () => {
     expect(sortable.findAll(".v-select-list-input__handle")).toHaveLength(2)
   })
 
-  it("reorders on drag-over and emits the array in the new order", async () => {
+  it("reorders on a pointer drag and emits the array in the new order", async () => {
     const wrapper = mount(VSelectListInput, { props: { modelValue: [1, 2, 3], options, sortable: true } })
-    const rows = () => wrapper.findAll(".v-select-list-input__item")
+    const rows = wrapper.findAll(".v-select-list-input__item")
+    // happy-dom does no layout — stub the row offsets the drag math measures.
+    rows.forEach((row, i) => Object.defineProperty(row.element, "offsetTop", { value: i * 40 }))
 
-    // Arm row 0 via its handle, start the drag, then drag over row 2.
-    await rows()[0]!.find(".v-select-list-input__handle").trigger("pointerdown")
-    await rows()[0]!.trigger("dragstart")
-    await rows()[2]!.trigger("dragover")
-    await rows()[2]!.trigger("dragend")
+    // Grab row 0's handle and drag two row-steps down (to index 2).
+    await rows[0]!.find(".v-select-list-input__handle").trigger("pointerdown", { clientY: 0 })
+    const move = new Event("pointermove") as any
+    move.clientY = 80
+    window.dispatchEvent(move)
+    await wrapper.vm.$nextTick()
+    window.dispatchEvent(new Event("pointerup"))
 
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[2, 3, 1]])
   })
@@ -259,6 +300,80 @@ describe("VSelectListInput batched label resolution", () => {
 
     expect(dataApi.getReferenceOptions).toHaveBeenCalledTimes(1)
     expect(labels(wrapper)).toEqual(["News", "Guide"])
+  })
+})
+
+describe("VSelectChipsInput", () => {
+  const options = [
+    { value: "featured", label: "Featured" },
+    { value: "pinned", label: "Pinned" },
+    { value: "archived", label: "Archived" },
+  ]
+  const chipLabels = (wrapper: any) => wrapper.findAll(".v-select-chips-input__chip-label").map((n: any) => n.text())
+
+  it("renders a chip per selected value, labeled from the options", () => {
+    const wrapper = mount(VSelectChipsInput, { props: { modelValue: ["pinned", "featured"], options } })
+    expect(chipLabels(wrapper)).toEqual(["Pinned", "Featured"])
+  })
+
+  it("renders enum values as their own labels", () => {
+    const wrapper = mount(VSelectChipsInput, { props: { modelValue: ["a"], enum: ["a", "b"] } })
+    expect(chipLabels(wrapper)).toEqual(["a"])
+  })
+
+  it("appends the picked option when the embedded select reports a selection", async () => {
+    const wrapper = mount(VSelectChipsInput, { props: { modelValue: ["featured"], options } })
+    wrapper.findComponent(VSelectInput).vm.$emit("select", { value: "pinned", label: "Pinned" })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["featured", "pinned"]])
+  })
+
+  it("hides already-picked values from the embedded select", () => {
+    const wrapper = mount(VSelectChipsInput, { props: { modelValue: ["featured", "pinned"], options } })
+    expect(wrapper.findComponent(VSelectInput).props("excludeValues")).toEqual(["featured", "pinned"])
+  })
+
+  it("removes a value via its chip button", async () => {
+    const wrapper = mount(VSelectChipsInput, { props: { modelValue: ["featured", "pinned", "archived"], options } })
+    await wrapper.findAll(".v-select-chips-input__remove")[1]!.trigger("click")
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([["featured", "archived"]])
+  })
+
+  it("labels and colors chips via the keyed enum metadata (partial coverage falls back)", () => {
+    const wrapper = mount(VSelectChipsInput, { props: {
+      modelValue: ["featured", "archived"],
+      enum: ["featured", "archived"],
+      enumLabels: { featured: "Featured" },
+      enumColors: { featured: "red" },
+    } })
+    expect(chipLabels(wrapper)).toEqual(["Featured", "archived"])
+    const chips = wrapper.findAll(".v-select-chips-input__chip")
+    expect(chips[0]!.attributes("style")).toContain("color")
+    expect(chips[1]!.attributes("style")).toBeUndefined()
+  })
+
+  it("keeps the color a picked option carries (e.g. from a reference method)", async () => {
+    const wrapper = mount(VSelectChipsInput, { props: { modelValue: [], reference: { method: "m" } } })
+    wrapper.findComponent(VSelectInput).vm.$emit("select", { value: 1, label: "News", color: "green" })
+    await wrapper.setProps({ modelValue: [1] })
+    const chip = wrapper.find(".v-select-chips-input__chip")
+    expect(chip.text()).toBe("News")
+    expect(chip.attributes("style")).toContain("color")
+  })
+
+  it("resolves reference labels with the same single batched request as the list", async () => {
+    vi.mocked(dataApi.getReferenceOptions).mockReset()
+    vi.mocked(dataApi.getReferenceOptions).mockResolvedValueOnce({
+      items: [{ value: 1, label: "News" }, { value: 2, label: "Guide" }],
+    })
+    const wrapper = mount(VSelectChipsInput, {
+      props: { modelValue: [1, 2], reference: { method: "posts.update.tagIds" } },
+    })
+    await flushPromises()
+
+    expect(dataApi.getReferenceOptions).toHaveBeenCalledTimes(1)
+    expect(dataApi.getReferenceOptions).toHaveBeenCalledWith("posts.update.tagIds", { values: [1, 2] })
+    expect(chipLabels(wrapper)).toEqual(["News", "Guide"])
   })
 })
 

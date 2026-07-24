@@ -93,7 +93,7 @@ export const dataApi = {
     if (params.value != null) qs.set("value", String(params.value))
     if (params.values && params.values.length) qs.set("values", params.values.map(String).join(","))
     const q = qs.toString()
-    return request<ListResult<{ value: any, label: string }>>(apiUrl(`/select/${refId}${q ? `?${q}` : ""}`))
+    return request<ListResult<{ value: any, label: string, color?: string }>>(apiUrl(`/select/${refId}${q ? `?${q}` : ""}`))
   },
 
   createItem: (pageId: string, values: any) => request(apiUrl(`/data/${pageId}/items`), values),

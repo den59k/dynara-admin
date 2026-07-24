@@ -43,9 +43,15 @@
               :icon="cellValue(item, col) ? 'check' : 'close'"
             />
           </template>
-          <span v-else-if="col.type === 'badge'" class="v-table__badge" :style="badgeStyle(cellValue(item, col), col)">
-            {{ cellValue(item, col) }}
-          </span>
+          <template v-else-if="col.type === 'badge'">
+            <span v-if="badgeValues(item, col).length === 0" class="v-table__empty">—</span>
+            <span
+              v-for="v in badgeValues(item, col)"
+              :key="String(v)"
+              class="v-table__badge"
+              :style="badgeStyle(v, col)"
+            >{{ v }}</span>
+          </template>
           <img v-else-if="col.type === 'image'" class="v-table__image" :src="String(cellValue(item, col))" alt="" />
           <template v-else>{{ formatValue(cellValue(item, col), col) }}</template>
         </div>
@@ -105,6 +111,14 @@ const rowMenuItems = (col: MenuColumn<T>, item: T): MenuItem[] =>
   }))
 
 const cellValue = (item: T, col: FieldColumn<T>): any => (item as any)[col.field]
+
+// A badge cell renders one pill per value: an array field (e.g. an enum-chips
+// array) becomes a row of pills, a scalar stays a single one. The same
+// `colors` record keys both — shareable with a form field's `enumColors`.
+const badgeValues = (item: T, col: FieldColumn<T>): any[] => {
+  const value = cellValue(item, col)
+  return Array.isArray(value) ? value : [value]
+}
 
 const badgeStyle = (value: any, col: FieldColumn<T>) => {
   const color = badgeColor(value, col)
@@ -317,6 +331,10 @@ a.v-table__row
   font-size: 12px
   font-weight: 600
   text-transform: capitalize
+
+  // Array badge cells render several pills side by side.
+  & + .v-table__badge
+    margin-left: 4px
 
 .v-table__image
   width: 32px

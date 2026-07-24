@@ -263,6 +263,7 @@ type PostModel = PostModelId & {
   published: boolean
   author: UserModel | null
   tags: TagModel[]
+  labels: string[]
 }
 type PostModelInsert = {
   id?: number
@@ -271,6 +272,7 @@ type PostModelInsert = {
   published: boolean
   author?: UserModelId | null
   tags?: TagModelId[]
+  labels: string[]
 }
 type PostModelUpdate = {
   title?: string
@@ -278,6 +280,7 @@ type PostModelUpdate = {
   published?: boolean
   author?: RefUpdate<UserModelId> | null
   tags?: RefListUpdateOrdered<TagModelId>
+  labels?: string[] | PrimitiveListUpdate<string>
 }
 type PostModelSelect = {
   id?: boolean
@@ -286,6 +289,7 @@ type PostModelSelect = {
   published?: boolean
   author?: UserModelSelect | boolean
   tags?: TagModelQuery | TagModelAggregateQuery | boolean
+  labels?: boolean
 }
 type PostModel$WhereFields = {
   id?: CompareValue<number> | CompareNumValue<number>
@@ -294,6 +298,7 @@ type PostModel$WhereFields = {
   published?: CompareValue<boolean>
   author?: CompareRefValue<UserModel$Where | null>
   tags?: CompareRefListValue<TagModel$Where>
+  labels?: CompareValue<string[]>
 }
 type PostModel$Where = WhereValue<PostModel$WhereFields>
 type PostModel$Order = {

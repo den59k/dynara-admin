@@ -206,8 +206,14 @@ admin
   })
 
 // Posts — showcases a foreign-key `reference` field pointing at the Users page,
-// and a relation *list* (`tagIds`): the same searchable select, but every pick
-// is appended to a list. The whole id array is submitted in its visible order.
+// a relation *list* (`tagIds`): the same searchable select, but every pick is
+// appended to a list (the whole id array is submitted in its visible order),
+// and a primitive-array chips field (`labels`).
+
+// One value → color record serves both the form field's `enumColors` and the
+// table's badge column `colors` — same shape, so the two can never disagree.
+// Palette names or raw CSS colors (e.g. "#FF0000") both work.
+const LABEL_COLORS = { featured: "red", pinned: "purple", translated: "blue", archived: "gray" }
 const postForm = {
   title: "string",
   // `??` (nullable), not `?` (optional): the DB column is nullable and `item()`
@@ -261,6 +267,22 @@ const postForm = {
       return tags.map((t) => ({ value: t.id, label: t.title }))
     },
   },
+  // A primitive array over a static enum — the values ARE the list, no lookup
+  // table behind them. Renders as a compact chips box (the default view for a
+  // static source; a reference array can opt in with `view: "chips"`). Stored
+  // as a MarciDB scalar `String[]`; the submitted array replaces it whole.
+  // `enumLabels`/`enumColors` add display metadata over the enum, keyed by
+  // value — the enum itself stays the single source of truth for validation.
+  labels: {
+    type: "array",
+    items: {
+      type: "string",
+      enum: ["featured", "pinned", "translated", "archived"],
+      enumLabels: { featured: "Featured", pinned: "Pinned", translated: "Translated", archived: "Archived" },
+      enumColors: LABEL_COLORS,
+    },
+    label: "Labels",
+  },
 } as const
 
 admin
@@ -280,6 +302,7 @@ admin
       published: true,
       author: { name: true },
       tags: { title: true },
+      labels: true,
       $where,
       $order: $order as any,
       $limit: take,
@@ -303,6 +326,7 @@ admin
       published: true,
       author: { id: true },
       tags: { id: true },
+      labels: true,
       $where: { id },
     })
     if (!post) return null
@@ -315,6 +339,9 @@ admin
     { title: "Title", field: "title", sortable: true },
     { title: "Author", field: "authorName", width: "1fr" },
     { title: "Tags", field: "tagNames", width: "1fr" },
+    // The array-aware badge column: one pill per label, colored by the same
+    // record the form's chips use.
+    { title: "Labels", field: "labels", width: "1fr", type: "badge", colors: LABEL_COLORS },
     // Renders a ✓ / ✗ instead of the raw "true"/"false".
     { title: "Published", field: "published", width: 100, sortable: true, type: "boolean" },
   ])

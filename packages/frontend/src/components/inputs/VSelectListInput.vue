@@ -13,6 +13,11 @@
         <span v-if="sortable" class="v-select-list-input__handle" @pointerdown="onHandleDown(index, $event)">
           <VIcon icon="menu" />
         </span>
+        <span
+          v-if="colorFor(value)"
+          class="v-select-list-input__dot"
+          :style="{ backgroundColor: resolveColor(colorFor(value)!) }"
+        ></span>
         <span class="v-select-list-input__label">{{ labelFor(value) }}</span>
         <button type="button" class="v-select-list-input__remove" :aria-label="t('input.clear')" @click="removeAt(index)">
           <VIcon icon="close" />
@@ -26,6 +31,8 @@
       :placeholder="placeholder ?? t('selectList.add')"
       :options="options"
       :enum="props.enum"
+      :enum-labels="enumLabels"
+      :enum-colors="enumColors"
       :reference="reference"
       :exclude-values="items"
       v-model="addValue"
@@ -35,11 +42,12 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, ref } from 'vue'
 import VFormControl from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import VSelectInput from './VSelectInput.vue'
-import { dataApi } from '../../api/dataApi'
+import { useSelectListLabels } from './useSelectListLabels'
+import { resolveColor } from '../../utils/formatCell'
 import type { SelectOption, SelectReference } from './getInput'
 import { t } from '../../i18n'
 
@@ -50,6 +58,8 @@ const props = defineProps<{
   placeholder?: string
   options?: SelectOption[]
   enum?: (string | number)[]
+  enumLabels?: Record<string | number, string>
+  enumColors?: Record<string | number, string>
   reference?: SelectReference
   // Enable manual reordering via drag handles. Off by default — the list keeps
   // insertion order; either way the submitted array carries the visible order.
@@ -61,91 +71,11 @@ const props = defineProps<{
 const model = defineModel<any[] | null>()
 const items = computed<any[]>(() => model.value ?? [])
 
-// --- Labels. Options picked in this session arrive with their label via the
-// embedded select's `select` event; values supplied from outside (opening an
-// edit form) are resolved through the reference — per value, same as the single
-// select does — and cached here.
-const staticOptions = computed(() =>
-  props.options ?? props.enum?.map((v) => ({ value: v, label: String(v) })) ?? []
-)
-const resolvedLabels = ref(new Map<any, string>())
-
-const labelFor = (value: any): string => {
-  const found = staticOptions.value.find(o => o.value === value)
-  return found?.label ?? resolvedLabels.value.get(value) ?? String(value)
-}
-
-// The referenced page's value field / item access, mirroring VSelectInput.
-const valueField = shallowRef<string | undefined>(
-  props.reference && 'page' in props.reference ? props.reference.value : undefined
-)
-const itemAccess = shallowRef(false)
-let metaLoaded = false
-const loadPageMeta = async (ref: { page: string }) => {
-  if (metaLoaded) return
-  const meta = await dataApi.getPageData(ref.page)
-  if (!valueField.value) valueField.value = meta.primaryKey
-  itemAccess.value = !!meta.itemAccess
-  metaLoaded = true
-}
-
-const resolveLabel = async (value: any): Promise<string | null> => {
-  const ref = props.reference
-  if (!ref) return null
-  if ('method' in ref) {
-    try {
-      const { items } = await dataApi.getReferenceOptions(ref.method, { value })
-      const found = items.find(o => o.value === value) ?? items[0]
-      return found ? String(found.label ?? '') : null
-    } catch { return null }
-  }
-  await loadPageMeta(ref)
-  if (!itemAccess.value) return null
-  try {
-    const row = await dataApi.getItemData(ref.page, value)
-    return row ? String((row as any)[ref.label] ?? '') : null
-  } catch { return null }
-}
-
-const resolveLabelInto = (value: any) => {
-  resolveLabel(value).then((label) => {
-    if (label != null) resolvedLabels.value.set(value, label)
-  })
-}
-
-// Resolves labels for values whose label isn't cached yet. Method references
-// get one batched request (`values`); anything the method didn't return —
-// typically a host handler that doesn't handle `values` yet — falls back to
-// per-`value` lookups, which every reference handler supports. Page references
-// stay per-id: pages have no batch by-id endpoint.
-const resolveMissing = async (missing: any[]) => {
-  const ref = props.reference!
-  if ('method' in ref) {
-    let unresolved = missing
-    try {
-      const { items } = await dataApi.getReferenceOptions(ref.method, { values: missing })
-      const byValue = new Map(items.map(o => [o.value, String(o.label ?? '')]))
-      unresolved = []
-      for (const value of missing) {
-        const label = byValue.get(value)
-        if (label != null) resolvedLabels.value.set(value, label)
-        else unresolved.push(value)
-      }
-    } catch { /* fall through to per-value lookups */ }
-    for (const value of unresolved) resolveLabelInto(value)
-    return
-  }
-  for (const value of missing) resolveLabelInto(value)
-}
-
-watch(items, (values) => {
-  if (!props.reference) return
-  const missing = values.filter((v) => v != null && !resolvedLabels.value.has(v))
-  if (missing.length === 0) return
-  // Seed placeholders synchronously so a re-triggered watch never refetches.
-  for (const value of missing) resolvedLabels.value.set(value, String(value))
-  resolveMissing(missing)
-}, { immediate: true })
+// Labels: options picked in this session arrive with their label via the
+// embedded select's `select` event (cached through `cacheLabel`); values
+// supplied from outside (opening an edit form) are resolved through the
+// reference — batched for method references — by the shared composable.
+const { labelFor, colorFor, cacheLabel } = useSelectListLabels(props, items)
 
 // --- Mutations ---
 // The embedded select is a one-shot picker: reset it after every pick so the
@@ -157,7 +87,7 @@ const add = (option: SelectOption | null) => {
   addValue.value = null
   if (option == null || option.value == null) return
   if (items.value.includes(option.value)) return
-  resolvedLabels.value.set(option.value, option.label)
+  cacheLabel(option.value, option.label, option.color)
   model.value = [...items.value, option.value]
 }
 
@@ -262,6 +192,13 @@ const onPointerUp = () => {
     background-color: var(--popover-color)
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28)
     cursor: grabbing
+
+// A value's declared color, as a small dot next to its label.
+.v-select-list-input__dot
+  width: 8px
+  height: 8px
+  border-radius: 50%
+  flex-shrink: 0
 
 .v-select-list-input__handle
   display: flex

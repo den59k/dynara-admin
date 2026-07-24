@@ -1,0 +1,1 @@
+add field Post.labels String[] @slot(24)

@@ -60,6 +60,8 @@ async function seed() {
       published: i % 2 === 0,
       author: { id: userIds[i % userIds.length]! },
       tags: postTags,
+      // 0–2 static labels so the chips field has both states to show.
+      labels: i % 4 === 0 ? ["featured"] : i % 4 === 2 ? ["pinned", "translated"] : [],
     })
   }
 }

@@ -7,14 +7,14 @@ export const ref = (path) => ({ $ref: path })
 // Generated from the schema; static. See marcidb-client/runtime `createDecoderRegistry`.
 const MODELS = {
   "User": [ { n: "id", k: "key", t: "u64" }, { n: "name", k: "body", t: "str" }, { n: "email", k: "body", t: "str" }, { n: "age", k: "body", t: "i64" }, { n: "role", k: "body", t: "str" }, { n: "balance", k: "body", t: "i64" }, { n: "birthday", k: "body", t: "i64" }, { n: "posts", k: "many", m: "Post" } ],
-  "Post": [ { n: "id", k: "key", t: "u64" }, { n: "title", k: "body", t: "str" }, { n: "body", k: "body", t: "str" }, { n: "published", k: "body", t: "bool" }, { n: "author", k: "one", m: "User" }, { n: "tags", k: "many", m: "Tag" } ],
+  "Post": [ { n: "id", k: "key", t: "u64" }, { n: "title", k: "body", t: "str" }, { n: "body", k: "body", t: "str" }, { n: "published", k: "body", t: "bool" }, { n: "author", k: "one", m: "User" }, { n: "tags", k: "many", m: "Tag" }, { n: "labels", k: "body", t: null } ],
   "Tag": [ { n: "id", k: "key", t: "u64" }, { n: "title", k: "body", t: "str" }, { n: "posts", k: "many", m: "Post" } ]
 }
 
 // Fingerprint of the schema this client was generated from. Sent on binary HTTP reads (`X-Marci-Schema`); the
 // server returns binary only when it matches the target DB's current schema, else JSON — the wire-format
 // handshake that keeps a stale client correct (never wrong bytes). See `schema_fingerprint` (Rust).
-const SCHEMA_HASH = "19506af3bc2c0cc0"
+const SCHEMA_HASH = "81370922cb7c6a35"
 
 // HTTP transport: maps a transport-neutral op descriptor `{ model, action, query/data/id }` onto the
 // server's REST routes. This is the default when `marcidb()` is given a URL string. Behavior is identical
