@@ -35,6 +35,11 @@ async function seed() {
       balance: (i % 7) * 500,
       // A few users without a birthday so the nullable date field shows both states.
       birthday: i % 4 === 3 ? null : new Date(Date.UTC(1970 + (i % 40), i % 12, 1 + (i % 28))),
+      // 0–2 schedule rows (an object-rows table field, stored as Json).
+      schedule: i % 3 === 0 ? [] : [
+        { day: "mon", from: "09:00", to: "17:00" },
+        ...(i % 3 === 2 ? [{ day: "fri", from: "10:00", to: "16:00" }] : []),
+      ],
     })
     userIds.push(id)
   }

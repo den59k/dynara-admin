@@ -55,6 +55,27 @@ const userForm = {
   },
   balance: "number",
   birthday: "date??",
+  // An editable table: an array of object rows, where the row schema doubles
+  // as the column definition — each property is a column (its label the
+  // header, its input the cell editor — so the day enum renders as a select
+  // inside its cell, labels included). `sortable` adds a drag-handle column;
+  // the submitted array carries the rows in their visible order. Stored as a
+  // MarciDB `Json` column — the array replaces the previous value whole.
+  schedule: {
+    type: "array",
+    label: "Schedule",
+    sortable: true,
+    items: {
+      day: {
+        type: "string",
+        enum: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        enumLabels: { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" },
+        label: "Day",
+      },
+      from: { type: "string", label: "From" },
+      to: { type: "string??", label: "To" },
+    },
+  },
 } as const
 
 // The update form adds a display-only custom component: a read-only list of the
@@ -120,7 +141,7 @@ admin
   // so the row is returned unchanged. `posts` feeds the update form's
   // display-only component field.
   .item(async (id) => {
-    const user = await client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, balance: true, birthday: true, $where: { id } })
+    const user = await client.user.findFirst({ id: true, name: true, email: true, age: true, role: true, balance: true, birthday: true, schedule: true, $where: { id } })
     if (!user) return null
     const posts = await client.post.findMany({
       id: true,

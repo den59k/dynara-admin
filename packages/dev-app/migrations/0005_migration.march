@@ -1,0 +1,1 @@
+add field User.schedule Json @slot(28)

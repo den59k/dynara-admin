@@ -7,6 +7,7 @@ import VInputTextArea from "./VInputTextArea.vue"
 import VSelectInput from "./VSelectInput.vue"
 import VSelectListInput from "./VSelectListInput.vue"
 import VSelectChipsInput from "./VSelectChipsInput.vue"
+import VInputTable from "./VInputTable.vue"
 import VFileInput from "./VFileInput.vue"
 import VDateInput from "./VDateInput.vue"
 import VCustomInput from "./VCustomInput"
@@ -43,9 +44,9 @@ export type Schema = {
   enumColors?: Record<string | number, string>,
   options?: SelectOption[],
   reference?: SelectReference,
-  // On an array field whose values come from options/reference: allow manual
-  // reordering of the selected list (drag handles). Off by default — the list
-  // then simply keeps insertion order.
+  // On an array field — a relation list or an object-rows table: allow manual
+  // reordering (drag handles). Off by default — the array then simply keeps
+  // insertion order.
   sortable?: boolean,
   // On an array field with a select source: which multi-value input renders it —
   // compact removable chips or one row per value. Defaults: a static source
@@ -87,6 +88,14 @@ export const JsonInput = (props: JsonInputProps) => {
   const otherProps = { nullable: schema.nullable, ...restProps }
   if (schema.format === "file") {
     return h(VFileInput, otherProps)
+  }
+  // An editable table: an array of object rows. The row schema doubles as the
+  // column definition — each property is a column, its label the header, its
+  // input the cell editor (recursively through JsonInput, so selects, dates and
+  // reference cells all work). Rows submit in visible order; `sortable` adds a
+  // drag-handle column.
+  if (schema.type === "array" && schema.items?.type === "object" && schema.format !== "richText") {
+    return h(VInputTable, { schema, sortable: schema.sortable, ...otherProps })
   }
   // A relation/select list: an array whose values come from options, an enum or
   // a reference. The select source may sit on the array node (flat form) or on

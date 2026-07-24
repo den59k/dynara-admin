@@ -11,6 +11,7 @@ import VCheckbox from "../src/components/inputs/VCheckbox.vue"
 import VSelectInput from "../src/components/inputs/VSelectInput.vue"
 import VSelectListInput from "../src/components/inputs/VSelectListInput.vue"
 import VSelectChipsInput from "../src/components/inputs/VSelectChipsInput.vue"
+import VInputTable from "../src/components/inputs/VInputTable.vue"
 import VFileInput from "../src/components/inputs/VFileInput.vue"
 import VInputObject from "../src/components/inputs/VInputObject"
 import VCustomInput from "../src/components/inputs/VCustomInput"
@@ -180,6 +181,16 @@ describe("JsonInput dispatch", () => {
 
   it("leaves a plain array (no select source) on the fallback input", () => {
     expect(typeOf({ type: "array", items: { type: "string" } })).toBe(VInputText)
+  })
+
+  it("renders the editable table for an array of object rows", () => {
+    const rows = { type: "object", properties: { day: { type: "string" } }, required: ["day"] }
+    expect(typeOf({ type: "array", items: rows })).toBe(VInputTable)
+    // `sortable` stays on the table (drag-handle column) — it never reroutes
+    // object rows to the select list.
+    const vnode = JsonInput({ schema: { type: "array", sortable: true, items: rows } }) as any
+    expect(vnode.type).toBe(VInputTable)
+    expect(vnode.props.sortable).toBe(true)
   })
 })
 
@@ -374,6 +385,92 @@ describe("VSelectChipsInput", () => {
     expect(dataApi.getReferenceOptions).toHaveBeenCalledTimes(1)
     expect(dataApi.getReferenceOptions).toHaveBeenCalledWith("posts.update.tagIds", { values: [1, 2] })
     expect(chipLabels(wrapper)).toEqual(["News", "Guide"])
+  })
+})
+
+describe("VInputTable", () => {
+  const schema = {
+    type: "array",
+    items: {
+      type: "object",
+      properties: {
+        day: { type: "string", enum: ["mon", "tue"], label: "Day" },
+        from: { type: "string", label: "From" },
+        note: { type: "string", nullable: true },
+      },
+      required: ["day", "from"],
+    },
+  }
+  const rows = [
+    { day: "mon", from: "09:00" },
+    { day: "tue", from: "10:00" },
+  ]
+
+  it("renders headers from the column labels (falling back to the key) with required markers", () => {
+    const wrapper = mount(VInputTable, { props: { schema, modelValue: rows } })
+    expect(wrapper.findAll(".v-input-table__th").map((n) => n.text())).toEqual(["Day*", "From*", "note"])
+  })
+
+  it("renders one row per item, cells through the regular inputs", () => {
+    const wrapper = mount(VInputTable, { props: { schema, modelValue: rows } })
+    expect(wrapper.findAll(".v-input-table__body .v-input-table__row")).toHaveLength(2)
+    // The enum column renders a select in each row; string columns text inputs.
+    expect(wrapper.findAllComponents(VSelectInput)).toHaveLength(2)
+    const inputs = wrapper.findAll(".v-input-table__cell input")
+    expect((inputs[0]!.element as HTMLInputElement).value).toBe("09:00")
+  })
+
+  it("emits a new array with the edited cell, other rows untouched", async () => {
+    const wrapper = mount(VInputTable, { props: { schema, modelValue: rows } })
+    await wrapper.findAll(".v-input-table__cell input")[0]!.setValue("08:30")
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[
+      { day: "mon", from: "08:30" },
+      { day: "tue", from: "10:00" },
+    ]])
+  })
+
+  it("appends a defaults row on add", async () => {
+    const wrapper = mount(VInputTable, { props: { schema, modelValue: [] } })
+    await wrapper.find(".v-input-table__add").trigger("click")
+    // Required string → "", required enum → null (forces a pick), optional → absent.
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[{ day: null, from: "" }]])
+  })
+
+  it("removes a row via its button", async () => {
+    const wrapper = mount(VInputTable, { props: { schema, modelValue: rows } })
+    await wrapper.findAll(".v-input-table__remove")[0]!.trigger("click")
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[{ day: "tue", from: "10:00" }]])
+  })
+
+  it("shows the drag-handle column only when sortable", () => {
+    const plain = mount(VInputTable, { props: { schema, modelValue: rows } })
+    expect(plain.find(".v-input-table__handle").exists()).toBe(false)
+
+    const sortable = mount(VInputTable, { props: { schema, modelValue: rows, sortable: true } })
+    expect(sortable.findAll(".v-input-table__handle")).toHaveLength(2)
+  })
+
+  it("reorders rows on a pointer drag and emits the array in the new order", async () => {
+    const wrapper = mount(VInputTable, {
+      props: { schema, modelValue: [...rows, { day: "mon", from: "12:00" }], sortable: true },
+    })
+    const bodyRows = wrapper.findAll(".v-input-table__body .v-input-table__row")
+    // happy-dom does no layout — stub the row offsets the drag math measures.
+    bodyRows.forEach((row, i) => Object.defineProperty(row.element, "offsetTop", { value: i * 36 }))
+
+    // Grab row 0's handle and drag two row-steps down (to index 2).
+    await bodyRows[0]!.find(".v-input-table__handle").trigger("pointerdown", { clientY: 0 })
+    const move = new Event("pointermove") as any
+    move.clientY = 72
+    window.dispatchEvent(move)
+    await wrapper.vm.$nextTick()
+    window.dispatchEvent(new Event("pointerup"))
+
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[
+      { day: "tue", from: "10:00" },
+      { day: "mon", from: "12:00" },
+      { day: "mon", from: "09:00" },
+    ]])
   })
 })
 

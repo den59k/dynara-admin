@@ -544,6 +544,94 @@ describe("admin panel — relation list fields (array + reference)", () => {
   })
 })
 
+describe("admin panel — editable table fields (array of object rows)", () => {
+  // The row schema doubles as the column definition: each property is a
+  // column, with the usual annotations (label, enum, references, `??`
+  // nullability) — the compact object shorthand works for `items` too.
+  const buildTableApp = () => {
+    const inserted: unknown[] = []
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Users", path: "users" })
+      .data(async () => [])
+      .primaryKey("id", "number")
+      .createForm(
+        {
+          name: "string",
+          schedule: {
+            type: "array",
+            label: "Schedule",
+            sortable: true,
+            items: {
+              day: { type: "string", enum: ["mon", "tue"], label: "Day" },
+              from: "string",
+              to: "string??",
+              roomId: {
+                type: "number?",
+                reference: async () => [{ value: 1, label: "Main hall" }],
+              },
+            },
+          },
+        },
+        async (data) => { inserted.push(data) }
+      )
+    const app = new Router()
+    app.register(admin)
+    return { app, inserted }
+  }
+
+  it("serializes the row schema as the column definition", async () => {
+    const { app } = buildTableApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json() as any
+    const field = meta.createForm.schema.properties.schedule
+    expect(field.type).toBe("array")
+    expect(field.sortable).toBe(true)
+    expect(field.items.type).toBe("object")
+    expect(field.items.properties.day).toEqual({ type: "string", enum: ["mon", "tue"], label: "Day" })
+    expect(field.items.properties.to.nullable).toBe(true)
+    expect(field.items.required).toEqual(["day", "from"])
+  })
+
+  it("extracts a reference declared inside the row schema and serves it", async () => {
+    const { app } = buildTableApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json() as any
+    expect(meta.createForm.schema.properties.schedule.items.properties.roomId.reference)
+      .toEqual({ method: "users.create.schedule.items.roomId" })
+
+    const res = await app.inject("/api/admin/select/users.create.schedule.items.roomId")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [{ value: 1, label: "Main hall" }] })
+  })
+
+  it("accepts an array of valid rows, preserving their order", async () => {
+    const { app, inserted } = buildTableApp()
+    const schedule = [
+      { day: "tue", from: "10:00", to: null },
+      { day: "mon", from: "09:00", to: "17:00", roomId: 1 },
+    ]
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/data/users/items",
+      body: { name: "Alice", schedule },
+    })
+    expect(res.status).toBe(200)
+    expect(inserted).toEqual([{ name: "Alice", schedule }])
+  })
+
+  it("rejects a row that fails the row schema", async () => {
+    const { app, inserted } = buildTableApp()
+    // Missing the required `from`…
+    const missing = await app.inject({ method: "POST", url: "/api/admin/data/users/items",
+      body: { name: "Bob", schedule: [{ day: "mon" }] } })
+    expect(missing.status).toBe(400)
+    // …and a `day` outside the enum.
+    const badEnum = await app.inject({ method: "POST", url: "/api/admin/data/users/items",
+      body: { name: "Bob", schedule: [{ day: "sun", from: "09:00" }] } })
+    expect(badEnum.status).toBe(400)
+    expect(inserted).toEqual([])
+  })
+})
+
 describe("admin panel — custom form field components", () => {
   const buildComponentFormApp = () => {
     const calls = { updated: [] as Array<[number, unknown]>, granted: [] as unknown[] }

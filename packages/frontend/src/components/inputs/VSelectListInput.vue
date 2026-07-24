@@ -47,6 +47,7 @@ import VFormControl from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import VSelectInput from './VSelectInput.vue'
 import { useSelectListLabels } from './useSelectListLabels'
+import { useRowDrag } from './useRowDrag'
 import { resolveColor } from '../../utils/formatCell'
 import type { SelectOption, SelectReference } from './getInput'
 import { t } from '../../i18n'
@@ -95,70 +96,8 @@ const removeAt = (index: number) => {
   model.value = items.value.filter((_, i) => i !== index)
 }
 
-// --- Manual sorting. Pressing a row's handle starts a pointer-driven drag: the
-// picked row follows the pointer along the Y axis (clamped to the list bounds),
-// and the model reorders live as the row crosses its neighbours. ---
-const itemsRef = ref<HTMLElement>()
-const dragIndex = ref<number | null>(null)
-// Pixel offset applied to the dragged row so it stays under the pointer.
-const dragOffset = ref(0)
-
-// Captured at the start of a drag and constant for its duration.
-let startIndex = 0
-let startPointerY = 0
-let rowStep = 0 // distance between consecutive row tops (height + gap)
-let rowCount = 0
-
-const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
-
-const onHandleDown = (index: number, e: PointerEvent) => {
-  const container = itemsRef.value
-  if (!container) return
-  const rows = Array.from(container.children) as HTMLElement[]
-  // Measure the step from the DOM so it tracks whatever height/gap the CSS uses.
-  rowStep = rows.length > 1 ? rows[1].offsetTop - rows[0].offsetTop : 0
-  if (rowStep === 0) return // a single row has nowhere to go
-
-  e.preventDefault() // suppress native text/image selection while dragging
-  startIndex = index
-  rowCount = items.value.length
-  startPointerY = e.clientY
-  dragIndex.value = index
-  dragOffset.value = 0
-
-  // Listen on the window rather than the handle: reordering the rows moves the
-  // handle's DOM node, which would drop pointer capture (and fire pointercancel)
-  // and stall the drag. Window listeners fire wherever the pointer goes.
-  window.addEventListener('pointermove', onPointerMove)
-  window.addEventListener('pointerup', onPointerUp)
-  window.addEventListener('pointercancel', onPointerUp)
-}
-
-const onPointerMove = (e: PointerEvent) => {
-  if (dragIndex.value == null) return
-  const maxTop = (rowCount - 1) * rowStep
-  // Where the row sits visually — derived from the original slot plus the total
-  // pointer travel, so it's independent of the reorders done so far and can't drift.
-  const visualTop = clamp(startIndex * rowStep + (e.clientY - startPointerY), 0, maxTop)
-  const target = clamp(Math.round(visualTop / rowStep), 0, rowCount - 1)
-  if (target !== dragIndex.value) {
-    const arr = [...items.value]
-    const [moved] = arr.splice(dragIndex.value, 1)
-    arr.splice(target, 0, moved)
-    dragIndex.value = target
-    model.value = arr
-  }
-  // Offset relative to the row's (possibly new) home slot keeps it under the pointer.
-  dragOffset.value = visualTop - dragIndex.value * rowStep
-}
-
-const onPointerUp = () => {
-  window.removeEventListener('pointermove', onPointerMove)
-  window.removeEventListener('pointerup', onPointerUp)
-  window.removeEventListener('pointercancel', onPointerUp)
-  dragIndex.value = null
-  dragOffset.value = 0
-}
+// Manual sorting: the shared pointer-driven row drag (see useRowDrag).
+const { itemsRef, dragIndex, dragOffset, onHandleDown } = useRowDrag(items, (arr) => { model.value = arr })
 </script>
 
 <style lang="sass">

@@ -10,6 +10,7 @@ model User {
   role     String
   balance  Int
   birthday DateTime?
+  schedule Json
   posts    Post[] @bind(Post.author)
 }
 

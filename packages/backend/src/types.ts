@@ -97,16 +97,25 @@ declare module "compact-json-schema" {
     // Renderer hints: `format: "file" | "date" | "datetime"`, multiline text.
     format?: string
     multiline?: boolean
-    // On an array field whose values come from `options`/`reference` (a
-    // relation list): let the user reorder the list by dragging. Off by
-    // default — the list keeps insertion order. Either way the submitted
-    // array carries the visible order; persisting it is the host's concern.
+    // On an array field — a relation list, or an array of object rows (an
+    // editable table, which gets a drag-handle column): let the user reorder
+    // the array by dragging. Off by default — the array keeps insertion
+    // order. Either way the submitted array carries the visible order;
+    // persisting it is the host's concern.
     sortable?: boolean
+    // Relative width. On a field of a form object: the fraction of one form
+    // row the field occupies (adjacent fields whose widths sum to ≤1 share the
+    // row). On a column of an object-rows table (a property of the `items`
+    // schema): the column's weight relative to its siblings (default 1).
+    width?: number
     // On an array field with a select source: which multi-value input renders
     // it. "chips" — a compact box of removable chips (the default for a static
     // options/enum source — the tags case); "list" — one row per value (the
     // default when the source is a reference). `sortable: true` always renders
-    // the list, since chips can't be reordered.
+    // the list, since chips can't be reordered. (An array whose `items` is an
+    // object schema is a different thing entirely — it always renders as an
+    // editable table whose columns are the row schema's properties; `view`
+    // doesn't apply there.)
     view?: "chips" | "list"
     // Display metadata over an `enum`, keyed by the enum value so entries can't
     // drift when the enum is reordered (and partial coverage is fine — missing
