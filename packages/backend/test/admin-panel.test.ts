@@ -362,6 +362,7 @@ describe("admin panel — relation list fields (array + reference)", () => {
   const buildListApp = () => {
     const users = seedUsers()
     const inserted: unknown[] = []
+    const refQueries: unknown[] = []
     const admin = createAdminPanel()
     admin
       .createPage({ title: "Posts", path: "posts" })
@@ -375,8 +376,13 @@ describe("admin panel — relation list fields (array + reference)", () => {
             items: "number",
             label: "Members",
             sortable: true,
-            reference: async ({ search }: { search?: string; value?: string }) => {
-              const list = search ? users.filter((u) => u.name.toLowerCase().includes(search.toLowerCase())) : users
+            reference: async (query: { search?: string; value?: string; values?: string[] }) => {
+              refQueries.push(query)
+              const { search, values } = query
+              const list =
+                values ? users.filter((u) => values.includes(String(u.id))) :
+                search ? users.filter((u) => u.name.toLowerCase().includes(search.toLowerCase())) :
+                users
               return list.map((u) => ({ value: u.id, label: u.name }))
             },
           },
@@ -385,7 +391,7 @@ describe("admin panel — relation list fields (array + reference)", () => {
       )
     const app = new Router()
     app.register(admin)
-    return { app, inserted }
+    return { app, inserted, refQueries }
   }
 
   it("serializes the array field with { method } and keeps the sortable hint", async () => {
@@ -404,6 +410,14 @@ describe("admin panel — relation list fields (array + reference)", () => {
     const res = await app.inject("/api/admin/select/posts.create.memberIds?search=al")
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ items: [{ value: 1, label: "Alice" }] })
+  })
+
+  it("passes batched values to the reference method as a string array", async () => {
+    const { app, refQueries } = buildListApp()
+    const res = await app.inject("/api/admin/select/posts.create.memberIds?values=3,1")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [{ value: 1, label: "Alice" }, { value: 3, label: "Carol" }] })
+    expect(refQueries).toEqual([{ search: undefined, value: undefined, values: ["3", "1"] }])
   })
 
   it("accepts the whole id array on create, preserving its order", async () => {

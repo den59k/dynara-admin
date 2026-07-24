@@ -110,15 +110,44 @@ const resolveLabel = async (value: any): Promise<string | null> => {
   } catch { return null }
 }
 
+const resolveLabelInto = (value: any) => {
+  resolveLabel(value).then((label) => {
+    if (label != null) resolvedLabels.value.set(value, label)
+  })
+}
+
+// Resolves labels for values whose label isn't cached yet. Method references
+// get one batched request (`values`); anything the method didn't return —
+// typically a host handler that doesn't handle `values` yet — falls back to
+// per-`value` lookups, which every reference handler supports. Page references
+// stay per-id: pages have no batch by-id endpoint.
+const resolveMissing = async (missing: any[]) => {
+  const ref = props.reference!
+  if ('method' in ref) {
+    let unresolved = missing
+    try {
+      const { items } = await dataApi.getReferenceOptions(ref.method, { values: missing })
+      const byValue = new Map(items.map(o => [o.value, String(o.label ?? '')]))
+      unresolved = []
+      for (const value of missing) {
+        const label = byValue.get(value)
+        if (label != null) resolvedLabels.value.set(value, label)
+        else unresolved.push(value)
+      }
+    } catch { /* fall through to per-value lookups */ }
+    for (const value of unresolved) resolveLabelInto(value)
+    return
+  }
+  for (const value of missing) resolveLabelInto(value)
+}
+
 watch(items, (values) => {
   if (!props.reference) return
-  for (const value of values) {
-    if (value == null || resolvedLabels.value.has(value)) continue
-    resolvedLabels.value.set(value, String(value)) // placeholder — never refetched
-    resolveLabel(value).then((label) => {
-      if (label != null) resolvedLabels.value.set(value, label)
-    })
-  }
+  const missing = values.filter((v) => v != null && !resolvedLabels.value.has(v))
+  if (missing.length === 0) return
+  // Seed placeholders synchronously so a re-triggered watch never refetches.
+  for (const value of missing) resolvedLabels.value.set(value, String(value))
+  resolveMissing(missing)
 }, { immediate: true })
 
 // --- Mutations ---

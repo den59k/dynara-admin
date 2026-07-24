@@ -14,7 +14,7 @@
     "marcidb-embedded": "^0.10.0"
   },
   "devDependencies": {
-    "dynara": "^0.0.4"
+    "dynara": "^0.0.5"
   },
   "peerDependencies": {
     "compact-json-schema": "^0.1.7"

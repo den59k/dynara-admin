@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 import { mount, flushPromises } from "@vue/test-utils"
 import { ref } from "vue"
 import { JsonInput } from "../src/components/inputs/getInput"
@@ -13,6 +13,18 @@ import VSelectListInput from "../src/components/inputs/VSelectListInput.vue"
 import VFileInput from "../src/components/inputs/VFileInput.vue"
 import VInputObject from "../src/components/inputs/VInputObject"
 import VCustomInput from "../src/components/inputs/VCustomInput"
+
+// The list input resolves reference labels over the network; stub the API layer
+// so tests control the responses. (Static-options tests never touch it.)
+vi.mock("../src/api/dataApi", () => ({
+  dataApi: {
+    getReferenceOptions: vi.fn(),
+    getPageData: vi.fn(),
+    getItemData: vi.fn(),
+    getData: vi.fn(),
+  },
+}))
+import { dataApi } from "../src/api/dataApi"
 
 // VCustomInput dynamically imports the server-compiled module; stub the loader
 // with a fake component that echoes the props it receives.
@@ -189,6 +201,64 @@ describe("VSelectListInput", () => {
     await rows()[2]!.trigger("dragend")
 
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([[2, 3, 1]])
+  })
+})
+
+describe("VSelectListInput batched label resolution", () => {
+  const reference = { method: "posts.update.tagIds" }
+  const labels = (wrapper: any) => wrapper.findAll(".v-select-list-input__label").map((n: any) => n.text())
+
+  beforeEach(() => {
+    vi.mocked(dataApi.getReferenceOptions).mockReset()
+  })
+
+  it("resolves preselected values with a single batched request", async () => {
+    vi.mocked(dataApi.getReferenceOptions).mockResolvedValueOnce({
+      items: [{ value: 1, label: "News" }, { value: 2, label: "Guide" }],
+    })
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [1, 2], reference } })
+    await flushPromises()
+
+    expect(dataApi.getReferenceOptions).toHaveBeenCalledTimes(1)
+    expect(dataApi.getReferenceOptions).toHaveBeenCalledWith("posts.update.tagIds", { values: [1, 2] })
+    expect(labels(wrapper)).toEqual(["News", "Guide"])
+  })
+
+  it("falls back to per-value lookups for ids the batch didn't return", async () => {
+    vi.mocked(dataApi.getReferenceOptions)
+      .mockResolvedValueOnce({ items: [{ value: 1, label: "News" }] })   // batch — handler ignored id 2
+      .mockResolvedValueOnce({ items: [{ value: 2, label: "Guide" }] })  // per-value fallback
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [1, 2], reference } })
+    await flushPromises()
+
+    expect(dataApi.getReferenceOptions).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(dataApi.getReferenceOptions).mock.calls[1]).toEqual(["posts.update.tagIds", { value: 2 }])
+    expect(labels(wrapper)).toEqual(["News", "Guide"])
+  })
+
+  it("shows the raw value when neither the batch nor the fallback knows it", async () => {
+    vi.mocked(dataApi.getReferenceOptions).mockResolvedValue({ items: [] })
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [9], reference } })
+    await flushPromises()
+
+    expect(labels(wrapper)).toEqual(["9"])
+  })
+
+  it("does not refetch labels it already knows when a value is added", async () => {
+    vi.mocked(dataApi.getReferenceOptions).mockResolvedValueOnce({
+      items: [{ value: 1, label: "News" }],
+    })
+    const wrapper = mount(VSelectListInput, { props: { modelValue: [1], reference } })
+    await flushPromises()
+    expect(dataApi.getReferenceOptions).toHaveBeenCalledTimes(1)
+
+    // Picking an option supplies its label via the `select` event — no request.
+    wrapper.findComponent(VSelectInput).vm.$emit("select", { value: 2, label: "Guide" })
+    await wrapper.setProps({ modelValue: [1, 2] })
+    await flushPromises()
+
+    expect(dataApi.getReferenceOptions).toHaveBeenCalledTimes(1)
+    expect(labels(wrapper)).toEqual(["News", "Guide"])
   })
 })
 

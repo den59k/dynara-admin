@@ -238,15 +238,16 @@ const postForm = {
   // The relation list. `sortable` enables drag-reordering in the form; the
   // array's order is what the handlers receive — MarciDB's `@list` many-link
   // stores it as an ordered array of ids, so no separate position field exists.
-  // The same reference contract as above: `search` filters, `value` resolves
-  // one already-selected id's label when the edit form opens.
+  // The same reference contract as above, plus `values`: when the edit form
+  // opens, the panel resolves all picked ids' labels in one batched call.
   tagIds: {
     type: "array",
     items: "number",
     label: "Tags",
     sortable: true,
-    reference: async ({ search, value }: { search?: string; value?: string }) => {
+    reference: async ({ search, value, values }: { search?: string; value?: string; values?: string[] }) => {
       const $where =
+        values ? { id: { $in: values.map(Number) } } :
         value != null ? { id: Number(value) } :
         search ? { title: { $includes: search } } : undefined
       const tags = await client.tag.findMany({
@@ -254,7 +255,8 @@ const postForm = {
         title: true,
         $where,
         $order: { title: "asc" },
-        $limit: 20,
+        // A batch must return every requested id; the dropdown stays capped.
+        $limit: values ? values.length : 20,
       })
       return tags.map((t) => ({ value: t.id, label: t.title }))
     },

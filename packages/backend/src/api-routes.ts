@@ -49,12 +49,20 @@ export const installApiRoutes = (state: PanelState, app: Router) => {
   // Async options for select fields declared with an inline `reference` method.
   // One route serves every form's reference methods, keyed by page-qualified id.
   if (referenceMethods.size > 0) {
-    const selectQuerySchema = schema({ search: "string?", value: "string?" })
+    // `values` travels comma-separated (the same wire form bulk actions use for
+    // itemIds) and reaches the method as a string array.
+    const selectQuerySchema = schema({ search: "string?", value: "string?", values: "string?" })
     app.get(`${apiBase}/select/:refId`, [schema({ refId: "string" }), selectQuerySchema], async (req) => {
       const method = referenceMethods.get(req.params.refId)
       if (!method) throw new HTTPError("Unknown reference", 404)
-      const q = req.query as ReferenceQuery
-      const items = await method({ search: q.search, value: q.value }, { user: (req as any).user })
+      const q = req.query as { search?: string, value?: string, values?: string }
+      const values = q.values != null ? q.values.split(",").filter(Boolean) : undefined
+      const query: ReferenceQuery = {
+        search: q.search,
+        value: q.value,
+        values: values && values.length > 0 ? values : undefined,
+      }
+      const items = await method(query, { user: (req as any).user })
       return { items }
     })
   }

@@ -84,11 +84,14 @@ export const dataApi = {
 
   // Options for a select field backed by an inline `reference` method. `search`
   // filters the list; `value` (search omitted) resolves the label of an already
-  // selected value. The method is page-qualified, so no page id is needed here.
-  getReferenceOptions: (refId: string, params: { search?: string, value?: any } = {}) => {
+  // selected value; `values` is the batched form of `value` — one request
+  // resolving several selected values (comma-separated on the wire, like bulk
+  // itemIds). The method is page-qualified, so no page id is needed here.
+  getReferenceOptions: (refId: string, params: { search?: string, value?: any, values?: any[] } = {}) => {
     const qs = new URLSearchParams()
     if (params.search) qs.set("search", params.search)
     if (params.value != null) qs.set("value", String(params.value))
+    if (params.values && params.values.length) qs.set("values", params.values.map(String).join(","))
     const q = qs.toString()
     return request<ListResult<{ value: any, label: string }>>(apiUrl(`/select/${refId}${q ? `?${q}` : ""}`))
   },

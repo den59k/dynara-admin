@@ -51,10 +51,17 @@ export type ListOptions<KeyType = any> = {
 // A single select option returned by a reference method.
 export type SelectOption = { value: any, label: string }
 
-// The query a reference method receives. `search` is the user's current search
-// text. `value` is set instead (search absent) when the frontend needs to
-// resolve the label of an already-selected value — e.g. opening an edit form.
-export type ReferenceQuery = { search?: string, value?: string }
+// The query a reference method receives. Exactly one of the fields is set:
+//   `search` — the user's current search text (filter the option list);
+//   `value`  — resolve the label of one already-selected value;
+//   `values` — batch form of `value`: resolve labels for several selected
+//              values in one call. Sent by relation-list fields when an edit
+//              form opens, so N picked ids cost one request, not N. Return an
+//              option per id you recognize (order doesn't matter); ids you
+//              don't return fall back to per-`value` lookups client-side, so a
+//              handler that ignores `values` still works — just less
+//              efficiently.
+export type ReferenceQuery = { search?: string, value?: string, values?: string[] }
 
 // An async options source for a select field, declared inline in a form schema
 // as `{ type, reference: async (query, ctx) => SelectOption[] }`. It is pulled

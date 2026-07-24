@@ -25,5 +25,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  // Keep generated bundles out of the program: packages/backend/dist repeats
+  // the compact-json-schema augmentation from src/types.ts, and a stale build
+  // would clash with the live source declaration (TS2717) until rebuilt.
+  "exclude": ["node_modules", "**/dist"]
 }
