@@ -23,11 +23,11 @@
     },
     "packages/backend": {
       "name": "dynara-admin",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "devDependencies": {
         "@sinclair/typebox": "^0.34.37",
         "bunup": "^0.16.31",
-        "dynara": "^0.0.5",
+        "dynara": "^0.0.6",
       },
       "peerDependencies": {
         "@sinclair/typebox": "^0.34.0",
@@ -694,6 +694,8 @@
     "zlye": ["zlye@0.4.4", "", { "dependencies": { "picocolors": "^1.1.1" }, "peerDependencies": { "typescript": ">=4.5.0" }, "optionalPeers": ["typescript"] }, "sha512-fwpeC841X3ElOLYRMKXbwX29pitNrsm6nRNvEhDMrRXDl3BhR2i03Bkr0GNrpyYgZJuEzUsBylXAYzgGPXXOCQ=="],
 
     "@vitest/mocker/estree-walker": ["estree-walker@3.0.3", "", { "dependencies": { "@types/estree": "^1.0.0" } }, "sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g=="],
+
+    "dynara-admin/dynara": ["dynara@0.0.6", "", { "dependencies": { "@sinclair/typebox": "^0.34.37", "compact-json-schema": "^0.1.7" }, "peerDependencies": { "@types/bun": "*", "typescript": "^5" } }, "sha512-O37xtX9CwUB6XPCVGw/M/Goe734txlqKnd0V7N/IlwYRkFwBUIq/8mw6rJCZB9PImi+WPgnxBgEMxgehThiBjA=="],
 
     "string-width-cjs/emoji-regex": ["emoji-regex@8.0.0", "", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
 

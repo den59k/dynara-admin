@@ -20,11 +20,11 @@
   },
   "devDependencies": {
     "bunup": "^0.16.31",
-    "dynara": "^0.0.5",
+    "dynara": "^0.0.6",
     "@sinclair/typebox": "^0.34.37"
   },
   "peerDependencies": {
-    "dynara": "^0.0.5",
+    "dynara": "^0.0.6",
     "compact-json-schema": "^0.1.7",
     "@sinclair/typebox": "^0.34.0"
   },
