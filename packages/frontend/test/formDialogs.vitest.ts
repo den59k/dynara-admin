@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { mount, flushPromises } from "@vue/test-utils"
 import AddItemDialog from "../src/components/dialogs/AddItemDialog.vue"
 import ActionDialog from "../src/components/dialogs/ActionDialog.vue"
+import { HTTPError } from "../src/api/request"
 
 // Dialog-level coverage for custom form-field components: the earlier
 // VInputObject-only test mounted with the record already in the props, which
@@ -25,12 +26,12 @@ vi.mock("../src/utils/loadCustomComponent", async () => {
   return { loadCustomComponent: async () => FakeCustom }
 })
 
-const mocks = vi.hoisted(() => ({ getItemData: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getItemData: vi.fn(), createItem: vi.fn() }))
 vi.mock("../src/api/dataApi", () => ({
   dataApi: {
     getItemData: mocks.getItemData,
     updateItem: vi.fn(),
-    createItem: vi.fn(),
+    createItem: mocks.createItem,
     runAction: vi.fn(),
     getData: vi.fn(),
   },
@@ -42,6 +43,7 @@ const globalMocks = { global: { provide: { dialogStore, toastStore } } }
 
 beforeEach(() => {
   mocks.getItemData.mockReset()
+  mocks.createItem.mockReset()
 })
 
 describe("AddItemDialog custom form components", () => {
@@ -84,6 +86,85 @@ describe("AddItemDialog custom form components", () => {
 
     expect(mocks.getItemData).toHaveBeenCalledWith("users", 7)
     expect(wrapper.find(".fake-custom").text()).toBe("7:admin/no-id/1")
+  })
+})
+
+// The form error handler lives in api/request (registered into vuesix as a
+// side effect of importing it). dataApi is mocked away above, so the import is
+// explicit here — without it no handler is installed at all.
+describe("AddItemDialog validation errors", () => {
+  const schema = {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      titleOverride: { type: "string" },
+      rows: { type: "array", items: { type: "object", properties: { name: { type: "string" } } } },
+    },
+  }
+
+  const submit = async (error: any) => {
+    mocks.createItem.mockRejectedValue(error)
+    const wrapper = mount(AddItemDialog as any, {
+      props: { viewId: "posts", schema, primaryKey: "id" },
+      ...globalMocks,
+    })
+    await wrapper.findAll("button.v-button").at(-1)!.trigger("click")
+    await flushPromises()
+    return wrapper
+  }
+
+  const controlOf = (wrapper: any, name: string) =>
+    wrapper.find(`input[name="${name}"]`).element.closest(".v-form-control") as HTMLElement
+
+  it("highlights the field dynara rejected, and only that one", async () => {
+    const wrapper = await submit(new HTTPError({
+      cause: "Validation error",
+      where: "body",
+      fields: { titleOverride: { message: "Expected string" } },
+    }, 400))
+
+    expect(controlOf(wrapper, "titleOverride").className).toContain("error")
+    expect(controlOf(wrapper, "titleOverride").textContent).toContain("Expected string")
+    expect(controlOf(wrapper, "title").className).not.toContain("error")
+    expect(wrapper.find(".v-dialog__error").exists()).toBe(false)
+  })
+
+  it("points a nested path at the field that owns the value", async () => {
+    const wrapper = await submit(new HTTPError({
+      cause: "Validation error",
+      where: "body",
+      fields: { "rows/0/name": { message: "Expected string" } },
+    }, 400))
+
+    const table = wrapper.find(".v-input-table")
+    expect(table.classes()).toContain("error")
+    expect(table.text()).toContain("Expected string")
+  })
+
+  it("shows a plain-text error as the form-level message", async () => {
+    const wrapper = await submit(new HTTPError("Not enough rights", 403))
+
+    expect(wrapper.find(".v-dialog__error").text()).toBe("Not enough rights")
+    expect(controlOf(wrapper, "title").className).not.toContain("error")
+  })
+
+  it("falls back to a generic message when the failure is not an HTTP one", async () => {
+    const wrapper = await submit(new TypeError("fetch failed"))
+
+    expect(wrapper.find(".v-dialog__error").text()).toBe("An error occurred")
+  })
+
+  it("clears the error once the field is edited again", async () => {
+    const wrapper = await submit(new HTTPError({
+      cause: "Validation error",
+      fields: { titleOverride: { message: "Expected string" } },
+    }, 400))
+    expect(controlOf(wrapper, "titleOverride").className).toContain("error")
+
+    await wrapper.find('input[name="titleOverride"]').setValue("ok")
+    await flushPromises()
+
+    expect(controlOf(wrapper, "titleOverride").className).not.toContain("error")
   })
 })
 

@@ -1,8 +1,9 @@
 <template>
   <VDialog style="width: 600px">
     <template #header>{{ isEdit? t('dialog.editTitle'): t('dialog.addTitle') }}</template>
-    <JsonInput v-model="values" :schema="props.schema" />
+    <JsonInput v-model="values" :schema="props.schema" :errors="errors" />
     <template #actions>
+      <div v-if="globalError" class="v-dialog__error">{{ globalError }}</div>
       <VButton flat @click="dialog.back()">{{ t('dialog.cancel') }}</VButton>
       <VButton :disabled="pending" @click="apply">
         {{ isEdit? t('dialog.save'): t('dialog.add') }}
@@ -45,7 +46,14 @@ const itemId = computed(() => props.item && props.primaryKey ? props.item[props.
 const item = ref(props.item ?? null)
 provide(FORM_ITEM_KEY, item)
 
-const { values, handleSubmit, pending, updateDefaultValues, hasChange } = useForm(props.schema? getDefaultValue(props.schema): {})
+const { values, errors, handleSubmit, pending, updateDefaultValues, hasChange } = useForm(props.schema? getDefaultValue(props.schema): {})
+// What the server rejected that no single field owns — a plain-text error, a
+// failure outside the form's own fields, or an unexpected one.
+const globalError = computed(() => {
+  const error = (errors as any)["_global"]
+  if (!error) return ""
+  return typeof error === "string"? error: (error.message ?? t('common.error'))
+})
 // Dismissing the dialog (overlay, Esc, ✕, Cancel) with edited values asks for
 // confirmation instead of silently dropping them.
 useDialogGuard(() => hasChange.value)
@@ -76,7 +84,7 @@ const componentKeys = Object.entries<any>(props.schema?.properties ?? {})
   .filter(([, s]) => s.type === "component")
   .map(([key]) => key)
 
-const apply = handleSubmit(async (values) => {
+const submit = handleSubmit(async (values) => {
   const payload = { ...values }
   for (const key of componentKeys) delete payload[key]
   if (isEdit.value) {
@@ -88,6 +96,11 @@ const apply = handleSubmit(async (values) => {
   props.onDone?.()
   dialog.close()
 })
+
+// handleSubmit re-throws so a caller can react to the failure; this one already
+// shows it — the rejected fields are highlighted and anything else lands in
+// globalError — so the rethrow is absorbed instead of going unhandled.
+const apply = (e: Event) => submit(e).catch(() => {})
 
 </script>
 

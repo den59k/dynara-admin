@@ -18,13 +18,13 @@
 <script lang="ts" setup>
 import { computed, ref, shallowRef } from 'vue'
 import { useRoute } from 'vue-router'
-import VFormControl from '../VFormControl.vue'
+import VFormControl, { type VFormControlProps } from '../VFormControl.vue'
 import VButton from '../VButton.vue'
 import { apiUrl, sendXHR } from '../../api/request'
 import { HOME_VIEW_ID } from '../../constants'
 import { t } from '../../i18n'
 
-const props = defineProps<{ label?: string, name?: string, error?: string }>()
+const props = defineProps<{ label?: string, name?: string, error?: VFormControlProps['error'] }>()
 const model = defineModel<string | null>()
 
 const route = useRoute()

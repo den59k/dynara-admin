@@ -15,6 +15,7 @@ import VInputTable from "../src/components/inputs/VInputTable.vue"
 import VFileInput from "../src/components/inputs/VFileInput.vue"
 import VInputObject from "../src/components/inputs/VInputObject"
 import VCustomInput from "../src/components/inputs/VCustomInput"
+import VFormControl from "../src/components/VFormControl.vue"
 
 // The list input resolves reference labels over the network; stub the API layer
 // so tests control the responses. (Static-options tests never touch it.)
@@ -54,8 +55,10 @@ describe("JsonInput dispatch", () => {
     expect(typeOf({ type: "string", multiline: true })).toBe(VInputTextArea)
   })
 
-  it("renders a checkbox for a boolean", () => {
-    expect(typeOf({ type: "boolean" })).toBe(VCheckbox)
+  it("renders a checkbox for a boolean, framed so it can show an error", () => {
+    const vnode = JsonInput({ schema: { type: "boolean" } }) as any
+    expect(vnode.type).toBe(VFormControl)
+    expect(vnode.children.default().type).toBe(VCheckbox)
   })
 
   it("renders the object input for an object", () => {

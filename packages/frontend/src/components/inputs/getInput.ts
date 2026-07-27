@@ -11,6 +11,7 @@ import VInputTable from "./VInputTable.vue"
 import VFileInput from "./VFileInput.vue"
 import VDateInput from "./VDateInput.vue"
 import VCustomInput from "./VCustomInput"
+import VFormControl from "../VFormControl.vue"
 
 // A static option for a select field. `color` tints the value's chip/badge —
 // a palette name or raw CSS color (see BADGE_COLORS in utils/formatCell).
@@ -71,17 +72,23 @@ type JsonInputProps = {
   // custom-component fields, which may need sibling fields for display. (The
   // record's identity is not in here; it arrives via the injected form item.)
   values?: Record<string, any>,
+  // This field's validation error. Typed loosely because VFormControl accepts
+  // both spellings: a message string and vuesix's `{ code?, message? }`.
+  error?: any,
+  // The form's errors, keyed like the object's properties — consumed by
+  // VInputObject, which hands each field its own. Never reaches a leaf input.
+  errors?: Record<string, any>,
   "onUpdate:modelValue"?: (value: any) => void
 }
 
 export const JsonInput = (props: JsonInputProps) => {
-  const { schema, ...restProps } = props
+  const { schema, errors, ...restProps } = props
   // A custom component takes over rendering entirely, whatever the type.
   if (schema.component) {
     return h(VCustomInput, { ...restProps, component: schema.component })
   }
   if (schema.type === "object") {
-    return h(VInputObject, { schema, ...restProps })
+    return h(VInputObject, { schema, errors, ...restProps })
   }
   // Forwarded explicitly so JsonInput works with a bare leaf schema too (not
   // only via VInputObject, which spreads the child schema into the props).
@@ -140,7 +147,11 @@ export const JsonInput = (props: JsonInputProps) => {
     return h(VInputTextArea, otherProps)
   }
   if (schema.type === "boolean") {
-    return h(VCheckbox, otherProps)
+    // VCheckbox is a bare control (it also lives in table headers and rows), so
+    // the field frame that renders the error comes from VFormControl here. The
+    // label stays on the checkbox — it belongs beside the box, not above it.
+    const { error, style, label, ...checkboxProps } = otherProps
+    return h(VFormControl, { error, style }, () => h(VCheckbox, { label, ...checkboxProps }))
   }
   if (schema.type === "number" || schema.type === "integer") {
     return h(VInputNumber, { integer: schema.type === "integer", ...otherProps })

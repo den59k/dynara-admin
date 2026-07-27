@@ -7,14 +7,14 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref, useId, type Ref } from 'vue';
-import VFormControl from '../VFormControl.vue';
+import VFormControl, { type VFormControlProps } from '../VFormControl.vue';
 import VInputClear from './VInputClear.vue';
 import { useTextareaAutosize } from '@vueuse/core';
 
 const props = defineProps<{
   id?: string,
   label?: string,
-  error?: string,
+  error?: VFormControlProps['error'],
   autofocus?: boolean,
   name?: string,
   placeholder?: string,

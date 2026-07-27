@@ -75,7 +75,7 @@
 
 <script lang="ts" setup>
 import { computed, type CSSProperties, nextTick, ref, shallowRef, watch } from 'vue'
-import VFormControl from '../VFormControl.vue'
+import VFormControl, { type VFormControlProps } from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import VInputClear from './VInputClear.vue'
 import { dataApi } from '../../api/dataApi'
@@ -87,7 +87,7 @@ import { t } from '../../i18n'
 const props = defineProps<{
   label?: string
   name?: string
-  error?: string
+  error?: VFormControlProps['error']
   placeholder?: string
   options?: SelectOption[]
   // Plain enum values from the schema — rendered as options with the value as

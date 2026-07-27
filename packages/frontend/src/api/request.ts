@@ -21,23 +21,43 @@ export class HTTPError extends Error {
   }
 }
 
-setUseFormErrorHandler((e, errors) => {
+// Turns a failed request into the form's per-field errors. dynara answers a
+// schema violation with `{ cause, where, fields: { <path>: { message } } }`,
+// where `<path>` is the JSON-pointer tail of the offending value — "title" for
+// a top-level field, "rows/0/title" when it sits inside one. Everything else
+// (HTTPError with a plain-text message, a thrown Error) becomes `_global`.
+export const applyFormError = (e: any, errors: Record<string, any>) => {
   if (!(e instanceof HTTPError)) {
-    (errors as any)["_global"] = t("common.error")
+    errors["_global"] = t("common.error")
+    return
+  }
+  if (e.body?.fields && typeof e.body.fields === "object") {
+    for (let [path, error] of Object.entries<any>(e.body.fields)) {
+      // The form only knows its top-level fields, so a nested path highlights
+      // the field that owns the value (the table, the object) instead of
+      // being dropped as an unknown key.
+      const key = path.split("/")[0]
+      if (!key) continue
+      errors[key] = typeof error === "string" ? { message: error } : error
+    }
     return
   }
   if (typeof e.body?.error === "object") {
     for (let [key, error] of Object.entries(e.body.error)) {
       if (typeof error === "string") {
-        (errors as any)[key] = error as string
+        errors[key] = error as string
       } else if (typeof error === "object" && error) {
-        (errors as any)[key] = error
+        errors[key] = error
       }
     }
   } else if (typeof e.body === "string") {
-    (errors as any)["_global"] = e.body
+    errors["_global"] = e.body
+  } else {
+    errors["_global"] = e.body?.cause ?? t("common.error")
   }
-})
+}
+
+setUseFormErrorHandler(applyFormError)
 
 type Options = Partial<{
   method: "GET" | "POST" | "DELETE" | "PUT",

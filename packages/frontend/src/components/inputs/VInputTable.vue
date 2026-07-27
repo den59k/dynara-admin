@@ -45,7 +45,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import VFormControl from '../VFormControl.vue'
+import VFormControl, { type VFormControlProps } from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import { JsonInput, type Schema } from './getInput'
 import { useRowDrag } from './useRowDrag'
@@ -62,7 +62,7 @@ const props = defineProps<{
   schema: Schema
   label?: string
   name?: string
-  error?: string
+  error?: VFormControlProps['error']
   sortable?: boolean
 }>()
 

@@ -43,7 +43,7 @@
 
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
-import VFormControl from '../VFormControl.vue'
+import VFormControl, { type VFormControlProps } from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
 import VSelectInput from './VSelectInput.vue'
 import { useSelectListLabels } from './useSelectListLabels'
@@ -55,7 +55,7 @@ import { t } from '../../i18n'
 const props = defineProps<{
   label?: string
   name?: string
-  error?: string
+  error?: VFormControlProps['error']
   placeholder?: string
   options?: SelectOption[]
   enum?: (string | number)[]

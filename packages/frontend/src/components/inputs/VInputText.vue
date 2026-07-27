@@ -14,13 +14,13 @@
 
 <script lang="ts" setup>
 import { onMounted, ref, useId } from 'vue';
-import VFormControl from '../VFormControl.vue';
+import VFormControl, { type VFormControlProps } from '../VFormControl.vue';
 import VInputClear from './VInputClear.vue';
 
 const props = defineProps<{
   id?: string,
   label?: string,
-  error?: string,
+  error?: VFormControlProps['error'],
   autofocus?: boolean,
   name?: string,
   hidden?: boolean,

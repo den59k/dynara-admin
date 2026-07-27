@@ -110,4 +110,12 @@ const dialog = useDialog()
   height: 76px
   gap: 8px
 
+// A form-level error a dialog renders in its actions row, opposite the buttons
+// (a failure no single field owns — see AddItemDialog).
+.v-dialog__error
+  margin-right: auto
+  font-size: 12px
+  line-height: 1.35
+  color: var(--error-color)
+
 </style>

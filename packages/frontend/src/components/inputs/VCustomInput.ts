@@ -12,7 +12,7 @@ import { FORM_ITEM_KEY } from '../../utils/formItem'
 // primary key) and any server fields the form doesn't declare.
 const VCustomInput = defineComponent({
   name: "VCustomInput",
-  props: ["component", "label", "name", "modelValue", "values"],
+  props: ["component", "label", "name", "modelValue", "values", "error"],
   emits: ["update:modelValue"],
   setup(props, { emit }) {
     const item = inject(FORM_ITEM_KEY, undefined)
@@ -25,7 +25,10 @@ const VCustomInput = defineComponent({
       if (props.component === name) custom.value = loaded
     }, { immediate: true })
 
-    return () => h(VFormControl, { label: props.label, class: "v-custom-input" }, () =>
+    // A component field that submits a value (`component` on a typed field, as
+    // opposed to a display-only `type: "component"`) can be rejected like any
+    // other, so the frame shows its error too.
+    return () => h(VFormControl, { label: props.label, error: props.error, class: "v-custom-input" }, () =>
       custom.value
         ? h(custom.value, {
             modelValue: props.modelValue,
