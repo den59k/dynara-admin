@@ -1077,6 +1077,37 @@ describe("static asset path resolution", () => {
   })
 })
 
+describe("admin panel — the served page", () => {
+  // The panel installs its UI routes into the raw Bun route map (Bun serves
+  // those directly), so they are read from there — `inject` only walks dynara's
+  // own table. The first inject is what settles the plugin's registration.
+  const serve = async (title?: string) => {
+    const admin = createAdminPanel(title ? { title } : {})
+    admin.createPage({ title: "Users", path: "users" }).data(async () => [])
+    const app = new Router()
+    app.register(admin)
+    await app.inject("/api/admin/pages")
+    const serveIndex = (app as any).routes["/admin"] as () => Response
+    return await serveIndex().text()
+  }
+
+  it("names the browser tab after the panel", async () => {
+    // Before the bundle runs — so a slow load shows the panel's name, not the
+    // placeholder the frontend was built with.
+    expect(await serve("Acme Admin")).toContain("<title>Acme Admin</title>")
+  })
+
+  it("falls back to the default name", async () => {
+    expect(await serve()).toContain("<title>Dynara Admin</title>")
+  })
+
+  it("escapes a name that would otherwise break out of the tag", async () => {
+    const html = await serve('Acme & Co <script>alert(1)</script>')
+    expect(html).toContain("<title>Acme &amp; Co &lt;script&gt;alert(1)&lt;/script&gt;</title>")
+    expect(html).not.toContain("<title>Acme & Co <script>")
+  })
+})
+
 describe("admin panel — file uploads", () => {
   const buildUploadApp = () => {
     const stored: Array<{ name: string, size: number, field?: string }> = []

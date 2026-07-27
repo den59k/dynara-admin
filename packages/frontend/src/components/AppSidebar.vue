@@ -34,10 +34,11 @@ import { dataApi, type FullPage } from '../api/dataApi';
 import { computed, shallowRef, watch } from 'vue';
 import { HTTPError } from '../api/request';
 import { useRouter } from 'vue-router';
+import { PANEL_TITLE } from '../constants';
 import VIcon from './VIcon.vue';
 import { t } from '../i18n';
 
-const title = (window as any).__DYNARA_TITLE__ ?? "Dynara Admin"
+const title = PANEL_TITLE
 
 const { data, error } = useRequest(dataApi.getPages)
 

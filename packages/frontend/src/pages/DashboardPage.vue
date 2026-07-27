@@ -9,10 +9,11 @@
 <script lang="ts" setup>
 import { useRequest } from 'vuesix'
 import { dashboardApi } from '../api/dashboardApi'
+import { PANEL_TITLE } from '../constants'
 import { t } from '../i18n'
 import DashboardWidget from '../components/dashboard/DashboardWidget.vue'
 
-const title = (window as any).__DYNARA_TITLE__ ?? 'Dashboard'
+const title = PANEL_TITLE
 const { data: widgets, pending } = useRequest(dashboardApi.getWidgets)
 </script>
 

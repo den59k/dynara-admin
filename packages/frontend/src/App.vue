@@ -13,8 +13,12 @@ import { RouterView, useRouter } from 'vue-router';
 import AppSidebar from './components/AppSidebar.vue';
 import VDialogProvider from './components/VDialogProvider.vue';
 import VToastProvider from './components/VToastProvider.vue';
+import { useDocumentTitle } from './utils/useDocumentTitle';
 
 const router = useRouter()
+
+// Names the browser tab after the current page and the panel.
+useDocumentTitle()
 
 const token = window.localStorage.getItem("dynara-admin__token")
 if (!token) {

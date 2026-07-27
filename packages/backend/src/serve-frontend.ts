@@ -39,6 +39,12 @@ export const installFrontendRoutes = async (state: PanelState, routesRaw: Record
     indexHtml = indexHtml.split(BUILD_ASSET_PREFIX).join(ASSETS_PREFIX)
   }
 
+  // The panel's name in the browser tab from the first paint, before the bundle
+  // runs and refines it to "<page> · <name>" (see useDocumentTitle). Escaped:
+  // the name is host-supplied and goes into markup.
+  const escaped = state.title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  indexHtml = indexHtml.replace(/<title>[^<]*<\/title>/, `<title>${escaped}</title>`)
+
   // Runtime config the frontend reads before its module scripts run (module
   // scripts are deferred, so this classic inline script always executes first).
   const code = [
