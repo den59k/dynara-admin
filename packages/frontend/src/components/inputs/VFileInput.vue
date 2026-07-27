@@ -74,10 +74,10 @@ import VButton from '../VButton.vue'
 import VIcon from '../VIcon.vue'
 import { useDialog } from '../VDialogProvider.vue'
 import { openImageCropDialog } from '../dialogs/ImageCropDialog.vue'
-import { apiUrl, sendXHR } from '../../api/request'
 import { HOME_VIEW_ID } from '../../constants'
-import { autoCrop, type Rect } from '../../utils/cropImage'
+import type { Rect } from '../../utils/cropImage'
 import { fileNameOf, formatFileSize, matchesAccept, normalizeFileValue, previewSrcOf } from '../../utils/fileValue'
+import { uploadPicked } from '../../utils/uploadFile'
 import { t } from '../../i18n'
 
 const props = defineProps<{
@@ -138,30 +138,11 @@ const releasePreview = () => {
 }
 onBeforeUnmount(releasePreview)
 
-// What the field keeps. The upload handler answers with whatever it stored —
-// the structure or a bare url — and the schema decides which of the two the
-// value must be, so each is bridged to the other rather than trusted blindly.
-const toFieldValue = (result: any) => {
-  if (result == null || result === '') return null
-  if (props.structured) return typeof result === 'string' ? { src: result } : result
-  return typeof result === 'string' ? result : (normalizeFileValue(result)?.src ?? null)
-}
-
-// A field that declares a size crops before uploading — centred, without
-// asking. The picked file is kept so the crop can be corrected afterwards
-// (`recrop` below): it is the only copy of what fell outside.
+// A field that declares a size crops the picture centred before uploading; the
+// original comes back with it, so the crop can be corrected afterwards
+// (`recrop`) — it is the only copy of what fell outside.
 const accepted = async (picked: File) => {
-  if (props.imageSize && picked.type.startsWith('image/')) {
-    const cropped = await autoCrop(picked, { width: props.imageSize[0], height: props.imageSize[1] })
-    if (cropped) {
-      source.value = picked
-      cropRect.value = cropped.rect
-      return upload(cropped.file)
-    }
-  }
-  source.value = null
-  cropRect.value = null
-  await upload(picked)
+  await upload(picked, { imageSize: props.imageSize })
 }
 
 // Adjust the crop of the picture just picked, starting from the current one.
@@ -170,7 +151,8 @@ const recrop = async () => {
   const result = await openImageCropDialog(dialog, source.value, props.imageSize, cropRect.value ?? undefined)
   if (!result) return
   cropRect.value = result.rect
-  await upload(result.file)
+  // Already cropped: upload it as it is.
+  await upload(result.file, {})
 }
 
 const onChange = (e: Event) => {
@@ -191,22 +173,23 @@ const onDrop = (e: DragEvent) => {
   accepted(dropped)
 }
 
-const upload = async (picked: File) => {
+const upload = async (picked: File, options: { imageSize?: [number, number] }) => {
   localError.value = null
   uploading.value = true
   percent.value = 0
   releasePreview()
   if (picked.type.startsWith('image/')) localPreview.value = URL.createObjectURL(picked)
   try {
-    const fd = new FormData()
-    fd.append('file', picked)
-    if (props.name) fd.append('field', props.name)
-    const resp = await sendXHR(apiUrl(`/data/${view.value}/upload`), fd, {
+    const uploaded = await uploadPicked(picked, {
+      view: view.value,
+      field: props.name,
+      structured: props.structured,
+      imageSize: options.imageSize,
       onProgress: (p) => { percent.value = p },
     })
-    // `value` is the field value the handler produced; `url` is the older
-    // string-only answer, still honored so an existing backend keeps working.
-    model.value = toFieldValue(resp?.value ?? resp?.url ?? null)
+    model.value = uploaded.value
+    source.value = uploaded.source?.file ?? source.value ?? null
+    if (uploaded.source) cropRect.value = uploaded.source.rect
   } catch {
     localError.value = t('file.error')
   } finally {

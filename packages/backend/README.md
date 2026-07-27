@@ -253,6 +253,34 @@ enforce it whatever the browser sent:
 A square `imageSize` is what makes a thumbnail square: the handler decides the
 preview's shape, and the field's declared ratio is the natural thing to give it.
 
+#### Galleries
+
+An **array** of `image` (or `file`) is a gallery — a grid of thumbnails, not the
+rows table an array of objects would otherwise get:
+
+```typescript
+gallery: {
+  type: "array",
+  items: { type: "image", imageSize: [1200, 800] },
+  label: "Gallery",
+  sortable: true,
+},
+```
+
+Pictures are added many at a time (pick or drop a whole selection — they upload
+in parallel and land in the order they were picked), each cropped to `imageSize`
+on the way in. Hovering a picture reveals its actions: open, re-crop, remove.
+With `sortable`, dragging a picture reorders the array — and since the array's
+order is what your handler receives, **the first one is the cover**; the grid
+labels it so.
+
+`imageSize` may sit on the array or on its `items` — both describe the same
+pictures, and either reaches the upload handler as `ctx.size`. One `.upload()`
+handler serves the whole gallery: the panel posts one file per request.
+
+A `type: "image"` table column understands a gallery too — it renders the first
+few thumbnails and a `+N` counter.
+
 A `file`/`image` value validates as the structure — only `src` is required, and keys
 your handler adds beyond the three are dropped unless the schema declares them. To keep
 them (or to use a shape of your own), write the object out instead of the type name;

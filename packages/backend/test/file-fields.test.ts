@@ -137,6 +137,14 @@ describe("imageSize reaching the upload handler", () => {
     expect(await uploadTo({ cover: { type: "image??", imageSize: [512, 512] } }, "other")).toBeUndefined()
   })
 
+  it("finds a gallery's size, declared on the array or on its pictures", async () => {
+    const onItems = { gallery: { type: "array", items: { type: "image", imageSize: [800, 600] } } }
+    expect(await uploadTo(onItems, "gallery")).toEqual([800, 600])
+
+    const onArray = { gallery: { type: "array", items: "image", imageSize: [64, 64] } }
+    expect(await uploadTo(onArray, "gallery")).toEqual([64, 64])
+  })
+
   it("finds a nested field — inside an object, and inside a rows table", async () => {
     const nested = {
       profile: { type: "object", properties: { photo: { type: "image??", imageSize: [200, 300] } } },

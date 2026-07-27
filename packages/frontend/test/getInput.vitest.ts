@@ -13,6 +13,7 @@ import VSelectListInput from "../src/components/inputs/VSelectListInput.vue"
 import VSelectChipsInput from "../src/components/inputs/VSelectChipsInput.vue"
 import VInputTable from "../src/components/inputs/VInputTable.vue"
 import VFileInput from "../src/components/inputs/VFileInput.vue"
+import VFileListInput from "../src/components/inputs/VFileListInput.vue"
 import VInputObject from "../src/components/inputs/VInputObject"
 import VCustomInput from "../src/components/inputs/VCustomInput"
 import VFormControl from "../src/components/VFormControl.vue"
@@ -108,6 +109,32 @@ describe("JsonInput dispatch", () => {
     // A declared size drives the crop dialog; without one the input just uploads.
     expect(propsOf({ type: "object", format: "image", imageSize: [256, 256] })).toMatchObject({ imageSize: [256, 256] })
     expect(propsOf({ type: "object", format: "image" }).imageSize).toBeUndefined()
+  })
+
+  // A gallery: an array of uploads. It must win over the rows table, which
+  // would otherwise render the value structure as three text columns.
+  it("renders the file list for an array of images", () => {
+    const image = { type: "object", format: "image", properties: { src: { type: "string" } } }
+    expect(typeOf({ type: "array", items: image })).toBe(VFileListInput)
+    expect(typeOf({ type: "array", items: image })).not.toBe(VInputTable)
+    expect(typeOf({ type: "array", items: { type: "string", format: "file" } })).toBe(VFileListInput)
+  })
+
+  it("reads the gallery's options from the array or from its items", () => {
+    const propsOf = (schema: any) => (JsonInput({ schema }) as any).props
+    const image = { type: "object", format: "image", properties: {}, imageSize: [800, 600], accept: ".png" }
+
+    expect(propsOf({ type: "array", items: image, sortable: true })).toMatchObject({
+      image: true, structured: true, sortable: true, imageSize: [800, 600], accept: ".png",
+    })
+    // Declared on the array itself, which reads just as naturally.
+    expect(propsOf({ type: "array", items: { type: "object", format: "image", properties: {} }, imageSize: [64, 64] }))
+      .toMatchObject({ imageSize: [64, 64] })
+  })
+
+  it("still renders the rows table for an array of plain objects", () => {
+    const rows = { type: "object", properties: { day: { type: "string" } } }
+    expect(typeOf({ type: "array", items: rows })).toBe(VInputTable)
   })
 
   it("renders a select for an enum", () => {

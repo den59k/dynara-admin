@@ -6,6 +6,7 @@
 import type { AdminPanel } from "../../../backend/src/main"
 import { isAdmin, type User } from "../auth"
 import { client } from "../db"
+import { storeUpload } from "../uploads"
 
 // One value → color record serves both the form field's `enumColors` and the
 // table's badge column `colors` — same shape, so the two can never disagree.
@@ -81,6 +82,18 @@ const postForm = {
     },
     label: "Labels",
   },
+  // A gallery: an array of `image`, which renders as a grid of thumbnails
+  // rather than the rows table an array of objects would otherwise get. Every
+  // picture is cropped to `imageSize` on the way in (correctable per tile), and
+  // `sortable` lets them be dragged into order — the first one is the cover.
+  // Stored as a MarciDB `Json` column; the array replaces the previous value
+  // whole, in its visible order.
+  gallery: {
+    type: "array",
+    items: { type: "image", imageSize: [1200, 800] },
+    label: "Gallery",
+    sortable: true,
+  },
 } as const
 
 export default (admin: AdminPanel<User>) => {
@@ -102,6 +115,7 @@ export default (admin: AdminPanel<User>) => {
         author: { name: true },
         tags: { title: true },
         labels: true,
+        gallery: true,
         $where,
         $order: $order as any,
         $limit: take,
@@ -126,6 +140,7 @@ export default (admin: AdminPanel<User>) => {
         author: { id: true },
         tags: { id: true },
         labels: true,
+        gallery: true,
         $where: { id },
       })
       if (!post) return null
@@ -135,6 +150,8 @@ export default (admin: AdminPanel<User>) => {
     })
     .table([
       { title: "ID", field: "id", width: 60, sortable: true },
+      // A gallery in a cell: the first few thumbnails, then "+N".
+      { title: "", field: "gallery", width: 130, type: "image" },
       { title: "Title", field: "title", sortable: true },
       { title: "Author", field: "authorName", width: "1fr" },
       { title: "Tags", field: "tagNames", width: "1fr" },
@@ -164,4 +181,8 @@ export default (admin: AdminPanel<User>) => {
     .onDelete(async (ids) => {
       await client.$transaction(ids.map((id) => client.post.delete({ id })))
     })
+    // Backs the `gallery` field. One upload handler serves however many
+    // pictures the field holds — the panel posts them one at a time, and
+    // `ctx.size` is the `imageSize` declared on the field's items.
+    .upload(async (file, { size }) => storeUpload(file, size))
 }

@@ -129,7 +129,9 @@ export const stripComponentFields = (node: any): any => {
 // object or a rows table resolves too.
 export const findImageSize = (node: any, field: string): ImageSize | undefined => {
   if (!node || typeof node !== "object") return undefined
-  const declared = node.properties?.[field]?.imageSize
+  // On a gallery field the pictures are the array's items, so a size declared
+  // on either the array or its items describes the same thing.
+  const declared = node.properties?.[field]?.imageSize ?? node.properties?.[field]?.items?.imageSize
   if (Array.isArray(declared) && declared.length === 2) {
     return [Number(declared[0]), Number(declared[1])]
   }

@@ -111,6 +111,28 @@ describe("image column", () => {
     expect(wrapper.find(".v-table__image").exists()).toBe(false)
     expect(wrapper.find(".v-table__empty").exists()).toBe(true)
   })
+
+  // A gallery holds several pictures, so the same column renders a strip.
+  it("renders a gallery as thumbnails, capped with a counter", () => {
+    const gallery = ["/a.png", "/b.png", "/c.png", "/d.png", "/e.png"].map((src) => ({ src }))
+    const wrapper = mount(VTable as any, { props: { data: [{ cover: gallery }], columns } })
+
+    expect(wrapper.findAll(".v-table__image").map((i) => i.attributes("src"))).toEqual(["/a.png", "/b.png", "/c.png"])
+    expect(wrapper.find(".v-table__more").text()).toBe("+2")
+  })
+
+  it("shows no counter when the gallery fits", () => {
+    const wrapper = mount(VTable as any, { props: { data: [{ cover: [{ src: "/a.png" }] }], columns } })
+
+    expect(wrapper.findAll(".v-table__image")).toHaveLength(1)
+    expect(wrapper.find(".v-table__more").exists()).toBe(false)
+  })
+
+  it("shows the placeholder for an empty gallery", () => {
+    const wrapper = mount(VTable as any, { props: { data: [{ cover: [] }], columns } })
+
+    expect(wrapper.find(".v-table__empty").exists()).toBe(true)
+  })
 })
 
 describe("isEmptyValue", () => {

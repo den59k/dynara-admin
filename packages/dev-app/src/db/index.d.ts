@@ -276,6 +276,7 @@ type PostModel = PostModelId & {
   author: UserModel | null
   tags: TagModel[]
   labels: string[]
+  gallery: JsonValue | null
 }
 type PostModelInsert = {
   id?: number
@@ -285,6 +286,7 @@ type PostModelInsert = {
   author?: UserModelId | null
   tags?: TagModelId[]
   labels: string[]
+  gallery?: JsonValue | null
 }
 type PostModelUpdate = {
   title?: string
@@ -293,6 +295,7 @@ type PostModelUpdate = {
   author?: RefUpdate<UserModelId> | null
   tags?: RefListUpdateOrdered<TagModelId>
   labels?: string[] | PrimitiveListUpdate<string>
+  gallery?: JsonValue | null
 }
 type PostModelSelect = {
   id?: boolean
@@ -302,6 +305,7 @@ type PostModelSelect = {
   author?: UserModelSelect | boolean
   tags?: TagModelQuery | TagModelAggregateQuery | boolean
   labels?: boolean
+  gallery?: boolean
 }
 type PostModel$WhereFields = {
   id?: CompareValue<number> | CompareNumValue<number>
@@ -311,6 +315,7 @@ type PostModel$WhereFields = {
   author?: CompareRefValue<UserModel$Where | null>
   tags?: CompareRefListValue<TagModel$Where>
   labels?: CompareValue<string[]>
+  gallery?: CompareValue<JsonValue | null> | JsonPathWhere
 }
 type PostModel$Where = WhereValue<PostModel$WhereFields>
 type PostModel$Order = {
@@ -318,6 +323,7 @@ type PostModel$Order = {
   title?: "asc" | "desc"
   body?: "asc" | "desc"
   published?: "asc" | "desc"
+  gallery?: "asc" | "desc"
 }
 type PostModelQuery = PostModelSelect & {
   $where?: PostModel$Where
@@ -331,8 +337,8 @@ type PostModelAggregateQuery = {
   $count?: true
   $sum?: "id"
   $avg?: "id"
-  $min?: "id" | "title" | "body" | "published"
-  $max?: "id" | "title" | "body" | "published"
+  $min?: "id" | "title" | "body" | "published" | "gallery"
+  $max?: "id" | "title" | "body" | "published" | "gallery"
 }
 
 // Tag

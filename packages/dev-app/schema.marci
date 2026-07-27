@@ -22,6 +22,7 @@ model Post {
   author    User?
   tags      Tag[] @list
   labels    String[]
+  gallery   Json?
 }
 
 model Tag {

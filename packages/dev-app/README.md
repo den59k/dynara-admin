@@ -25,7 +25,10 @@ reloads the running panel — no build step.
 - **Users page** — full CRUD with list pagination, per-column sorting, and
   free-text search (by name).
 - **Posts page** — CRUD plus a foreign-key **`reference` field** (`authorId`)
-  that renders as a searchable select backed by the Users page.
+  that renders as a searchable select backed by the Users page, and a
+  **gallery** (`gallery`): an array of `image` rendered as a grid — many
+  pictures at once, each cropped to 1200×800, draggable into order (the first
+  is the cover), with open / re-crop / remove on hover.
 - **Image uploads** — the Users form's `avatar` is an `image` field declared
   `imageSize: [512, 512]`, so a picked picture is cropped square on the spot (with
   a **Crop** button to adjust where), and the stored avatar is square. Its `.upload()` handler compresses with

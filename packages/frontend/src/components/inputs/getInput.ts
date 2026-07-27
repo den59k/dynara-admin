@@ -9,6 +9,7 @@ import VSelectListInput from "./VSelectListInput.vue"
 import VSelectChipsInput from "./VSelectChipsInput.vue"
 import VInputTable from "./VInputTable.vue"
 import VFileInput from "./VFileInput.vue"
+import VFileListInput from "./VFileListInput.vue"
 import VDateInput from "./VDateInput.vue"
 import VCustomInput from "./VCustomInput"
 import VFormControl from "../VFormControl.vue"
@@ -111,6 +112,21 @@ export const JsonInput = (props: JsonInputProps) => {
   }
   if (schema.type === "object") {
     return h(VInputObject, { schema, errors, ...restProps })
+  }
+  // A gallery: an array of uploads. Checked before the rows table, which the
+  // `file`/`image` item type would otherwise fall into — its columns would be
+  // the value structure (src, previewSrc, size) as three text inputs. `accept`
+  // and `imageSize` are read from the array node or from its items, since
+  // either reads naturally ("this gallery is 800×600" / "each picture is").
+  if (schema.type === "array" && (schema.items?.format === "file" || schema.items?.format === "image")) {
+    return h(VFileListInput, {
+      ...otherProps,
+      image: schema.items.format === "image",
+      structured: schema.items.type === "object",
+      accept: schema.accept ?? schema.items.accept,
+      imageSize: schema.imageSize ?? schema.items.imageSize,
+      sortable: schema.sortable,
+    })
   }
   // An editable table: an array of object rows. The row schema doubles as the
   // column definition — each property is a column, its label the header, its

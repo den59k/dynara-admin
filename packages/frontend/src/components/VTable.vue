@@ -52,15 +52,22 @@
               :style="badgeStyle(v, col)"
             >{{ v }}</span>
           </template>
-          <!-- The value is either a bare src or an upload field's structure,
-               whose `previewSrc` (a thumbnail) is exactly what a cell wants. -->
-          <img
-            v-else-if="col.type === 'image' && imageSrc(item, col)"
-            class="v-table__image"
-            :src="imageSrc(item, col)!"
-            alt=""
-          />
-          <span v-else-if="col.type === 'image'" class="v-table__empty">—</span>
+          <!-- The value is a bare src, an upload field's structure (whose
+               `previewSrc` is exactly what a cell wants), or a gallery's array
+               of either — which renders as a strip of thumbnails. -->
+          <template v-else-if="col.type === 'image'">
+            <span v-if="imageSrcs(item, col).length === 0" class="v-table__empty">—</span>
+            <img
+              v-for="(src, n) in imageSrcs(item, col).slice(0, IMAGE_CELL_LIMIT)"
+              :key="n"
+              class="v-table__image"
+              :src="src"
+              alt=""
+            />
+            <span v-if="imageSrcs(item, col).length > IMAGE_CELL_LIMIT" class="v-table__more">
+              +{{ imageSrcs(item, col).length - IMAGE_CELL_LIMIT }}
+            </span>
+          </template>
           <template v-else>{{ formatValue(cellValue(item, col), col) }}</template>
         </div>
         <div v-else-if="isTemplateColumn(col)">{{ getTemplateRenderer(col.template)(item as any) }}</div>
@@ -131,7 +138,14 @@ const badgeValues = (item: T, col: FieldColumn<T>): any[] => {
 
 // An image cell takes the thumbnail an upload field carries (`previewSrc`) over
 // the full-size file, and works just as well over a column that is a bare url.
-const imageSrc = (item: T, col: FieldColumn<T>): string | null => previewSrcOf(cellValue(item, col))
+// A gallery holds several, so the cell is a list either way — capped, since a
+// row shouldn't grow a filmstrip.
+const IMAGE_CELL_LIMIT = 3
+const imageSrcs = (item: T, col: FieldColumn<T>): string[] => {
+  const value = cellValue(item, col)
+  const list = Array.isArray(value) ? value : [value]
+  return list.map(previewSrcOf).filter((src): src is string => !!src)
+}
 
 const badgeStyle = (value: any, col: FieldColumn<T>) => {
   const color = badgeColor(value, col)
@@ -355,6 +369,17 @@ a.v-table__row
   height: 32px
   border-radius: 6px
   object-fit: cover
+  flex-shrink: 0
+
+  // Spaced only against each other, so a single-image cell is unaffected.
+  & + .v-table__image
+    margin-left: 6px
+
+// The "+2" after a gallery cell's first few thumbnails.
+.v-table__more
+  margin-left: 6px
+  font-size: 12px
+  color: var(--text-secondary-color)
 
 .v-table__row .v-table__actions
   padding: 0
