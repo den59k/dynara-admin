@@ -165,11 +165,14 @@ const installPageRoutes = (apiBase: string, app: Router, page: PageEntry) => {
       const file = form.get("file")
       if (!(file instanceof File)) throw new HTTPError("No file uploaded", 400)
       const field = form.get("field")
-      const url = await page.upload!(file, {
+      const result = await page.upload!(file, {
         user: (req as any).user,
         field: typeof field === "string" ? field : undefined,
       })
-      return { url }
+      // `value` is what the field stores, verbatim — a FileValue object or the
+      // bare URL string, whichever the handler returned. `url` is the src of it
+      // either way, so a caller that only wants the link still gets one.
+      return { value: result, url: typeof result === "string" ? result : result?.src }
     })
   }
 

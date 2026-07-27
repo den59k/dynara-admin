@@ -1,6 +1,8 @@
 // Pure cell-formatting helpers shared by the table renderer. Kept out of the
 // .vue SFC so they can be unit-tested directly.
 
+import { fileNameOf } from './fileValue'
+
 export type ColumnType = "text" | "boolean" | "date" | "badge" | "image" | "money"
 
 export type FormatColumn = {
@@ -34,6 +36,11 @@ export const isEmptyValue = (value: any): boolean => value == null || value === 
 // Formats text / date / money cells to a display string. boolean / badge / image
 // are handled by the template (they need markup), not here.
 export const formatValue = (value: any, col: FormatColumn): string => {
+  // An upload field's value in a plain column: show the file, not "[object
+  // Object]". (A column that wants the picture declares `type: "image"`.)
+  if (value && typeof value === 'object' && typeof (value as any).src === 'string') {
+    return fileNameOf(value)
+  }
   if (col.type === 'date') {
     const date = value instanceof Date ? value : new Date(typeof value === 'number' ? value : String(value))
     if (isNaN(date.getTime())) return String(value)

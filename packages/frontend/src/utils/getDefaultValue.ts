@@ -11,12 +11,12 @@ export const getDefaultValue = (schema: any): any => {
     return schema.format === "richText" ? [{ text: "" }] : []
   }
   // Select / enum / reference / file / date fields start empty rather than at a
-  // bogus 0 / "" value.
-  if (schema.options || schema.enum || schema.reference || schema.format === "file") return null
+  // bogus 0 / "" value. An upload field is empty either way — a bare url string
+  // or the `{ src, … }` structure the `file`/`image` types unfold to, which
+  // must not fall through to the object branch and start as `{ src: "" }`.
+  if (schema.options || schema.enum || schema.reference) return null
+  if (schema.format === "file" || schema.format === "image") return null
   if (schema.type === "date" || schema.format === "date" || schema.format === "datetime") return null
-  // if (schema.type === 'object' && schema.format === 'image') {
-  //   return { src: defaultImageSrc, previewSrc: defaultImageSrc }
-  // }
   if (schema.type === 'number' || schema.type === 'integer') return 0
   if (schema.type === 'object') {
     if (!schema.properties) return {}

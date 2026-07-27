@@ -22,15 +22,20 @@ export { resolveAssetPath } from "./paths.ts"
 export type { AccessFn, PageAccess } from "./access.ts"
 export type {
   AdminPanel, AdminPanelDynara, ActionMeta, ComponentWidget, DashboardWidget,
-  DashboardWidgetMeta, ListOptions, PageMeta, ReferenceMethod, ReferenceQuery,
-  RequestContext, SelectOption, SelectReference, StatValue, StatWidget,
+  DashboardWidgetMeta, FileValue, ListOptions, PageMeta, ReferenceMethod,
+  ReferenceQuery, RequestContext, SelectOption, SelectReference, StatValue,
+  StatWidget, UploadResult,
 } from "./types.ts"
 
 declare const __PRODUCTION__: boolean
 
 export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOptions = {}): AdminPanelDynara<User> => {
 
-  const plugins: [AdminPanelPlugin<any>, any][] = []
+  // Registered page modules, held opaquely: `register` below types the plugin
+  // against this panel's user, and the runner only ever calls it. Naming the
+  // public plugin type here instead would make TS re-check the whole (deeply
+  // generic) panel surface on every registration.
+  const plugins: [(app: any, ...options: any[]) => void | Promise<void>, any[]][] = []
 
   const uiBase = normalizeBasePath(options.basePath ?? "/admin")
   const state: PanelState = {
@@ -63,7 +68,7 @@ export const createAdminPanel = <User = unknown>(options: CreateAdminPanelOption
   plugin.createPage = <T extends object>(options: CreatePageOptions<User>) =>
     createPage<T, User>(state, options)
 
-  plugin.register = <T extends any[]>(func: AdminPanelPlugin<T>, ...options: T) => {
+  plugin.register = <T extends any[]>(func: AdminPanelPlugin<T, User>, ...options: T) => {
     plugins.push([func, options])
   }
 

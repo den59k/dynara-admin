@@ -1,0 +1,1 @@
+add field User.avatar Json @nullable @slot(32)

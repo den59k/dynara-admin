@@ -11,6 +11,7 @@ model User {
   balance  Int
   birthday DateTime?
   schedule Json
+  avatar   Json?
   posts    Post[] @bind(Post.author)
 }
 

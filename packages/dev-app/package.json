@@ -11,10 +11,11 @@
   },
   "dependencies": {
     "marcidb-client": "^0.10.0",
-    "marcidb-embedded": "^0.10.0"
+    "marcidb-embedded": "^0.10.0",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "dynara": "^0.0.5"
+    "dynara": "^0.0.6"
   },
   "peerDependencies": {
     "compact-json-schema": "^0.1.7"

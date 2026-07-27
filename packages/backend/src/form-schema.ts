@@ -1,25 +1,53 @@
-// Form-schema processing: everything that happens to an unfolded form schema
-// between page registration and the wire — extracting inline reference methods
-// and custom field components into server-side registries, stripping
-// display-only fields from validation, and validating filter query params.
+// Form-schema processing: the schema keywords and field types the panel adds to
+// compact-json-schema (the `file`/`image` upload fields), and everything that
+// happens to an unfolded form schema between page registration and the wire —
+// extracting inline reference methods and custom field components into
+// server-side registries, stripping display-only fields from validation, and
+// validating filter query params.
 
 import { HTTPError } from "dynara"
+import { registerAlias } from "compact-json-schema"
 import { FormatRegistry } from "@sinclair/typebox"
 import { Value } from "@sinclair/typebox/value"
 import type { ReferenceMethod } from "./types.ts"
 
-// TypeBox rejects a string carrying a format it doesn't know, so the `file`
-// format the panel's upload fields use must be registered (into the same
-// registry dynara's validator reads — typebox is a shared peer). The value of a
-// file field is whatever URL/id the page's upload handler returned — an opaque
-// string — so the checker is permissive. Guarded so a host app's own
-// registration wins.
+// TypeBox rejects a string carrying a format it doesn't know, so the formats the
+// panel's upload fields use must be registered (into the same registry dynara's
+// validator reads — typebox is a shared peer). A url-only upload field
+// (`{ type: "string", format: "file" }`) holds whatever URL/id the page's upload
+// handler returned — an opaque string — so the checker is permissive. Guarded so
+// a host app's own registration wins.
 //
 // Date fields use dynara's native `date` type (declared as `"date"`), which
 // validates and decodes to a JS Date on its own — no format registration here.
-if (!FormatRegistry.Has("file")) {
-  FormatRegistry.Set("file", () => true)
+for (const format of ["file", "image"]) {
+  if (!FormatRegistry.Has(format)) {
+    FormatRegistry.Set(format, () => true)
+  }
 }
+
+// The structured value an upload field holds — see FileValue. Only `src` is
+// required: `previewSrc` and `size` are there when the upload handler produced
+// them (a thumbnail, the stored byte count) and absent when it didn't.
+export const FILE_VALUE_PROPERTIES = {
+  src: "string",
+  previewSrc: "string?",
+  size: "number?",
+} as const
+
+// `"file"` and `"image"` as field types, so an upload field is declared like any
+// other: `createForm({ avatar: "image??", resume: "file?" })`. Both unfold to
+// the same value object — `format` is what tells the UI which input to render
+// (`image` is the picture-first variant) and both validate identically.
+//
+// These are plain compact-json-schema aliases, so the expansion happens in
+// `unfoldSchema` at page-registration time: nothing downstream (the wire schema,
+// dynara's TypeBox conversion, the frontend) ever sees the type name. Writing
+// the object out by hand — `{ type: "object", format: "image", properties: {…} }`
+// — is exactly equivalent, and is the escape hatch for a value shape of your
+// own (extra keys are dropped by validation unless the schema declares them).
+registerAlias("file", { type: "object", format: "file", properties: FILE_VALUE_PROPERTIES })
+registerAlias("image", { type: "object", format: "image", properties: FILE_VALUE_PROPERTIES })
 
 const sanitizeRefId = (id: string) => id.replace(/[^A-Za-z0-9._-]/g, "_")
 

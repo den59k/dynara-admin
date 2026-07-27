@@ -187,6 +187,7 @@ type UserModel = UserModelId & {
   balance: number
   birthday: Date | number | null
   schedule: JsonValue
+  avatar: JsonValue | null
   posts: PostModel[]
 }
 type UserModelInsert = {
@@ -198,6 +199,7 @@ type UserModelInsert = {
   balance: number
   birthday?: Date | number | null
   schedule: JsonValue
+  avatar?: JsonValue | null
   posts?: PostModelId[]
 }
 type UserModelUpdate = {
@@ -208,6 +210,7 @@ type UserModelUpdate = {
   balance?: number | UpdateNumValue
   birthday?: Date | number | UpdateNumValue | null
   schedule?: JsonValue
+  avatar?: JsonValue | null
   posts?: RefListUpdate<PostModelId>
 }
 type UserModelSelect = {
@@ -219,6 +222,7 @@ type UserModelSelect = {
   balance?: boolean
   birthday?: boolean
   schedule?: boolean
+  avatar?: boolean
   posts?: PostModelQuery | PostModelAggregateQuery | boolean
 }
 type UserModel$WhereFields = {
@@ -230,6 +234,7 @@ type UserModel$WhereFields = {
   balance?: CompareValue<number> | CompareNumValue<number>
   birthday?: CompareValue<Date | number | null> | CompareNumValue<Date | number>
   schedule?: CompareValue<JsonValue> | JsonPathWhere
+  avatar?: CompareValue<JsonValue | null> | JsonPathWhere
   posts?: CompareRefListValue<PostModel$Where>
 }
 type UserModel$Where = WhereValue<UserModel$WhereFields>
@@ -242,6 +247,7 @@ type UserModel$Order = {
   balance?: "asc" | "desc"
   birthday?: "asc" | "desc"
   schedule?: "asc" | "desc"
+  avatar?: "asc" | "desc"
 }
 type UserModelQuery = UserModelSelect & {
   $where?: UserModel$Where
@@ -255,8 +261,8 @@ type UserModelAggregateQuery = {
   $count?: true
   $sum?: "id" | "age" | "balance"
   $avg?: "id" | "age" | "balance"
-  $min?: "id" | "name" | "email" | "age" | "role" | "balance" | "birthday" | "schedule"
-  $max?: "id" | "name" | "email" | "age" | "role" | "balance" | "birthday" | "schedule"
+  $min?: "id" | "name" | "email" | "age" | "role" | "balance" | "birthday" | "schedule" | "avatar"
+  $max?: "id" | "name" | "email" | "age" | "role" | "balance" | "birthday" | "schedule" | "avatar"
 }
 
 // Post

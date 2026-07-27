@@ -52,7 +52,15 @@
               :style="badgeStyle(v, col)"
             >{{ v }}</span>
           </template>
-          <img v-else-if="col.type === 'image'" class="v-table__image" :src="String(cellValue(item, col))" alt="" />
+          <!-- The value is either a bare src or an upload field's structure,
+               whose `previewSrc` (a thumbnail) is exactly what a cell wants. -->
+          <img
+            v-else-if="col.type === 'image' && imageSrc(item, col)"
+            class="v-table__image"
+            :src="imageSrc(item, col)!"
+            alt=""
+          />
+          <span v-else-if="col.type === 'image'" class="v-table__empty">—</span>
           <template v-else>{{ formatValue(cellValue(item, col), col) }}</template>
         </div>
         <div v-else-if="isTemplateColumn(col)">{{ getTemplateRenderer(col.template)(item as any) }}</div>
@@ -77,6 +85,7 @@ import VIcon from './VIcon.vue'
 import VButton from './VButton.vue'
 import VMenu, { type MenuItem } from './VMenu.vue'
 import { badgeColor, formatValue } from '../utils/formatCell'
+import { previewSrcOf } from '../utils/fileValue'
 
 const props = defineProps<{
   data: T[]
@@ -119,6 +128,10 @@ const badgeValues = (item: T, col: FieldColumn<T>): any[] => {
   const value = cellValue(item, col)
   return Array.isArray(value) ? value : [value]
 }
+
+// An image cell takes the thumbnail an upload field carries (`previewSrc`) over
+// the full-size file, and works just as well over a column that is a bare url.
+const imageSrc = (item: T, col: FieldColumn<T>): string | null => previewSrcOf(cellValue(item, col))
 
 const badgeStyle = (value: any, col: FieldColumn<T>) => {
   const color = badgeColor(value, col)
@@ -209,7 +222,8 @@ export type SortState = { field: string, dir: 'asc' | 'desc' }
 // A cell renderer hint. Omitted → the raw value as text.
 //   boolean → ✓ / ✗   | date → localized date (`format: "datetime"` adds time)
 //   badge   → colored pill (`colors` maps value → color name/hex)
-//   image   → thumbnail (value is the src) | money → `currency`-formatted number
+//   image   → thumbnail (an upload field's value, or a bare src)
+//   money   → `currency`-formatted number
 export type ColumnType = "text" | "boolean" | "date" | "badge" | "image" | "money"
 
 export type FieldColumn<T> = ColumnBase & {

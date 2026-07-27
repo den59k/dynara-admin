@@ -5,7 +5,11 @@ import type { Router } from "dynara"
 import type { SchemaItem, SchemaType } from "compact-json-schema"
 import type { NormalizedAccess, PageAccess } from "./access.ts"
 
-export type AdminPanelPlugin<T extends any[]> = (app: AdminPanel, ...options: T) => void | Promise<void>
+// A page module: it receives the panel and configures it (see `.register()`).
+// Generic over the panel's user so a plugin can be written against the same
+// `ctx.user` its handlers will see; it defaults to `unknown`, which is what an
+// untyped panel hands over.
+export type AdminPanelPlugin<T extends any[], User = unknown> = (app: AdminPanel<User>, ...options: T) => void | Promise<void>
 
 export type AuthMethod<T extends SchemaItem, User> = {
   title?: string,
@@ -53,6 +57,18 @@ export type ListOptions<KeyType = any> = {
 // "yellow", "orange", "purple", "gray") or any raw CSS color.
 export type SelectOption = { value: any, label: string, color?: string }
 
+// What a `file` / `image` form field holds, and what an upload handler returns.
+// The panel never produces these fields itself — storing the bytes, resizing,
+// compressing and naming are the handler's business; it only round-trips the
+// value between the handler, the form and the table.
+//   `src`        — where the stored file lives (URL or id; the UI links/renders it)
+//   `previewSrc` — optional lighter stand-in for `src` (a thumbnail the handler
+//                  generated), used by the input preview and the image column
+//   `size`       — optional stored size in bytes, shown next to the file
+// A handler that has nothing but a URL can return the string instead; a field
+// declared `{ type: "string", format: "file" }` stores exactly that string.
+export type FileValue = { src: string, previewSrc?: string, size?: number }
+
 // The query a reference method receives. Exactly one of the fields is set:
 //   `search` — the user's current search text (filter the option list);
 //   `value`  — resolve the label of one already-selected value;
@@ -94,9 +110,16 @@ declare module "compact-json-schema" {
     options?: SelectOption[]
     // Async / cross-page select source (see SelectReference).
     reference?: SelectReference
-    // Renderer hints: `format: "file" | "date" | "datetime"`, multiline text.
+    // Renderer hints: `format: "file" | "image" | "date" | "datetime"`,
+    // multiline text. `file`/`image` render the upload field — `image` is the
+    // picture-first variant (thumbnail preview, drop target, `image/*` picker).
     format?: string
     multiline?: boolean
+    // On a file/image field: the `accept` attribute of the underlying file
+    // picker, e.g. ".pdf,.doc" or "image/*". Purely a picker filter — what the
+    // field renders as is `format`'s business, and what is actually allowed is
+    // the upload handler's (a browser hint is not a validation).
+    accept?: string
     // On an array field — a relation list, or an array of object rows (an
     // editable table, which gets a drag-handle column): let the user reorder
     // the array by dragging. Off by default — the array keeps insertion
@@ -135,8 +158,14 @@ declare module "compact-json-schema" {
   // Registers `"component"` as a valid schema type: a display-only form block
   // rendered by a custom Vue component. It is stripped from request validation
   // (no value is submitted), hence the `unknown` mapping.
+  //
+  // `"file"` / `"image"` are the upload types — schema aliases registered in
+  // form-schema.ts, so `{ avatar: "image??" }` validates as a FileValue object
+  // and infers as one in the create/update handler.
   interface SchemaTypesMap {
     component: unknown
+    file: FileValue
+    image: FileValue
   }
 }
 
@@ -224,7 +253,7 @@ export type DashboardWidget<User = unknown> = StatWidget<User> | ComponentWidget
 
 export type AdminPanel<User = unknown> = {
   createPage<T extends object>(options: CreatePageOptions<User>): PageWithPrimaryKey<T, string, T, User>,
-  register<T extends any[]>(func: AdminPanelPlugin<T>, ...options: T): void
+  register<T extends any[]>(func: AdminPanelPlugin<T, User>, ...options: T): void
   registerAuthMethod<T extends SchemaItem>(method: AuthMethod<T, User>): void
   // Configure the home dashboard from a list of widgets (built-in stats and/or
   // custom Vue components). Replaces the default empty home page.
@@ -296,8 +325,13 @@ export type PageEntry = {
   component?: string,
   componentData: { name: string, schema?: SchemaItem, method: (args: any, ctx: Ctx) => any }[],
   componentActions: { name: string, schema?: SchemaItem, method: (...args: any[]) => any }[],
-  upload?: (file: File, ctx: Ctx & { field?: string }) => string | Promise<string>
+  upload?: (file: File, ctx: Ctx & { field?: string }) => UploadResult | Promise<UploadResult>
 }
+
+// What an upload handler hands back: the value the field stores. A bare string
+// is the URL (what a `{ type: "string", format: "file" }` field holds); the
+// object form carries a thumbnail and size along with it.
+export type UploadResult = string | FileValue
 
 // The shared state behind one panel instance. Built by createAdminPanel, filled
 // during configuration (createPage / registerAuthMethod / dashboard), and read
@@ -381,7 +415,8 @@ export interface ColumnBase {
 // A cell renderer hint for a field column. Omitted → the raw value as text.
 //   boolean → ✓ / ✗   | date → localized date (`format: "datetime"` adds time)
 //   badge   → colored pill (`colors` maps value → color name/hex)
-//   image   → thumbnail (value is the src) | money → `currency`-formatted number
+//   image   → thumbnail (an upload field's value, or a bare src)
+//   money   → `currency`-formatted number
 export type ColumnType = "text" | "boolean" | "date" | "badge" | "image" | "money"
 
 export type FieldColumn<T> = ColumnBase & {
@@ -425,9 +460,13 @@ export interface Page<T extends object, User = unknown> {
   componentData<S extends SchemaItem>(name: string, schema: S, data: (args: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this
   componentAction(name: string, handler: (ctx: RequestContext<User>) => Promise<any> | any): this
   componentAction<S extends SchemaItem>(name: string, schema: S, handler: (data: SchemaType<S>, ctx: RequestContext<User>) => Promise<any> | any): this
-  // Handle file uploads for `{ format: "file" }` form fields. Store the file and
-  // return the URL/id that becomes the field value. `ctx.field` is the field name.
-  upload(handler: (file: File, ctx: RequestContext<User> & { field?: string }) => string | Promise<string>): this
+  // Handle file uploads for the page's `file` / `image` form fields. Store the
+  // file (resize it, compress it, push it to S3 — all yours) and return the
+  // value the field keeps: a `FileValue` (`{ src, previewSrc?, size? }`), or a
+  // bare URL string for a `{ type: "string", format: "file" }` field.
+  // `ctx.field` is the name of the field being uploaded to, so one handler can
+  // serve several (an avatar and an attachment can land in different buckets).
+  upload(handler: (file: File, ctx: RequestContext<User> & { field?: string }) => UploadResult | Promise<UploadResult>): this
   // Declare the page's filter bar. Uses the same compact-json-schema format as
   // forms (selects via `options`/`reference`, booleans, dates, …); every field
   // should be optional, since a filter only applies when set. The submitted,

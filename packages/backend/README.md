@@ -140,6 +140,7 @@ The page builder is a fluent chain returned by `admin.createPage(...)`.
 | `.createForm(schema, async (data) => {})` | Defines the "create" form and its submit handler. |
 | `.updateForm(schema, async (itemId, data) => {})` | Defines the "update" form; receives the item's primary key and the new data. |
 | `.onDelete(async (ids) => {})` | Bulk delete handler; receives an array of primary keys. |
+| `.upload(async (file, ctx) => value)` | Handles uploads for the page's `file` / `image` form fields. Whatever it returns becomes the field's value (see [Uploads](#uploads)). |
 
 ### Table columns
 
@@ -173,7 +174,8 @@ Form schemas (`compact-json-schema`) and auth `fields` share the same field opti
 | `width` | Fraction of the row the field occupies, e.g. `0.5` for half-width. |
 | `multiline` | Render a multi-line text area instead of a single-line input. |
 | `hidden` | Mask the input (e.g. for passwords). |
-| `format` | `"datetime"` switches a `date` field to a date+time picker; `"file"` renders an upload field. |
+| `format` | `"datetime"` switches a `date` field to a date+time picker; `"file"` / `"image"` render an upload field (see [Uploads](#uploads)). |
+| `accept` | On an upload field: the file picker's `accept` list, e.g. `".pdf,.doc"`. An `image` field defaults to `"image/*"`. |
 
 An array of values renders as a select (a `compact-json-schema` enum):
 
@@ -187,6 +189,53 @@ const userForm = schema({
 #### Optional vs nullable
 
 A `?` suffix makes a field *optional* (may be omitted from the request), while `??` makes it *nullable* (an explicit `null` is accepted). Nullable fields show a clear cross in the form that resets the value to `null` — use `??` for DB-nullable columns, so an edit form can both display and resubmit the `null` your `item()` handler returns.
+
+#### Uploads
+
+Declare an upload field with the `file` or `image` type. Both hold the same value —
+`{ src, previewSrc?, size? }` — and differ only in how the panel renders them: `image`
+is the picture-first input (thumbnail preview, click/drop zone, `image/*` picker),
+`file` the compact row with a link (still showing a thumbnail when the value is one).
+
+```typescript
+const userForm = schema({
+  avatar: { type: "image??", label: "Avatar" },
+  resume: { type: "file?", label: "Resume", accept: ".pdf,.doc" },
+})
+```
+
+The panel never touches the bytes. Picking a file POSTs it to the page's `.upload()`
+handler, and **whatever that returns becomes the field's value** — where the file is
+stored, under what name, whether it is re-encoded, resized or virus-scanned is entirely
+yours:
+
+```typescript
+.upload(async (file, { field, user }) => {
+  const key = `${user.id}/${crypto.randomUUID()}-${file.name}`
+  await bucket.put(key, file)
+  // `previewSrc` is an optional lighter copy — generate a thumbnail and point it
+  // there, and the input preview and the `image` table column will use it.
+  return { src: cdnUrl(key), previewSrc: cdnUrl(await thumbnail(bucket, key)), size: file.size }
+})
+```
+
+`ctx.field` is the name of the field being uploaded to, so one handler can serve several.
+
+A `file`/`image` value validates as the structure — only `src` is required, and keys
+your handler adds beyond the three are dropped unless the schema declares them. To keep
+them (or to use a shape of your own), write the object out instead of the type name;
+`format` is what makes it an upload field:
+
+```typescript
+{ type: "object??", format: "image", properties: { src: "string", previewSrc: "string?", width: "number?" } }
+```
+
+The older url-only spelling still works and is the right one when you have nothing but
+a link: `{ type: "string??", format: "file" }` stores the `src` string alone, and an
+`.upload()` handler may return a bare string for it.
+
+In the table, `{ field: "avatar", type: "image" }` renders the value's `previewSrc`
+(falling back to `src`) as a thumbnail — over either spelling.
 
 #### Dates
 

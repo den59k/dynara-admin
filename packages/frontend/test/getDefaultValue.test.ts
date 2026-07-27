@@ -35,6 +35,20 @@ describe("getDefaultValue", () => {
     expect(getDefaultValue({ type: "string", format: "file" })).toBeNull()
   })
 
+  it("starts a structured upload field empty, not as a half-built value object", () => {
+    // The `file`/`image` types unfold to an object schema, so the format has to
+    // be answered before the object branch — otherwise a fresh form submits
+    // `{ src: "" }` and the field looks filled in.
+    const image = {
+      type: "object",
+      format: "image",
+      properties: { src: { type: "string" }, previewSrc: { type: "string" }, size: { type: "number" } },
+      required: ["src"],
+    }
+    expect(getDefaultValue(image)).toBeNull()
+    expect(getDefaultValue({ ...image, format: "file" })).toBeNull()
+  })
+
   it("starts enum and date fields empty (null)", () => {
     expect(getDefaultValue({ type: "string", enum: ["user", "moderator"] })).toBeNull()
     expect(getDefaultValue({ type: "date" })).toBeNull()

@@ -82,6 +82,31 @@ describe("JsonInput dispatch", () => {
     expect(typeOf({ type: "string", format: "file" })).not.toBe(VInputText)
   })
 
+  // The `file` / `image` field types unfold to an object schema (the value
+  // structure), so the format has to win over the object branch — otherwise the
+  // field renders as a group of src/previewSrc/size text inputs.
+  it("renders the file input for the structured file/image types", () => {
+    const structured = (format: string) => ({
+      type: "object",
+      format,
+      properties: { src: { type: "string" }, previewSrc: { type: "string" }, size: { type: "number" } },
+      required: ["src"],
+    })
+    expect(typeOf(structured("file"))).toBe(VFileInput)
+    expect(typeOf(structured("image"))).toBe(VFileInput)
+    expect(typeOf(structured("image"))).not.toBe(VInputObject)
+  })
+
+  it("tells the file input which variant and value shape the schema asked for", () => {
+    const propsOf = (schema: any) => (JsonInput({ schema }) as any).props
+    expect(propsOf({ type: "object", format: "image", properties: {} })).toMatchObject({
+      image: true, structured: true,
+    })
+    expect(propsOf({ type: "string", format: "image" })).toMatchObject({ image: true, structured: false })
+    expect(propsOf({ type: "string", format: "file" })).toMatchObject({ image: false, structured: false })
+    expect(propsOf({ type: "string", format: "file", accept: ".pdf" })).toMatchObject({ accept: ".pdf" })
+  })
+
   it("renders a select for an enum", () => {
     expect(typeOf({ type: "string", enum: ["user", "moderator"] })).toBe(VSelectInput)
   })

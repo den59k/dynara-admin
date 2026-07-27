@@ -34,6 +34,9 @@ export type Schema = {
   items?: Schema,
   width?: number,
   format?: string,
+  // On a `format: "file" | "image"` field: the `accept` attribute of the file
+  // picker (".pdf,.doc", "image/*"). An image field defaults to "image/*".
+  accept?: string,
   // `"field??"` in compact-json-schema — the field accepts an explicit null,
   // so inputs show a clear cross that resets the value to null.
   nullable?: boolean,
@@ -87,14 +90,23 @@ export const JsonInput = (props: JsonInputProps) => {
   if (schema.component) {
     return h(VCustomInput, { ...restProps, component: schema.component })
   }
-  if (schema.type === "object") {
-    return h(VInputObject, { schema, errors, ...restProps })
-  }
   // Forwarded explicitly so JsonInput works with a bare leaf schema too (not
   // only via VInputObject, which spreads the child schema into the props).
   const otherProps = { nullable: schema.nullable, ...restProps }
-  if (schema.format === "file") {
-    return h(VFileInput, otherProps)
+  // An upload field. Checked before the object branch: the `file` / `image`
+  // types unfold to an object schema (the value structure), and it is `format`
+  // — not the type — that says this is one field, not a group of three. A
+  // `{ type: "string", format }` field is the same input over a bare url.
+  if (schema.format === "file" || schema.format === "image") {
+    return h(VFileInput, {
+      ...otherProps,
+      image: schema.format === "image",
+      structured: schema.type === "object",
+      accept: schema.accept,
+    })
+  }
+  if (schema.type === "object") {
+    return h(VInputObject, { schema, errors, ...restProps })
   }
   // An editable table: an array of object rows. The row schema doubles as the
   // column definition — each property is a column, its label the header, its

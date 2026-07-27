@@ -55,10 +55,13 @@ const en: Messages = {
   "selectList.add": "Add…",
   "table.addRow": "Add row",
   "file.choose": "Choose file",
+  "file.chooseImage": "Choose image",
+  "file.drop": "Drop it here",
   "file.replace": "Replace",
   "file.remove": "Remove",
   "file.uploading": ({ percent }: { percent: number }) => `Uploading… ${percent}%`,
   "file.error": "Upload failed",
+  "file.wrongType": "Unsupported file type",
 }
 
 const ru: Messages = {
@@ -109,10 +112,13 @@ const ru: Messages = {
   "selectList.add": "Добавить…",
   "table.addRow": "Добавить строку",
   "file.choose": "Выберите файл",
+  "file.chooseImage": "Выберите изображение",
+  "file.drop": "Перетащите сюда",
   "file.replace": "Заменить",
   "file.remove": "Удалить",
   "file.uploading": ({ percent }: { percent: number }) => `Загрузка… ${percent}%`,
   "file.error": "Не удалось загрузить файл",
+  "file.wrongType": "Неподдерживаемый тип файла",
 }
 
 const tables: Record<Locale, Messages> = { en, ru }

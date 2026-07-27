@@ -1102,7 +1102,9 @@ describe("admin panel — file uploads", () => {
     const res = await app.inject({ method: "POST", url: "/api/admin/data/users/upload", body: form })
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ url: "/files/avatar.png" })
+    // `value` is what the field stores; `url` is its src either way. See
+    // file-fields.test.ts for the structured-result form.
+    expect(await res.json()).toEqual({ value: "/files/avatar.png", url: "/files/avatar.png" })
     expect(stored).toEqual([{ name: "avatar.png", size: 5, field: "avatar" }])
   })
 

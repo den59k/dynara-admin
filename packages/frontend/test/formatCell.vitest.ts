@@ -38,6 +38,10 @@ describe("formatValue", () => {
     expect(dateTime.length).toBeGreaterThan(dateOnly.length)
   })
 
+  it("names the file when an upload field lands in a plain column", () => {
+    expect(formatValue({ src: "/files/report.pdf", size: 12 }, {})).toBe("report.pdf")
+  })
+
   it("passes an unparseable date through unchanged", () => {
     expect(formatValue("not-a-date", { type: "date" })).toBe("not-a-date")
   })
@@ -83,6 +87,28 @@ describe("badge column array rendering", () => {
   it("renders the empty placeholder for an empty array", () => {
     const wrapper = mount(VTable as any, { props: { data: [{ labels: [] }], columns } })
     expect(wrapper.findAll(".v-table__badge")).toHaveLength(0)
+    expect(wrapper.find(".v-table__empty").exists()).toBe(true)
+  })
+})
+
+// An image column may hold either upload-field spelling. The structure's
+// `previewSrc` is a thumbnail the handler generated — exactly what a cell wants.
+describe("image column", () => {
+  const columns = [{ title: "Cover", field: "cover", type: "image" as const }]
+  const src = (data: any[]) => mount(VTable as any, { props: { data, columns } }).find(".v-table__image").attributes("src")
+
+  it("renders a bare url", () => {
+    expect(src([{ cover: "/files/a.png" }])).toBe("/files/a.png")
+  })
+
+  it("prefers the thumbnail of a structured value", () => {
+    expect(src([{ cover: { src: "/files/a.png", previewSrc: "/files/thumb.png" } }])).toBe("/files/thumb.png")
+    expect(src([{ cover: { src: "/files/a.png" } }])).toBe("/files/a.png")
+  })
+
+  it("shows the placeholder rather than a broken image when there's nothing to render", () => {
+    const wrapper = mount(VTable as any, { props: { data: [{ cover: { src: "/files/report.pdf" } }], columns } })
+    expect(wrapper.find(".v-table__image").exists()).toBe(false)
     expect(wrapper.find(".v-table__empty").exists()).toBe(true)
   })
 })
