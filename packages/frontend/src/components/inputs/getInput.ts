@@ -37,6 +37,9 @@ export type Schema = {
   // On a `format: "file" | "image"` field: the `accept` attribute of the file
   // picker (".pdf,.doc", "image/*"). An image field defaults to "image/*".
   accept?: string,
+  // On an image field: the exact `[width, height]` the picture is stored at.
+  // Picking one opens the crop dialog, fixed to that aspect ratio.
+  imageSize?: [number, number],
   // `"field??"` in compact-json-schema — the field accepts an explicit null,
   // so inputs show a clear cross that resets the value to null.
   nullable?: boolean,
@@ -103,6 +106,7 @@ export const JsonInput = (props: JsonInputProps) => {
       image: schema.format === "image",
       structured: schema.type === "object",
       accept: schema.accept,
+      imageSize: schema.imageSize,
     })
   }
   if (schema.type === "object") {

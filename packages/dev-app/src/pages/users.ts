@@ -28,7 +28,11 @@ const userForm = {
   // compression in src/uploads.ts hand the UI a thumbnail to render instead of
   // the full picture. `??` lets the input clear it back to null. Use `"file"`
   // for a document, and `{ type: "file??", accept: ".pdf" }` to narrow the picker.
-  avatar: { type: "image??", label: "Avatar" },
+  //
+  // `imageSize` pins the stored resolution: picking a file opens a crop dialog
+  // fixed to that aspect ratio, and the same pair reaches `.upload()` as
+  // `ctx.size`, which is what makes the avatar (and its thumbnail) square.
+  avatar: { type: "image??", label: "Avatar", imageSize: [512, 512] },
   // `enumLabels`/`enumColors` add display metadata over the enum, keyed by
   // value — the enum itself stays the single source of truth for validation.
   role: {
@@ -183,8 +187,9 @@ export default (admin: AdminPanel<User>) => {
     // Backs the page's `avatar` field: the panel POSTs the picked file here and
     // stores whatever this returns as the field's value. `ctx.field` says which
     // field was uploaded to, so one handler can route several (avatars here,
-    // attachments elsewhere).
-    .upload(async (file) => storeUpload(file))
+    // attachments elsewhere), and `ctx.size` is that field's declared
+    // `imageSize` — read off the schema, so the browser can't ask for another.
+    .upload(async (file, { size }) => storeUpload(file, size))
     // Flagship row action: opens a form dialog to top up a single user's balance,
     // then returns a message shown as a toast. `id` is the row's primary key.
     .action("topUp", {

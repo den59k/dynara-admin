@@ -9,7 +9,7 @@ import { HTTPError } from "dynara"
 import { registerAlias } from "compact-json-schema"
 import { FormatRegistry } from "@sinclair/typebox"
 import { Value } from "@sinclair/typebox/value"
-import type { ReferenceMethod } from "./types.ts"
+import type { ImageSize, ReferenceMethod } from "./types.ts"
 
 // TypeBox rejects a string carrying a format it doesn't know, so the formats the
 // panel's upload fields use must be registered (into the same registry dynara's
@@ -120,6 +120,24 @@ export const stripComponentFields = (node: any): any => {
     if (items !== node.items) { changed = true; out.items = items }
   }
   return changed ? out : node
+}
+
+// The `imageSize` a named field declares, or undefined. Used by the upload
+// route to tell the handler what the field asked for — read off the page's own
+// schema rather than the request, so the client can't name its own size.
+// Recurses into nested objects and array items, so a file field inside an
+// object or a rows table resolves too.
+export const findImageSize = (node: any, field: string): ImageSize | undefined => {
+  if (!node || typeof node !== "object") return undefined
+  const declared = node.properties?.[field]?.imageSize
+  if (Array.isArray(declared) && declared.length === 2) {
+    return [Number(declared[0]), Number(declared[1])]
+  }
+  for (const child of Object.values(node.properties ?? {})) {
+    const found = findImageSize(child, field)
+    if (found) return found
+  }
+  return node.items ? findImageSize(node.items, field) : undefined
 }
 
 // Parses, validates and decodes the JSON-encoded `filter` query param against a

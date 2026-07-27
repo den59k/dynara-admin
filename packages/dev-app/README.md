@@ -26,12 +26,14 @@ reloads the running panel — no build step.
   free-text search (by name).
 - **Posts page** — CRUD plus a foreign-key **`reference` field** (`authorId`)
   that renders as a searchable select backed by the Users page.
-- **Image uploads** — the Users form's `avatar` is an `image` field; its
-  `.upload()` handler compresses with [`sharp`](https://sharp.pixelplumbing.com):
-  every picture is re-encoded to WebP twice (a ≤1600px display copy and a 240px
-  thumbnail), EXIF and GPS tags dropped along the way, and the pair is stored as
-  `{ src, previewSrc, size }`. The table's thumbnail column and the form's
-  preview load the small one. Non-images are stored as they arrived.
+- **Image uploads** — the Users form's `avatar` is an `image` field declared
+  `imageSize: [512, 512]`, so a picked picture is cropped square on the spot (with
+  a **Crop** button to adjust where), and the stored avatar is square. Its `.upload()` handler compresses with
+  [`sharp`](https://sharp.pixelplumbing.com): both the 512×512 image and its
+  240×240 thumbnail are re-encoded to WebP, EXIF and GPS tags dropped along the
+  way, and the pair is stored as `{ src, previewSrc, size }`. The table's
+  thumbnail column and the form's preview load the small one. A field without
+  `imageSize` just fits inside a max width; non-images are stored as they arrived.
 
 Uploaded files live in a temp dir created at startup and are served from
 `/uploads/:name` — the panel only ever stores the `src` a handler returns, so

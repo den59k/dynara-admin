@@ -105,6 +105,9 @@ describe("JsonInput dispatch", () => {
     expect(propsOf({ type: "string", format: "image" })).toMatchObject({ image: true, structured: false })
     expect(propsOf({ type: "string", format: "file" })).toMatchObject({ image: false, structured: false })
     expect(propsOf({ type: "string", format: "file", accept: ".pdf" })).toMatchObject({ accept: ".pdf" })
+    // A declared size drives the crop dialog; without one the input just uploads.
+    expect(propsOf({ type: "object", format: "image", imageSize: [256, 256] })).toMatchObject({ imageSize: [256, 256] })
+    expect(propsOf({ type: "object", format: "image" }).imageSize).toBeUndefined()
   })
 
   it("renders a select for an enum", () => {

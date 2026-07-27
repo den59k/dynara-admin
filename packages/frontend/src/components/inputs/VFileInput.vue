@@ -42,6 +42,8 @@
           <span v-if="size" class="v-file-input__size">{{ size }}</span>
         </div>
         <div class="v-file-input__actions">
+          <!-- Only while the picture this crop came from is still in hand. -->
+          <VButton v-if="source" flat small type="button" @click="recrop">{{ t('file.crop') }}</VButton>
           <VButton flat small type="button" @click="pick">{{ t('file.replace') }}</VButton>
           <VButton flat small type="button" @click="clear">{{ t('file.remove') }}</VButton>
         </div>
@@ -70,8 +72,11 @@ import { useRoute } from 'vue-router'
 import VFormControl, { type VFormControlProps } from '../VFormControl.vue'
 import VButton from '../VButton.vue'
 import VIcon from '../VIcon.vue'
+import { useDialog } from '../VDialogProvider.vue'
+import { openImageCropDialog } from '../dialogs/ImageCropDialog.vue'
 import { apiUrl, sendXHR } from '../../api/request'
 import { HOME_VIEW_ID } from '../../constants'
+import { autoCrop, type Rect } from '../../utils/cropImage'
 import { fileNameOf, formatFileSize, matchesAccept, normalizeFileValue, previewSrcOf } from '../../utils/fileValue'
 import { t } from '../../i18n'
 
@@ -88,11 +93,15 @@ const props = defineProps<{
   // `accept` for the picker, straight from the schema. The image variant
   // defaults to `image/*` when the schema doesn't narrow it further.
   accept?: string,
+  // The exact size the field wants its picture at. Set → picking one opens the
+  // crop dialog, and what gets uploaded is the crop, at this resolution.
+  imageSize?: [number, number],
 }>()
 // Either shape, whichever the schema declared — see utils/fileValue.
 const model = defineModel<any>()
 
 const route = useRoute()
+const dialog = useDialog()
 const view = computed(() => (route.params.viewId as string) ?? HOME_VIEW_ID)
 
 const inputRef = ref<HTMLInputElement>()
@@ -102,6 +111,11 @@ const localError = shallowRef<string | null>(null)
 const dragover = shallowRef(false)
 // Object URL for the file being uploaded, so the preview appears immediately.
 const localPreview = shallowRef<string | null>(null)
+// The picture as it was picked, and the crop taken out of it. Kept only for as
+// long as this input is on screen — the stored value is already cropped, so
+// re-cropping is offered while (and only while) the original is still at hand.
+const source = shallowRef<File | null>(null)
+const cropRect = shallowRef<Rect | null>(null)
 
 const file = computed(() => normalizeFileValue(model.value))
 const preview = computed(() => previewSrcOf(model.value))
@@ -111,7 +125,11 @@ const displayError = computed(() => localError.value ?? props.error)
 const acceptAttr = computed(() => props.accept ?? (props.image ? 'image/*' : undefined))
 
 const pick = () => inputRef.value?.click()
-const clear = () => { model.value = null }
+const clear = () => {
+  model.value = null
+  source.value = null
+  cropRect.value = null
+}
 
 const releasePreview = () => {
   if (!localPreview.value) return
@@ -129,9 +147,35 @@ const toFieldValue = (result: any) => {
   return typeof result === 'string' ? result : (normalizeFileValue(result)?.src ?? null)
 }
 
+// A field that declares a size crops before uploading — centred, without
+// asking. The picked file is kept so the crop can be corrected afterwards
+// (`recrop` below): it is the only copy of what fell outside.
+const accepted = async (picked: File) => {
+  if (props.imageSize && picked.type.startsWith('image/')) {
+    const cropped = await autoCrop(picked, { width: props.imageSize[0], height: props.imageSize[1] })
+    if (cropped) {
+      source.value = picked
+      cropRect.value = cropped.rect
+      return upload(cropped.file)
+    }
+  }
+  source.value = null
+  cropRect.value = null
+  await upload(picked)
+}
+
+// Adjust the crop of the picture just picked, starting from the current one.
+const recrop = async () => {
+  if (!source.value || !props.imageSize) return
+  const result = await openImageCropDialog(dialog, source.value, props.imageSize, cropRect.value ?? undefined)
+  if (!result) return
+  cropRect.value = result.rect
+  await upload(result.file)
+}
+
 const onChange = (e: Event) => {
   const picked = (e.target as HTMLInputElement).files?.[0]
-  if (picked) upload(picked)
+  if (picked) accepted(picked)
   if (inputRef.value) inputRef.value.value = ''
 }
 
@@ -144,7 +188,7 @@ const onDrop = (e: DragEvent) => {
     localError.value = t('file.wrongType')
     return
   }
-  upload(dropped)
+  accepted(dropped)
 }
 
 const upload = async (picked: File) => {

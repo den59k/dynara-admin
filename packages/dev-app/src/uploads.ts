@@ -8,7 +8,7 @@ import { basename, join } from "node:path"
 import { randomUUID } from "node:crypto"
 import type { Router } from "dynara"
 import sharp from "sharp"
-import type { FileValue } from "../../backend/src/main"
+import type { FileValue, ImageSize } from "../../backend/src/main"
 
 // Files land in an ephemeral temp dir, like the embedded DB — swap the
 // `Bun.write` calls for a bucket put and nothing else changes.
@@ -25,8 +25,14 @@ const THUMB_MAX_WIDTH = 240
 // becomes part of a path and a url.
 const safeName = (name: string) => basename(name).replace(/[^A-Za-z0-9._-]+/g, "-").slice(-64)
 
+// The thumbnail is THUMB_MAX_WIDTH wide and keeps the field's aspect ratio.
+const thumbHeight = ([width, height]: ImageSize) => Math.max(1, Math.round(THUMB_MAX_WIDTH * height / width))
+
 // Stores one uploaded file and returns the value the form field will hold.
-export const storeUpload = async (file: File): Promise<FileValue> => {
+// `size` is the `imageSize` the field declared, if any — the panel resolves it
+// from the schema and passes it in, so this handler doesn't have to know which
+// field it is serving to give that field the right picture.
+export const storeUpload = async (file: File, size?: ImageSize): Promise<FileValue> => {
   const id = randomUUID()
   const bytes = new Uint8Array(await file.arrayBuffer())
 
@@ -43,10 +49,21 @@ export const storeUpload = async (file: File): Promise<FileValue> => {
   // re-encoding drops the rest of the metadata — including the GPS tags a
   // camera may have written into a picture a user is about to publish.
   const source = sharp(bytes).rotate()
-  const resize = { fit: "inside" as const, withoutEnlargement: true }
+  const fit = { fit: "inside" as const, withoutEnlargement: true }
+  // A field that declared a size gets exactly that, cover-cropped, and its
+  // thumbnail keeps the same shape — a square field, a square preview. The
+  // browser already cropped to this aspect, but a browser is not the authority
+  // on what gets stored, so the crop happens here too. Without a declared size
+  // both renditions just fit inside their max width.
   const [image, preview] = await Promise.all([
-    source.clone().resize({ width: IMAGE_MAX_WIDTH, ...resize }).webp({ quality: 82 }).toBuffer(),
-    source.clone().resize({ width: THUMB_MAX_WIDTH, ...resize }).webp({ quality: 70 }).toBuffer(),
+    (size
+      ? source.clone().resize({ width: size[0], height: size[1], fit: "cover" })
+      : source.clone().resize({ width: IMAGE_MAX_WIDTH, ...fit })
+    ).webp({ quality: 82 }).toBuffer(),
+    (size
+      ? source.clone().resize({ width: THUMB_MAX_WIDTH, height: thumbHeight(size), fit: "cover" })
+      : source.clone().resize({ width: THUMB_MAX_WIDTH, ...fit })
+    ).webp({ quality: 70 }).toBuffer(),
   ])
   const stem = `${id}-${safeName(file.name).replace(/\.[^.]+$/, "")}`
   await Promise.all([

@@ -176,6 +176,7 @@ Form schemas (`compact-json-schema`) and auth `fields` share the same field opti
 | `hidden` | Mask the input (e.g. for passwords). |
 | `format` | `"datetime"` switches a `date` field to a date+time picker; `"file"` / `"image"` render an upload field (see [Uploads](#uploads)). |
 | `accept` | On an upload field: the file picker's `accept` list, e.g. `".pdf,.doc"`. An `image` field defaults to `"image/*"`. |
+| `imageSize` | On an image field: the exact `[width, height]` it is stored at. Opens a crop dialog on pick, and reaches the upload handler as `ctx.size`. |
 
 An array of values renders as a select (a `compact-json-schema` enum):
 
@@ -220,6 +221,37 @@ yours:
 ```
 
 `ctx.field` is the name of the field being uploaded to, so one handler can serve several.
+
+#### A fixed size
+
+Add `imageSize` and the field commits to a resolution:
+
+```typescript
+avatar: { type: "image??", label: "Avatar", imageSize: [512, 512] },
+```
+
+Picking a picture crops it **centred, without asking**, and uploads it at exactly
+that size — one step, same as any other upload. The filled field then offers a
+**Crop** button, which opens a dialog to correct that selection: the whole
+picture, with a movable, resizable frame over it and everything outside it
+dimmed. (It appears while the picked original is still at hand; reopen the form
+later and the stored picture is already cropped, so Replace is the way back.)
+
+The same pair arrives as `ctx.size` in the handler —
+resolved from the page's own schema, never from the request — so the server can
+enforce it whatever the browser sent:
+
+```typescript
+.upload(async (file, { size }) => {
+  const image = size
+    ? sharp(bytes).resize({ width: size[0], height: size[1], fit: "cover" })
+    : sharp(bytes).resize({ width: 1600, fit: "inside" })
+  // …
+})
+```
+
+A square `imageSize` is what makes a thumbnail square: the handler decides the
+preview's shape, and the field's declared ratio is the natural thing to give it.
 
 A `file`/`image` value validates as the structure — only `src` is required, and keys
 your handler adds beyond the three are dropped unless the schema declares them. To keep

@@ -110,3 +110,42 @@ describe("upload handler results", () => {
     expect(await (await upload(app)).json()).toEqual({ value: "/files/a.png", url: "/files/a.png" })
   })
 })
+
+// `imageSize` is resolved from the page's own schema and handed to the handler,
+// so the size a picture is stored at is the field's decision — not something
+// the uploading client gets to name.
+describe("imageSize reaching the upload handler", () => {
+  const uploadTo = async (form: any, field: string) => {
+    const seen: any[] = []
+    const { app } = buildPage(form, async (_file: File, ctx: any) => {
+      seen.push(ctx.size)
+      return "/files/a.png"
+    })
+    const body = new FormData()
+    body.append("file", new File(["x"], "a.png", { type: "image/png" }))
+    body.append("field", field)
+    await app.inject({ method: "POST", url: "/api/admin/data/posts/upload", body })
+    return seen[0]
+  }
+
+  it("passes the size the field declared", async () => {
+    expect(await uploadTo({ cover: { type: "image??", imageSize: [512, 512] } }, "cover")).toEqual([512, 512])
+  })
+
+  it("passes nothing when the field declared none, or isn't in the form", async () => {
+    expect(await uploadTo({ cover: "image??" }, "cover")).toBeUndefined()
+    expect(await uploadTo({ cover: { type: "image??", imageSize: [512, 512] } }, "other")).toBeUndefined()
+  })
+
+  it("finds a nested field — inside an object, and inside a rows table", async () => {
+    const nested = {
+      profile: { type: "object", properties: { photo: { type: "image??", imageSize: [200, 300] } } },
+    }
+    expect(await uploadTo(nested, "photo")).toEqual([200, 300])
+
+    const rows = {
+      gallery: { type: "array", items: { shot: { type: "image??", imageSize: [64, 64] } } },
+    }
+    expect(await uploadTo(rows, "shot")).toEqual([64, 64])
+  })
+})

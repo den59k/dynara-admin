@@ -4,9 +4,22 @@
 import { HTTPError, type Router } from "dynara"
 import { schema } from "compact-json-schema"
 import { canAccess, requireAccess } from "./access.ts"
-import { parseFilter } from "./form-schema.ts"
+import { findImageSize, parseFilter } from "./form-schema.ts"
 import { toRouteSegment } from "./paths.ts"
-import type { ActionMeta, DashboardWidgetMeta, ListOptions, PageEntry, PageMeta, PanelState, ReferenceQuery } from "./types.ts"
+import type {
+  ActionMeta, DashboardWidgetMeta, ImageSize, ListOptions, PageEntry, PageMeta, PanelState, ReferenceQuery,
+} from "./types.ts"
+
+// The size the uploaded-to field declared, from whichever of the page's forms
+// carries it. Nothing is uploaded from a filter bar, so those are not searched.
+const uploadFieldSize = (page: PageEntry, field: string): ImageSize | undefined => {
+  const schemas = [page.createForm?.schema, page.updateForm?.schema, ...page.actions.map(a => a.schema)]
+  for (const schema of schemas) {
+    const size = findImageSize(schema, field)
+    if (size) return size
+  }
+  return undefined
+}
 
 export const installApiRoutes = (state: PanelState, app: Router) => {
   const { apiBase, pages, dashboardWidgets, referenceMethods } = state
@@ -165,9 +178,11 @@ const installPageRoutes = (apiBase: string, app: Router, page: PageEntry) => {
       const file = form.get("file")
       if (!(file instanceof File)) throw new HTTPError("No file uploaded", 400)
       const field = form.get("field")
+      const name = typeof field === "string" ? field : undefined
       const result = await page.upload!(file, {
         user: (req as any).user,
-        field: typeof field === "string" ? field : undefined,
+        field: name,
+        size: name ? uploadFieldSize(page, name) : undefined,
       })
       // `value` is what the field stores, verbatim — a FileValue object or the
       // bare URL string, whichever the handler returned. `url` is the src of it

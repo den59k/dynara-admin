@@ -69,6 +69,11 @@ export type SelectOption = { value: any, label: string, color?: string }
 // declared `{ type: "string", format: "file" }` stores exactly that string.
 export type FileValue = { src: string, previewSrc?: string, size?: number }
 
+// The exact pixel size an image field asks its picture to be, `[width, height]`.
+// Readonly so a form schema written `as const` (which is how inline annotations
+// type-check) still satisfies it.
+export type ImageSize = readonly [number, number]
+
 // The query a reference method receives. Exactly one of the fields is set:
 //   `search` — the user's current search text (filter the option list);
 //   `value`  — resolve the label of one already-selected value;
@@ -120,6 +125,13 @@ declare module "compact-json-schema" {
     // field renders as is `format`'s business, and what is actually allowed is
     // the upload handler's (a browser hint is not a validation).
     accept?: string
+    // On an image field: the exact size the picture should be stored at,
+    // `[width, height]`. Picking a file then opens a crop dialog fixed to that
+    // aspect ratio, and the panel uploads the cropped result at exactly this
+    // resolution. The same pair reaches the upload handler as `ctx.size` — a
+    // browser is never the authority on what gets stored, so crop to it there
+    // too (see the dev-app's sharp handler).
+    imageSize?: ImageSize
     // On an array field — a relation list, or an array of object rows (an
     // editable table, which gets a drag-handle column): let the user reorder
     // the array by dragging. Off by default — the array keeps insertion
@@ -325,8 +337,13 @@ export type PageEntry = {
   component?: string,
   componentData: { name: string, schema?: SchemaItem, method: (args: any, ctx: Ctx) => any }[],
   componentActions: { name: string, schema?: SchemaItem, method: (...args: any[]) => any }[],
-  upload?: (file: File, ctx: Ctx & { field?: string }) => UploadResult | Promise<UploadResult>
+  upload?: (file: File, ctx: Ctx & UploadContext) => UploadResult | Promise<UploadResult>
 }
+
+// What the panel tells an upload handler about the field being uploaded to:
+// its name, and the `imageSize` it declared (resolved from the page's own form
+// schema, not from the request — the client doesn't get to ask for a size).
+export type UploadContext = { field?: string, size?: ImageSize }
 
 // What an upload handler hands back: the value the field stores. A bare string
 // is the URL (what a `{ type: "string", format: "file" }` field holds); the
@@ -465,8 +482,9 @@ export interface Page<T extends object, User = unknown> {
   // value the field keeps: a `FileValue` (`{ src, previewSrc?, size? }`), or a
   // bare URL string for a `{ type: "string", format: "file" }` field.
   // `ctx.field` is the name of the field being uploaded to, so one handler can
-  // serve several (an avatar and an attachment can land in different buckets).
-  upload(handler: (file: File, ctx: RequestContext<User> & { field?: string }) => UploadResult | Promise<UploadResult>): this
+  // serve several (an avatar and an attachment can land in different buckets),
+  // and `ctx.size` is the `imageSize` that field declared, if any.
+  upload(handler: (file: File, ctx: RequestContext<User> & UploadContext) => UploadResult | Promise<UploadResult>): this
   // Declare the page's filter bar. Uses the same compact-json-schema format as
   // forms (selects via `options`/`reference`, booleans, dates, …); every field
   // should be optional, since a filter only applies when set. The submitted,

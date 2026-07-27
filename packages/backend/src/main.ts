@@ -21,10 +21,10 @@ export { HTTPError }
 export { resolveAssetPath } from "./paths.ts"
 export type { AccessFn, PageAccess } from "./access.ts"
 export type {
-  AdminPanel, AdminPanelDynara, ActionMeta, ComponentWidget, DashboardWidget,
-  DashboardWidgetMeta, FileValue, ListOptions, PageMeta, ReferenceMethod,
-  ReferenceQuery, RequestContext, SelectOption, SelectReference, StatValue,
-  StatWidget, UploadResult,
+  AdminPanel, AdminPanelDynara, AdminPanelPlugin, ActionMeta, ComponentWidget,
+  DashboardWidget, DashboardWidgetMeta, FileValue, ImageSize, ListOptions,
+  PageMeta, ReferenceMethod, ReferenceQuery, RequestContext, SelectOption,
+  SelectReference, StatValue, StatWidget, UploadContext, UploadResult,
 } from "./types.ts"
 
 declare const __PRODUCTION__: boolean

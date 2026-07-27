@@ -62,6 +62,10 @@ const en: Messages = {
   "file.uploading": ({ percent }: { percent: number }) => `Uploading… ${percent}%`,
   "file.error": "Upload failed",
   "file.wrongType": "Unsupported file type",
+  "file.crop": "Crop",
+  "file.cropTitle": "Crop image",
+  "file.cropReset": "Centre",
+  "file.cropSource": "of the original",
 }
 
 const ru: Messages = {
@@ -119,6 +123,10 @@ const ru: Messages = {
   "file.uploading": ({ percent }: { percent: number }) => `Загрузка… ${percent}%`,
   "file.error": "Не удалось загрузить файл",
   "file.wrongType": "Неподдерживаемый тип файла",
+  "file.crop": "Обрезать",
+  "file.cropTitle": "Обрезка изображения",
+  "file.cropReset": "По центру",
+  "file.cropSource": "из оригинала",
 }
 
 const tables: Record<Locale, Messages> = { en, ru }
