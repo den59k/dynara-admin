@@ -65,7 +65,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, shallowRef } from 'vue'
 import { useRoute } from 'vue-router'
 import VFormControl, { type VFormControlProps } from '../VFormControl.vue'
 import VIcon from '../VIcon.vue'
@@ -104,12 +104,18 @@ const inputRef = ref<HTMLInputElement>()
 const gridRef = ref<HTMLElement>()
 const localError = shallowRef<string | null>(null)
 const dragover = shallowRef(false)
-// One entry per file currently uploading, rendered as a ghost tile.
-const pending = ref<{ name: string, preview: string | null, percent: number }[]>([])
+// One entry per file currently uploading, rendered as a ghost tile. Entries are
+// addressed by `id`, never by object identity: this array is reactive, so
+// reading an entry back gives a *proxy* of what was pushed — which no longer
+// compares equal to the object in hand, and which is also the only way to write
+// to it and have the tile re-render.
+const pending = ref<{ id: number, name: string, preview: string | null, percent: number }[]>([])
+let nextPendingId = 0
 // The pictures as they were picked, keyed by the src they were stored under, so
 // a crop can be corrected without re-picking the file. Only covers this
 // session: reopen the form later and the stored picture is already cropped.
-const sources = new Map<string, { file: File, rect: Rect }>()
+// Reactive so a tile grows its Crop action the moment its original is recorded.
+const sources = reactive(new Map<string, { file: File, rect: Rect }>())
 // The tile a re-crop is currently uploading over, and how far along it is.
 const busySrc = shallowRef<string | null>(null)
 const busyPercent = shallowRef(0)
@@ -153,12 +159,14 @@ const addFiles = async (files: File[]) => {
   localError.value = accepted.length < files.length ? t('file.wrongType') : null
   if (accepted.length === 0) return
 
-  const slots = accepted.map((file) => ({
+  const ids = accepted.map(() => ++nextPendingId)
+  const previews = accepted.map((file) => (file.type.startsWith('image/') ? URL.createObjectURL(file) : null))
+  pending.value.push(...accepted.map((file, index) => ({
+    id: ids[index]!,
     name: file.name,
-    preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+    preview: previews[index]!,
     percent: 0,
-  }))
-  pending.value.push(...slots)
+  })))
 
   const uploaded = await Promise.all(accepted.map(async (file, index) => {
     try {
@@ -167,7 +175,10 @@ const addFiles = async (files: File[]) => {
         field: props.name,
         structured: props.structured,
         imageSize: props.imageSize,
-        onProgress: (percent) => { slots[index]!.percent = percent },
+        onProgress: (percent) => {
+          const slot = pending.value.find((one) => one.id === ids[index])
+          if (slot) slot.percent = percent
+        },
       })
     } catch {
       localError.value = t('file.error')
@@ -181,8 +192,8 @@ const addFiles = async (files: File[]) => {
   }
   if (added.length > 0) setItems([...items.value, ...added.map((one) => one!.value)])
 
-  for (const slot of slots) if (slot.preview) URL.revokeObjectURL(slot.preview)
-  pending.value = pending.value.filter((slot) => !slots.includes(slot))
+  for (const preview of previews) if (preview) URL.revokeObjectURL(preview)
+  pending.value = pending.value.filter((slot) => !ids.includes(slot.id))
 }
 
 // Correct one picture's crop, starting from the crop it currently shows, and
@@ -360,8 +371,13 @@ onBeforeUnmount(() => {
   background-color: rgba(0, 0, 0, 0.45)
   opacity: 0
   transition: opacity 0.12s
+  // The scrim covers the whole tile, so it must not be the hit target: a press
+  // between the actions has to reach the picture underneath and start a drag.
+  // Only the actions themselves take the pointer (and stop it going further).
+  pointer-events: none
 
   a, button
+    pointer-events: auto
     display: flex
     align-items: center
     justify-content: center

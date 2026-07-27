@@ -141,6 +141,46 @@ describe("VFileListInput adding", () => {
     expect(wrapper.find(".v-form-control__error").text()).toBe("Unsupported file type")
   })
 
+  it("shows a ghost tile while a picture uploads, and clears it once it lands", async () => {
+    let settle: (value: any) => void = () => {}
+    mocks.sendXHR.mockImplementation(() => new Promise((resolve) => { settle = resolve }))
+    const wrapper = mountList({ modelValue: [] })
+
+    const picked = pickFiles(wrapper, [png("a.png")])
+    await flushPromises()
+    expect(wrapper.findAll(".v-file-list-input__tile.pending")).toHaveLength(1)
+
+    settle({ value: value("/a.png") })
+    await picked
+    // The parent applies the emitted value, the way v-model does.
+    await wrapper.setProps({ modelValue: [value("/a.png")] })
+
+    // One picture, one tile: the ghost is gone rather than left loading forever.
+    expect(wrapper.findAll(".v-file-list-input__tile.pending")).toHaveLength(0)
+    expect(tiles(wrapper)).toHaveLength(1)
+  })
+
+  it("moves each ghost tile's progress bar as its upload reports", async () => {
+    let report: (percent: number) => void = () => {}
+    let settle: (value: any) => void = () => {}
+    mocks.sendXHR.mockImplementation((_url: string, _body: any, options: any) => new Promise((resolve) => {
+      report = options.onProgress
+      settle = resolve
+    }))
+    const wrapper = mountList({ modelValue: [] })
+
+    const picked = pickFiles(wrapper, [png("a.png")])
+    await flushPromises()
+    report(42)
+    await flushPromises()
+
+    const bar = wrapper.find(".v-file-list-input__tile.pending .v-file-list-input__progress div")
+    expect(bar.attributes("style")).toContain("width: 42%")
+
+    settle({ value: value("/a.png") })
+    await picked
+  })
+
   it("takes dropped files too", async () => {
     mocks.sendXHR.mockResolvedValue({ value: value("/a.png") })
     const wrapper = mountList({ modelValue: [] })
@@ -174,13 +214,20 @@ describe("VFileListInput reordering", () => {
     })
   }
 
-  const dragTile = async (wrapper: any, from: number, toX: number) => {
+  // The press starts on the picture — what the pointer actually lands on — and
+  // reaches the tile by bubbling. Pressing the tile element directly would skip
+  // whatever sits on top of it, which is exactly what once hid a bug here: the
+  // action overlay covers the whole tile and used to swallow the press.
+  const dragFrom = async (wrapper: any, target: any, from: number, toX: number) => {
     layOut(wrapper)
-    await tiles(wrapper).at(from)!.trigger("pointerdown", { pointerId: 1, clientX: from * 100 + 50, clientY: 50 })
+    await target.trigger("pointerdown", { pointerId: 1, clientX: from * 100 + 50, clientY: 50 })
     window.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, clientX: toX, clientY: 50 }))
     await flushPromises()
     window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }))
   }
+
+  const dragTile = (wrapper: any, from: number, toX: number) =>
+    dragFrom(wrapper, tiles(wrapper).at(from)!.find("img"), from, toX)
 
   it("moves a picture to where it was dragged", async () => {
     const wrapper = mountList(sortable)
@@ -206,6 +253,15 @@ describe("VFileListInput reordering", () => {
 
     await dragTile(wrapper, 2, 50)
 
+    expect(wrapper.emitted("update:modelValue")).toBeUndefined()
+  })
+
+  it("doesn't start a drag from an action — those are for clicking", async () => {
+    const wrapper = mountList(sortable)
+
+    await dragFrom(wrapper, actionOn(wrapper, 2, "Remove")!, 2, 50)
+
+    // The press stopped at the button, so the list is untouched by the drag.
     expect(wrapper.emitted("update:modelValue")).toBeUndefined()
   })
 })
