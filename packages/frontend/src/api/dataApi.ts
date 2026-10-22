@@ -1,5 +1,6 @@
 import { request, apiUrl } from "./request";
 import type { TableColumn } from '../components/VTable.vue'
+import type { DialogWidth } from '../components/VDialog.vue'
 
 type Page = {
   title: string,
@@ -8,12 +9,15 @@ type Page = {
   icon?: string,
 }
 
+// A form's schema and the width of its dialog (mirror of the backend `FormMeta`).
+export type FormMeta = { schema: any, width?: DialogWidth }
+
 // A declared action's serializable descriptor (mirror of the backend `ActionMeta`).
 export type ActionMeta = {
   name: string,
   title: string,
   icon?: string,
-  form?: { schema: any },
+  form?: FormMeta,
   confirm?: string,
   danger?: boolean,
   kind: "row" | "toolbar" | "bulk",
@@ -24,8 +28,8 @@ export type ActionMeta = {
 export type FullPage = Page & {
   primaryKey: string,
   table: TableColumn<any>[]
-  createForm: { schema: any }
-  updateForm: { schema: any }
+  createForm: FormMeta
+  updateForm: FormMeta
   component?: string,
   itemAccess: boolean,
   allowDelete?: boolean,

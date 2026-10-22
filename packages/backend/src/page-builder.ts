@@ -5,7 +5,23 @@ import { unfoldSchema, unfoldTypeBoxSchema, type SchemaItem } from "compact-json
 import { normalizeAccess } from "./access.ts"
 import { extractFormComponents, extractReferenceMethods, stripComponentFields } from "./form-schema.ts"
 import { toRouteSegment } from "./paths.ts"
-import type { CreatePageOptions, PageEntry, PageWithPrimaryKey, PanelState } from "./types.ts"
+import type { CreatePageOptions, FormOptions, FormWidth, PageEntry, PageWithPrimaryKey, PanelState } from "./types.ts"
+
+// A form's `options` argument is optional and sits before the handler, so the
+// handler is always the last argument: `(schema, handler)` or `(schema, options, handler)`.
+const splitFormArgs = (args: any[]): [FormOptions, any] =>
+  args.length > 1 ? [args[0] ?? {}, args[1]] : [{}, args[0]]
+
+// Plain-JS callers get no type check, and an unknown width would silently fall
+// back to the default — fail at configuration time instead.
+const checkFormWidth = (width: FormWidth | undefined, where: string) => {
+  if (width === undefined) return undefined
+  const valid = typeof width === "number"
+    ? Number.isFinite(width) && width > 0
+    : ["sm", "md", "lg", "xl"].includes(width)
+  if (!valid) throw new Error(`Invalid form width ${JSON.stringify(width)} in ${where}: use "sm", "md", "lg", "xl" or a number of pixels`)
+  return width
+}
 
 export const createPage = <T extends object, User>(state: PanelState, options: CreatePageOptions<User>): PageWithPrimaryKey<T, string, T, User> => {
 
@@ -54,22 +70,24 @@ export const createPage = <T extends object, User>(state: PanelState, options: C
       currentPage.itemData = query as any
       return this as any
     },
-    createForm(schema, onInsert) {
+    createForm(schema: SchemaItem, ...args: any[]) {
+      const [options, onInsert] = splitFormArgs(args)
       const unfolded = unfoldSchema(schema)
       extractReferenceMethods(unfolded, `${segment}.create`, state.referenceMethods)
       extractFormComponents(unfolded, `${segment}.create`, state.componentFiles)
-      currentPage.createForm = { schema: unfolded }
+      currentPage.createForm = { schema: unfolded, width: checkFormWidth(options.width, `${segment} createForm`) }
       currentPage.createBodySchema = stripComponentFields(unfolded)
-      currentPage.onInsert = onInsert as any
+      currentPage.onInsert = onInsert
       return this
     },
-    updateForm(schema, onUpdate) {
+    updateForm(schema: SchemaItem, ...args: any[]) {
+      const [options, onUpdate] = splitFormArgs(args)
       const unfolded = unfoldSchema(schema)
       extractReferenceMethods(unfolded, `${segment}.update`, state.referenceMethods)
       extractFormComponents(unfolded, `${segment}.update`, state.componentFiles)
-      currentPage.updateForm = { schema: unfolded }
+      currentPage.updateForm = { schema: unfolded, width: checkFormWidth(options.width, `${segment} updateForm`) }
       currentPage.updateBodySchema = stripComponentFields(unfolded)
-      currentPage.onUpdate = onUpdate as any
+      currentPage.onUpdate = onUpdate
       return this as any
     },
     onDelete(onDelete) {
@@ -110,6 +128,7 @@ export const createPage = <T extends object, User>(state: PanelState, options: C
         danger: config.danger,
         kind: config.bulk ? "bulk" : (config.placement === "toolbar" ? "toolbar" : "row"),
         schema,
+        formWidth: checkFormWidth(config.formWidth, `${segment} action "${name}"`),
         bodySchema,
         handler,
       })

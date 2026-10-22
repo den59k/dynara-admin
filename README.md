@@ -108,8 +108,8 @@ const adminPanel = createAdminPanel({ basePath: "/panel", title: "Acme Admin" })
 | `.primaryKey(field, type)` | Declare the identity field (`"number"` or `"string"`) |
 | `.item(fn)` | Fetch a single record by id |
 | `.table(columns)` | Column definitions for the table view — see [Column types](#column-types) below |
-| `.createForm(schema, fn)` | Form schema + async handler for record creation |
-| `.updateForm(schema, fn)` | Form schema + async handler for record update |
+| `.createForm(schema, options?, fn)` | Form schema + async handler for record creation; `options` sets the dialog width — see [Form dialog width](#form-dialog-width) |
+| `.updateForm(schema, options?, fn)` | Form schema + async handler for record update; same `options` |
 | `.onDelete(fn)` | Async handler for bulk delete — receives an array of ids |
 | `.action(name, config, fn)` | Declare a row / bulk / toolbar action — see [Actions](#actions) below |
 | `.filters(schema)` | Declare a typed filter bar — see [Filters](#filters) below |
@@ -279,6 +279,7 @@ adminPanel
 | `title` | Button label (and dialog title when `form` is set) |
 | `icon` | [Tabler icon name](#icons) (optional) |
 | `form` | A `compact-json-schema` form; when present, a dialog collects the payload passed to the handler as `data` |
+| `formWidth` | Width of that form dialog — see [Form dialog width](#form-dialog-width); default `"sm"` |
 | `confirm` | Plain-text confirmation shown before running (ignored when `form` is set) |
 | `danger` | Style the button red |
 | `placement: "toolbar"` | Page-level action with no target row |
@@ -287,6 +288,36 @@ adminPanel
 Every handler receives the request `ctx` (`ctx.user`) as its last argument, and
 may throw `HTTPError` to reject. Its return value is sent back to the UI; a
 `{ message }` is surfaced as a toast.
+
+### Form dialog width
+
+Forms open in a dialog 600px wide (create / edit) or 480px wide (actions). A
+form with many side-by-side fields or an editable table can ask for more room:
+create/update forms take an `options` object between the schema and the
+handler, and actions take `formWidth` next to `form`.
+
+```typescript
+.createForm(userForm, { width: "lg" }, async (data) => { /* ... */ })
+.updateForm(userForm, { width: 900 }, async (id, data) => { /* ... */ })
+
+.action("topUp", {
+  title: "Top up balance",
+  form: { amount: "number", comment: "string?" },
+  formWidth: "md",
+}, async (id, data) => { /* ... */ })
+```
+
+| Value | Width |
+|---|---|
+| `"sm"` | 480px (default for actions) |
+| `"md"` | 600px (default for create / edit) |
+| `"lg"` | 800px |
+| `"xl"` | 1000px |
+| a number | that many pixels |
+
+The dialog never grows past the viewport, and on screens narrower than 800px it
+is full-screen whatever the width. An unknown value throws when the page is
+configured.
 
 ### Access control
 

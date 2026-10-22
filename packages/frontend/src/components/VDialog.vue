@@ -1,5 +1,5 @@
 <template>
-  <component :is="props.component ?? 'div'" class="v-dialog scroll editor-component" role="dialog">
+  <component :is="props.component ?? 'div'" class="v-dialog scroll editor-component" role="dialog" :style="widthStyle">
     <div v-if="slots.header" class="v-dialog__header heading">
       <slot name="header"></slot>
       <!-- back(), not close(): it runs the dialog's dirty-guard and only
@@ -16,16 +16,30 @@
 </template>
 
 <script lang="ts" setup>
-import { useSlots } from 'vue';
+import { computed, useSlots } from 'vue';
 import { useDialog } from './VDialogProvider.vue';
 import VIconButton from './VIconButton.vue';
 
 const slots = useSlots()
 
-const props = defineProps<{ "content:class"?: string, component?: string }>()
+const props = defineProps<{ "content:class"?: string, component?: string, width?: DialogWidth }>()
 
 const dialog = useDialog()
 
+const widthStyle = computed(() => {
+  if (props.width == null) return undefined
+  const px = typeof props.width === "number" ? props.width : PRESET_WIDTHS[props.width]
+  return px ? { width: `${px}px` } : undefined
+})
+
+</script>
+
+<script lang="ts">
+// A preset or a number of pixels (mirror of the backend `FormWidth`). The
+// dialog's max-width still caps it, and below 800px it is full-screen anyway.
+export type DialogWidth = "sm" | "md" | "lg" | "xl" | number
+
+const PRESET_WIDTHS: Record<string, number> = { sm: 480, md: 600, lg: 800, xl: 1000 }
 </script>
 
 <style lang="sass">

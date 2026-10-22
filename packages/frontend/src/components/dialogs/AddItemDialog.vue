@@ -1,5 +1,5 @@
 <template>
-  <VDialog style="width: 600px">
+  <VDialog :width="props.width ?? 'md'">
     <template #header>{{ isEdit? t('dialog.editTitle'): t('dialog.addTitle') }}</template>
     <JsonInput v-model="values" :schema="props.schema" :errors="errors" />
     <template #actions>
@@ -16,7 +16,7 @@
 import { computed, getCurrentInstance, onMounted, provide, ref } from 'vue';
 import { JsonInput } from '../inputs/getInput';
 import VButton from '../VButton.vue';
-import VDialog from '../VDialog.vue';
+import VDialog, { type DialogWidth } from '../VDialog.vue';
 import { useDialog, useDialogGuard } from '../VDialogProvider.vue';
 import { mutateRequestFull, useForm } from 'vuesix';
 import { dataApi } from '../../api/dataApi';
@@ -30,6 +30,8 @@ const props = defineProps<{
   item?: any,
   primaryKey?: string,
   itemAccess?: boolean,
+  // The form's declared dialog width (`.createForm(schema, { width }, …)`).
+  width?: DialogWidth,
   // Called after a successful create/update, so the opener can revalidate
   // anything beyond the list itself (e.g. the separately-fetched total).
   onDone?: () => void,

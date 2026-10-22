@@ -204,3 +204,30 @@ describe("ActionDialog custom form components", () => {
     expect(wrapper.find(".fake-custom").text()).toBe("null/no-id/0")
   })
 })
+
+describe("form dialog width", () => {
+  const schema = { type: "object", properties: { name: { type: "string" } } }
+  const action = { name: "note", title: "Note", kind: "row", form: { schema } }
+
+  const widthOf = (wrapper: any) => (wrapper.find(".v-dialog").element as HTMLElement).style.width
+
+  const mountAdd = (props: Record<string, any> = {}) =>
+    mount(AddItemDialog as any, { props: { viewId: "users", schema, ...props }, ...globalMocks })
+  const mountAction = (form: Record<string, any> = {}) =>
+    mount(ActionDialog as any, { props: { viewId: "users", action: { ...action, form: { ...action.form, ...form } } }, ...globalMocks })
+
+  it("defaults to md for create/edit and sm for actions", () => {
+    expect(widthOf(mountAdd())).toBe("600px")
+    expect(widthOf(mountAction())).toBe("480px")
+  })
+
+  it("resolves a preset to its pixel width", () => {
+    expect(widthOf(mountAdd({ width: "lg" }))).toBe("800px")
+    expect(widthOf(mountAction({ width: "xl" }))).toBe("1000px")
+  })
+
+  it("takes a number as pixels", () => {
+    expect(widthOf(mountAdd({ width: 900 }))).toBe("900px")
+    expect(widthOf(mountAction({ width: 720 }))).toBe("720px")
+  })
+})

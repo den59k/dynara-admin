@@ -181,6 +181,21 @@ declare module "compact-json-schema" {
   }
 }
 
+// The width of a form dialog: a preset — "sm" 480px, "md" 600px, "lg" 800px,
+// "xl" 1000px — or a number of pixels. Either way the dialog never outgrows
+// the viewport, and on narrow screens it is full-screen regardless.
+export type FormWidth = "sm" | "md" | "lg" | "xl" | number
+
+// Presentation options of a create/update form, passed between its schema and
+// its handler: `.createForm(schema, { width: "lg" }, handler)`.
+export type FormOptions = {
+  // Dialog width; default "md".
+  width?: FormWidth
+}
+
+// A form as delivered to the frontend: the unfolded schema plus its dialog width.
+export type FormMeta = { schema: SchemaItem, width?: FormWidth }
+
 // The serializable form of a declared action, as delivered to the frontend in
 // `PageMeta.actions`. The handler stays server-side; only its descriptor travels.
 export type ActionMeta = {
@@ -190,7 +205,7 @@ export type ActionMeta = {
   // When present, the UI opens a form dialog (built from this schema) before
   // invoking the action; otherwise the action runs immediately (or after a
   // plain confirm, if `confirm` is set).
-  form?: { schema: SchemaItem },
+  form?: FormMeta,
   confirm?: string,
   danger?: boolean,
   // "row" (per-row, receives the row id), "toolbar" (page-level, no target),
@@ -207,8 +222,8 @@ export type PageMeta = {
   table?: ColumnId<any, any>[],
   component?: string,
   primaryKey?: PropertyKey,
-  createForm?: { schema: SchemaItem },
-  updateForm?: { schema: SchemaItem },
+  createForm?: FormMeta,
+  updateForm?: FormMeta,
   itemAccess: boolean,
   allowDelete?: true,
   // True when the page opted in via `createPage({ search: true })` — only then
@@ -298,6 +313,7 @@ export type ActionEntry = {
   danger?: boolean,
   kind: "row" | "toolbar" | "bulk",
   schema?: SchemaItem,
+  formWidth?: FormWidth,
   // The schema the route validates the body against: `schema` minus any
   // display-only component fields (identical when there are none).
   bodySchema?: SchemaItem,
@@ -326,8 +342,8 @@ export type PageEntry = {
   onInsert?: (obj: any, ctx: Ctx) => Promise<void>,
   onUpdate?: (key: any, obj: any, ctx: Ctx) => Promise<void>,
   onDelete?: (keys: any[], ctx: Ctx) => Promise<void>,
-  createForm?: { schema: SchemaItem },
-  updateForm?: { schema: SchemaItem },
+  createForm?: FormMeta,
+  updateForm?: FormMeta,
   // What the create/update routes validate against: the form schema minus any
   // display-only component fields (same reference when there are none).
   createBodySchema?: SchemaItem,
@@ -413,6 +429,8 @@ export type ActionConfigBase = {
   // Opens a form dialog built from this schema before running; the validated
   // body is passed to the handler as `data`.
   form?: SchemaItem
+  // Width of that form dialog; default "sm".
+  formWidth?: FormWidth
   // Plain-text confirmation shown before running (ignored when `form` is set —
   // the form dialog is itself the confirmation step).
   confirm?: string
@@ -461,6 +479,7 @@ export type ColumnId<T, KeyType> = Column<T> | ActionColumn<T, KeyType>
 export interface Page<T extends object, User = unknown> {
   table(table: Column<T>[]): this,
   createForm<S extends SchemaItem>(schema: S, onInsert: (data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): this,
+  createForm<S extends SchemaItem>(schema: S, options: FormOptions, onInsert: (data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): this,
   primaryKey<KeyType extends SchemaItem = "string">(key: keyof T, type?: KeyType): PageWithPrimaryKey<T, SchemaType<KeyType>, T, User>,
   // The list resolver: returns the current page of rows as a plain array. The
   // unpaginated total is a separate concern — declare `.count()` for it. When no
@@ -502,6 +521,7 @@ export interface PageWithPrimaryKey<T extends object, KeyType, Item extends obje
   table(table: ColumnId<T, KeyType>[]): this,
   item<T2 extends object>(query: (itemId: KeyType, ctx: RequestContext<User>) => Promise<T2 | null>): PageWithPrimaryKey<T, KeyType, T2, User>,
   updateForm<S extends SchemaItem>(schema: S, onUpdate: (id: KeyType, data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item, User>,
+  updateForm<S extends SchemaItem>(schema: S, options: FormOptions, onUpdate: (id: KeyType, data: SchemaType<S>, ctx: RequestContext<User>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item, User>,
   onDelete(onDelete: (ids: KeyType[], ctx: RequestContext<User>) => Promise<void>): PageWithPrimaryKey<T, KeyType, Item, User>
   // Row action — rendered per row (hover buttons + the edit dialog footer),
   // receives that row's primary key. With `form`, a dialog collects `data`

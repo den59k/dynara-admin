@@ -1,5 +1,5 @@
 <template>
-  <VDialog style="width: 520px">
+  <VDialog :width="action.form.width ?? 'sm'">
     <template #header>{{ action.title }}</template>
     <JsonInput v-model="values" :schema="action.form.schema" />
     <template #actions>

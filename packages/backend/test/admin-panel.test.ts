@@ -826,6 +826,68 @@ describe("admin panel — declared actions", () => {
   })
 })
 
+describe("admin panel — form dialog width", () => {
+  const buildWidthApp = () => {
+    const calls = { inserted: [] as unknown[], updated: [] as Array<[number, unknown]> }
+    const admin = createAdminPanel()
+    admin
+      .createPage({ title: "Users", path: "users" })
+      .data(async () => seedUsers())
+      .primaryKey("id", "number")
+      // Options sit between the schema and the handler.
+      .createForm({ name: "string" }, { width: "lg" }, async (data) => {
+        calls.inserted.push(data)
+      })
+      .updateForm({ name: "string" }, { width: 900 }, async (id, data) => {
+        calls.updated.push([id, data])
+      })
+      .action("topUp", { title: "Top up", form: { amount: "number" }, formWidth: "xl" }, async () => {})
+      .action("note", { title: "Note", form: { text: "string" } }, async () => {})
+    const app = new Router()
+    app.register(admin)
+    return { app, calls }
+  }
+
+  it("serializes the declared widths next to each form's schema", async () => {
+    const { app } = buildWidthApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json()
+
+    expect(meta.createForm.width).toBe("lg")
+    expect(meta.updateForm.width).toBe(900)
+    expect(meta.actions[0].form.width).toBe("xl")
+    // No width declared → none sent; the dialog applies its own default.
+    expect("width" in meta.actions[1].form).toBe(false)
+  })
+
+  it("still routes create/update to the handler given after the options", async () => {
+    const { app, calls } = buildWidthApp()
+    await app.inject({ method: "POST", url: "/api/admin/data/users/items", body: { name: "Dave" } })
+    await app.inject({ method: "POST", url: "/api/admin/data/users/items/2", body: { name: "Bobby" } })
+
+    expect(calls.inserted).toEqual([{ name: "Dave" }])
+    expect(calls.updated).toEqual([[2, { name: "Bobby" }]])
+  })
+
+  it("leaves the width out when a form is declared without options", async () => {
+    const { app } = buildUsersApp()
+    const meta = await (await app.inject("/api/admin/pages/users")).json()
+
+    expect("width" in meta.createForm).toBe(false)
+    expect("width" in meta.updateForm).toBe(false)
+  })
+
+  it("rejects an unknown width at configuration time", () => {
+    const page = () => createAdminPanel().createPage({ path: "users" }).primaryKey("id", "number")
+
+    expect(() => page().createForm({ name: "string" }, { width: "huge" as any }, async () => {}))
+      .toThrow(`Invalid form width "huge" in users createForm`)
+    expect(() => page().updateForm({ name: "string" }, { width: -1 }, async () => {}))
+      .toThrow("Invalid form width -1 in users updateForm")
+    expect(() => page().action("a", { title: "A", form: { n: "number" }, formWidth: "full" as any }, async () => {}))
+      .toThrow(`Invalid form width "full" in users action "a"`)
+  })
+})
+
 describe("admin panel — filters", () => {
   const buildFilterApp = () => {
     let received: ListOptionsShape | null = null

@@ -322,6 +322,7 @@ const addItem = () => {
   dialog.open(AddItemDialog, {
     viewId: viewId.value,
     schema: tableData.value!.createForm.schema,
+    width: tableData.value!.createForm.width,
     primaryKey: tableData.value!.primaryKey,
     itemAccess: tableData.value!.itemAccess,
     onDone: refresh,
@@ -333,6 +334,7 @@ const onRowClick = (item: any) => {
   dialog.open(AddItemDialog, {
     viewId: viewId.value,
     schema: tableData.value!.updateForm.schema,
+    width: tableData.value!.updateForm.width,
     primaryKey: tableData.value!.primaryKey,
     itemAccess: tableData.value!.itemAccess,
     item,

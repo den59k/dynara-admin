@@ -172,13 +172,15 @@ export default (admin: AdminPanel<User>) => {
       { title: "Age", field: "age", width: 80, sortable: true },
     ])
     // `birthday` arrives as a JS Date (or null) — dynara decoded the native `date`
-    // field — so it goes straight to the DB with no conversion.
-    .createForm(userForm, async ({ schedule, ...data }) => {
+    // field — so it goes straight to the DB with no conversion. The options
+    // between the schema and the handler widen the dialog (default "md", 600px)
+    // so the schedule table's columns fit.
+    .createForm(userForm, { width: "lg" }, async ({ schedule, ...data }) => {
       await client.user.insert({ ...data, schedule: normalizeSchedule(schedule) })
     })
     // `posts` is display-only: the panel never submits it, but destructure it off
     // anyway so the DB update only ever sees real columns.
-    .updateForm(userUpdateForm, async (id, { posts: _posts, schedule, ...data }) => {
+    .updateForm(userUpdateForm, { width: "lg" }, async (id, { posts: _posts, schedule, ...data }) => {
       await client.user.update({ id }, { ...data, schedule: normalizeSchedule(schedule) })
     })
     .onDelete(async (ids) => {

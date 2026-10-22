@@ -22,8 +22,8 @@ export { resolveAssetPath } from "./paths.ts"
 export type { AccessFn, PageAccess } from "./access.ts"
 export type {
   AdminPanel, AdminPanelDynara, AdminPanelPlugin, ActionMeta, ComponentWidget,
-  DashboardWidget, DashboardWidgetMeta, FileValue, ImageSize, ListOptions,
-  PageMeta, ReferenceMethod, ReferenceQuery, RequestContext, SelectOption,
+  DashboardWidget, DashboardWidgetMeta, FileValue, FormMeta, FormOptions, FormWidth,
+  ImageSize, ListOptions, PageMeta, ReferenceMethod, ReferenceQuery, RequestContext, SelectOption,
   SelectReference, StatValue, StatWidget, UploadContext, UploadResult,
 } from "./types.ts"
 

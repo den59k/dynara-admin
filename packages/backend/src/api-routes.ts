@@ -263,7 +263,7 @@ const installPageRoutes = (apiBase: string, app: Router, page: PageEntry) => {
             confirm: a.confirm,
             danger: a.danger,
             kind: a.kind,
-            form: a.schema ? { schema: a.schema } : undefined,
+            form: a.schema ? { schema: a.schema, width: a.formWidth } : undefined,
           }))
         : undefined,
       filters: page.filters ? { schema: page.filters } : undefined,
