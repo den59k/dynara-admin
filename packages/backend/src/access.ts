@@ -38,6 +38,6 @@ export const canAccess = async (access: NormalizedAccess | undefined, facet: key
 
 // Throws 403 unless the user is allowed the given facet. `read` gates data GETs,
 // `write` gates create/update/upload/actions, `del` gates delete.
-export const requireAccess = async (access: NormalizedAccess | undefined, facet: keyof NormalizedAccess, user: any) => {
+export const requireAccess = async (access: NormalizedAccess | undefined, facet: keyof NormalizedAccess, user: any): Promise<void> => {
   if (!(await canAccess(access, facet, user))) throw new HTTPError("Forbidden", 403)
 }

@@ -13,7 +13,7 @@ export const BUILD_ASSET_PREFIX = "/admin/assets/"
 
 // Normalizes a configured UI base path: guarantees a leading slash and drops a
 // trailing one ("admin" → "/admin", "/panel/" → "/panel").
-export const normalizeBasePath = (p: string) => {
+export const normalizeBasePath = (p: string): string => {
   let s = p.trim()
   if (!s.startsWith("/")) s = "/" + s
   if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1)
@@ -22,7 +22,7 @@ export const normalizeBasePath = (p: string) => {
 
 // Normalizes a configured page path to the single URL segment used in routes.
 // "" / "/" → the home sentinel; a leading slash is stripped otherwise.
-export const toRouteSegment = (path?: string) => {
+export const toRouteSegment = (path?: string): string => {
   let p = path ?? ''
   if (p.startsWith('/')) p = p.slice(1)
   return p === '' ? HOME_PATH : p
