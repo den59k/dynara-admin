@@ -19,16 +19,7 @@ html, body, #app {
 }
 
 @media (max-width: 800px) {
-  /* iOS Safari auto-zooms into any focused control whose font-size is below
-     16px. Bump form controls on narrow screens so focusing a field never zooms
-     the page; !important because component styles set sizes with higher
-     specificity (.v-input-text input, .data-card__search input, …). */
-  input,
-  textarea,
-  select {
-    font-size: 16px !important;
-  }
-
+  /* Focus zoom on iOS is handled in main.ts, so controls keep their sizes. */
   body {
     /* No gray flash on tap — the controls have their own pressed states. */
     -webkit-tap-highlight-color: transparent;

@@ -32,7 +32,11 @@
         </div>
       </div>
       <template v-for="(col, i) in columns" :key="i">
-        <div v-if="isFieldColumn(col)" class="v-table__cell">
+        <div
+          v-if="isFieldColumn(col)"
+          class="v-table__cell"
+          :class="{ 'v-table__cell--fit': col.type === 'badge' || col.type === 'image' }"
+        >
           <template v-if="cellValue(item, col) == null || cellValue(item, col) === ''">
             <span class="v-table__empty">—</span>
           </template>
@@ -68,9 +72,11 @@
               +{{ imageSrcs(item, col).length - IMAGE_CELL_LIMIT }}
             </span>
           </template>
-          <template v-else>{{ formatValue(cellValue(item, col), col) }}</template>
+          <span v-else class="v-table__text">{{ formatValue(cellValue(item, col), col) }}</span>
         </div>
-        <div v-else-if="isTemplateColumn(col)">{{ getTemplateRenderer(col.template)(item as any) }}</div>
+        <div v-else-if="isTemplateColumn(col)">
+          <span class="v-table__text">{{ getTemplateRenderer(col.template)(item as any) }}</span>
+        </div>
         <div v-else-if="isMenuColumn(col)" class="v-table__actions">
           <VMenu :items="rowMenuItems(col, item)" />
         </div>
@@ -332,10 +338,21 @@ a.v-table__row
 .v-table__cell
   min-width: 0
 
-  & > span:not(.v-table__badge)
+  & > span:not(.v-table__badge, .v-table__text)
     overflow: hidden
     text-overflow: ellipsis
     white-space: nowrap
+
+// A text value wraps to at most two lines and then ends with an ellipsis, so
+// it never spills out of its fixed-height row; a long unbroken word (an email,
+// a url) breaks instead of running into the next column.
+.v-table__text
+  display: -webkit-box
+  -webkit-box-orient: vertical
+  -webkit-line-clamp: 2
+  line-clamp: 2
+  overflow: hidden
+  overflow-wrap: break-word
 
 .v-table__empty
   color: var(--text-secondary-color)
@@ -359,6 +376,7 @@ a.v-table__row
   font-size: 12px
   font-weight: 600
   text-transform: capitalize
+  white-space: nowrap
 
   // Array badge cells render several pills side by side.
   & + .v-table__badge
@@ -396,4 +414,9 @@ a.v-table__row
 
   .v-table__cell
     min-width: 110px
+
+    // Pills and thumbnails can't wrap like text, so their column grows to fit
+    // them instead of running them into the next one.
+    &.v-table__cell--fit
+      min-width: min-content
 </style>
